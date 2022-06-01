@@ -9,3 +9,5 @@ data/keys
 data/private
 data/public
 data/shared
+delivery/*.zip
+delivery/*.tar
