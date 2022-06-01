@@ -104,8 +104,11 @@ as:
 To re-create key material, perform the following:
 
 ```console
+# Create a CA certificate
 openssl req -x509 -newkey rsa -nodes -days 3650 -subj '/CN=My CA' -keyout ca-key.pem -out ca-cert.pem
+# Create a user certificate
 openssl req -newkey rsa -nodes -subj '/CN=rootuser' -keyout key.pem -out csr.pem
+# Sign the user certificate with the CA certificate
 openssl x509 -req -days 3650 -CA ca-cert.pem -CAkey ca-key.pem -CAcreateserial -in csr.pem -out cert.pem
 
 awk 1 ORS='\\n' ca-cert.pem
@@ -141,7 +144,7 @@ Note: the EdgelessDB is currently running in simulation mode (not using SGX encl
 
 ```console
 cd /home/gitlab-runner/data
-curl -k --data-binary @manifest.json http://gitlab-runner-1.cosmian.com:8080/manifest
+curl -k --data-binary @manifest.json https://gitlab-runner-1.cosmian.com:8080/manifest
 ```
 
 <u>Test it works</u>
