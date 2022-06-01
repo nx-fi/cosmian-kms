@@ -3,6 +3,7 @@ pub(crate) mod abe;
 pub(crate) mod certbot;
 pub(crate) mod cover_crypt;
 pub mod crud;
+pub(crate) mod edgelessdb;
 pub(crate) mod implementation;
 
 use crate::database::Database;

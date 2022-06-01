@@ -49,6 +49,10 @@ pub enum KmsError {
     #[error("Unexpected sgx error: {0}")]
     SGXError(String),
 
+    // Any errors related to a bad bahaviour of the server concerning the Edgeless db
+    #[error("Unexpected edgeless db error: {0}")]
+    EdgelessDBError(String),
+
     // Any actions of the user which is not allowed
     #[error("Access denied: {0}")]
     Unauthorized(String),
@@ -84,6 +88,12 @@ impl From<openssl::error::ErrorStack> for KmsError {
     }
 }
 
+impl From<base64::DecodeError> for KmsError {
+    fn from(e: base64::DecodeError) -> Self {
+        KmsError::ServerError(e.to_string())
+    }
+}
+
 impl From<eyre::Report> for KmsError {
     fn from(e: eyre::Report) -> Self {
         KmsError::ServerError(e.to_string())
@@ -108,6 +118,12 @@ impl From<FormatErr> for KmsError {
     }
 }
 
+impl From<std::str::Utf8Error> for KmsError {
+    fn from(e: std::str::Utf8Error) -> Self {
+        KmsError::ServerError(e.to_string())
+    }
+}
+
 impl From<libsgx::error::SgxError> for KmsError {
     fn from(e: libsgx::error::SgxError) -> Self {
         KmsError::SGXError(e.to_string())
@@ -117,6 +133,12 @@ impl From<libsgx::error::SgxError> for KmsError {
 impl From<QueryPayloadError> for KmsError {
     fn from(e: QueryPayloadError) -> Self {
         KmsError::InvalidRequest(e.to_string())
+    }
+}
+
+impl From<reqwest::Error> for KmsError {
+    fn from(e: reqwest::Error) -> Self {
+        KmsError::EdgelessDBError(e.to_string())
     }
 }
 

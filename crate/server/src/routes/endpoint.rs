@@ -71,6 +71,7 @@ impl actix_web::error::ResponseError for KmsError {
             Self::ItemNotFound(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::DatabaseError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::SGXError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::EdgelessDBError(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
