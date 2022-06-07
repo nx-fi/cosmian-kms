@@ -18,8 +18,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{error::KmsError, kms_bail, result::KResult};
 
-// TODO: doc that
-pub struct EdgelessDB {
+#[derive(Clone, Debug)]
+pub struct EnclaveDB {
     /// The path to the https certificate
     pub ssl_cert: PathBuf,
 
@@ -50,7 +50,7 @@ pub struct EdgelessDB {
     manifest: PathBuf,
 
     /// The url of the database
-    pub url: String,
+    pub host: String,
 
     /// The port to use when connecting through MYSQL
     pub sql_port: u16,
@@ -58,16 +58,16 @@ pub struct EdgelessDB {
     pub http_port: u16,
 }
 
-impl EdgelessDB {
+impl EnclaveDB {
     /// Fill the field of the structure
     pub fn new(
         private_path: PathBuf,
         public_path: PathBuf,
-        url: String,
+        host: String,
         sql_port: u16,
         http_port: u16,
-    ) -> EdgelessDB {
-        EdgelessDB {
+    ) -> EnclaveDB {
+        EnclaveDB {
             ssl_cert: private_path.join("ssl-cert.pem"),
             ca_cert: public_path.join("ca-cert.pem"),
             ca_key: public_path.join("ca-key.pem"),
@@ -82,7 +82,7 @@ impl EdgelessDB {
             user_exp: 360,
             recovery_key: public_path.join("master_key.plain"),
             manifest: private_path.join("manifest.json"),
-            url,
+            host,
             sql_port,
             http_port,
         }
@@ -91,7 +91,7 @@ impl EdgelessDB {
 
 // TODO: how (why) to use the endpoint /signature?
 
-/// Structure send by the edgeless when initializing the db
+/// Structure sent to the edgeless when initializing the db
 #[derive(Serialize, Deserialize, Debug)]
 struct EdgelessManifest {
     sql: Vec<String>,
@@ -121,7 +121,7 @@ struct EdgelessQuotePayloadResponse {
     quote: Option<String>,
 }
 
-impl EdgelessDB {
+impl EnclaveDB {
     /// Make a CA certificate and private key
     fn generate_ca_cert(&self) -> Result<(X509, PKey<Private>), ErrorStack> {
         let rsa = Rsa::generate(self.ca_key_size)?;
@@ -290,7 +290,7 @@ impl EdgelessDB {
             .build()?
             .post(format!(
                 "https://{}:{}/manifest",
-                &self.url, &self.http_port
+                &self.host, &self.http_port
             ))
             .body(manifest)
             .send()
@@ -335,7 +335,7 @@ impl EdgelessDB {
 
         let res = build
             .build()?
-            .get(format!("https://{}:{}/quote", &self.url, &self.http_port))
+            .get(format!("https://{}:{}/quote", &self.host, &self.http_port))
             .send()
             .await?;
 
@@ -368,7 +368,10 @@ impl EdgelessDB {
 
         let res = build
             .build()?
-            .post(format!("https://{}:{}/recover", &self.url, &self.http_port))
+            .post(format!(
+                "https://{}:{}/recover",
+                &self.host, &self.http_port
+            ))
             .body(fs::read(&self.recovery_key)?)
             .send()
             .await?;
@@ -417,7 +420,7 @@ impl EdgelessDB {
         Ok(())
     }
 
-    /// Intiliaze a new user connection to the EdgelessDB
+    /// Initialize a new user connection to the EdgelessDB
     pub async fn connect_after_init(&self) -> KResult<Pkcs12> {
         // Generate a user certificate and sign it with the CA
         let ca_cert = fs::read(&self.ca_cert)?;
@@ -435,6 +438,11 @@ impl EdgelessDB {
 
         Ok(pkcs12)
     }
+
+    /// Return the mysql connection uri for the EdgelessDB
+    pub fn mysql_connection_uri(&self) -> String {
+        return format!("mysql://root@{}:{}/kms", self.host, self.sql_port)
+    }
 }
 
 #[cfg(test)]
@@ -451,19 +459,19 @@ mod tests {
     use mysql::{prelude::*, SslOpts, *};
     use serial_test::serial;
 
-    use super::EdgelessDB;
+    use super::EnclaveDB;
     use crate::{error::KmsError, result::KResult};
 
     const WORKDIR: &str = "/tmp/data";
     const DOCKERNAME: &str = "edgelessdb-test";
 
-    fn query_edgeless(db: &EdgelessDB) -> KResult<Vec<String>> {
+    fn query_edgeless(db: &EnclaveDB) -> KResult<Vec<String>> {
         let client = SslOpts::default();
         let ssl_opts = client
             .with_pkcs12_path(Some(db.user_p12.clone()))
             .with_root_cert_path(Some(db.ssl_cert.clone()));
 
-        let opts = Opts::from_url(&format!("mysql://root@{}:{}/kms", db.url, db.sql_port))
+        let opts = Opts::from_url(&db.mysql_connection_uri())
             .map_err(|e| KmsError::ServerError(e.to_string()))?;
 
         let builder = OptsBuilder::from_opts(opts).ssl_opts(ssl_opts);
@@ -553,6 +561,19 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    pub fn test_edglessdb_format_connection_uri() {
+        let db = EnclaveDB::new(
+            PathBuf::from(WORKDIR),
+            PathBuf::from(WORKDIR),
+            "localhost".to_string(),
+            3307,
+            8081,
+        );
+
+        assert_eq!(db.mysql_connection_uri(), "mysql://root@localhost:3307/kms");
+    }
+
     #[actix_rt::test]
     #[serial(edgelessdb)]
     pub async fn test_edgelessdb_0_initialize() {
@@ -560,7 +581,7 @@ mod tests {
         delete_edgeless_docker().ok();
 
         // We use non standard port to avoid any conflicts with other tests outside this file
-        let db = EdgelessDB::new(
+        let db = EnclaveDB::new(
             PathBuf::from(WORKDIR),
             PathBuf::from(WORKDIR),
             "localhost".to_string(),
@@ -592,7 +613,7 @@ mod tests {
         delete_edgeless_docker().ok();
 
         // We use non standard port to avoid any conflicts with other tests outside this file
-        let db = EdgelessDB::new(
+        let db = EnclaveDB::new(
             PathBuf::from(WORKDIR),
             PathBuf::from(WORKDIR),
             "localhost".to_string(),
@@ -631,7 +652,7 @@ mod tests {
         delete_edgeless_docker().ok();
 
         // We use non standard port to avoid any conflicts with other tests outside this file
-        let db = EdgelessDB::new(
+        let db = EnclaveDB::new(
             PathBuf::from(WORKDIR),
             PathBuf::from(WORKDIR),
             "localhost".to_string(),

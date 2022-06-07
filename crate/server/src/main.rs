@@ -34,7 +34,11 @@ async fn main() -> eyre::Result<()> {
     let conf = Config::parse();
     init_config(&conf).await?;
 
+<<<<<<< HEAD
     #[cfg(feature = "timeout")]
+=======
+    #[cfg(feature = "demo_timeout")]
+>>>>>>> 4d923d0 (:recycle: fix the features behavior in the rest of the code)
     {
         warn!("This is a demo version, the server will stop in 3 months");
         let demo = actix_rt::spawn(expiry::demo_timeout());

@@ -10,4 +10,9 @@ data/private
 data/public
 data/shared
 delivery/*.zip
+<<<<<<< HEAD
 delivery/*.tar
+=======
+delivery/*.tar
+.vscode/
+>>>>>>> 4d923d0 (:recycle: fix the features behavior in the rest of the code)
