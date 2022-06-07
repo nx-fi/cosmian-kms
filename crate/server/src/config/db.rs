@@ -52,6 +52,15 @@ impl DBConfig {
                 self.postgres_url.as_ref().unwrap().to_string(),
             ))
         } else if self.mysql_url.is_some() {
+            if self.user_cert_path.is_some()
+                && !Path::new(&self.user_cert_path.as_ref().unwrap()).exists()
+            {
+                eyre::bail!(
+                    "Can't find '{:?}' as user_cert_path",
+                    self.user_cert_path.as_ref().unwrap()
+                );
+            }
+
             return Ok(DbParams::Mysql(
                 self.mysql_url.as_ref().unwrap().to_string(),
                 self.user_cert_path.clone(),

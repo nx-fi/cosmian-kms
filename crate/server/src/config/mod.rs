@@ -1,13 +1,15 @@
 pub mod auth;
 mod db;
 mod enclave;
+mod enclavedb;
 mod http;
 mod https;
 mod workspace;
 
+#[cfg(feature = "auth")]
+use std::sync::{Arc, Mutex};
 use std::{fmt, path::PathBuf};
 
-#[cfg(feature = "auth")]
 use alcoholic_jwt::JWKS;
 use clap::Parser;
 use once_cell::sync::OnceCell;
@@ -32,12 +34,17 @@ pub struct Config {
     #[cfg_attr(feature = "auth", clap(flatten))]
     pub auth: AuthConfig,
 
-    #[clap(flatten)]
+    #[cfg_attr(not(feature = "enclave-db"), clap(flatten))]
+    #[cfg_attr(feature = "enclave-db", clap(skip))]
     pub db: DBConfig,
 
     #[cfg_attr(not(feature = "enclave"), clap(skip))]
     #[cfg_attr(feature = "enclave", clap(flatten))]
     pub enclave: EnclaveConfig,
+
+    #[cfg_attr(not(feature = "enclave-db"), clap(skip))]
+    #[cfg_attr(feature = "enclave-db", clap(flatten))]
+    pub enclave_db: EnclaveDBConfig,
 
     #[cfg_attr(not(feature = "https"), clap(skip))]
     #[cfg_attr(feature = "https", clap(flatten))]
@@ -47,8 +54,18 @@ pub struct Config {
     #[cfg_attr(feature = "https", clap(skip))]
     pub http: HTTPConfig,
 
-    #[cfg_attr(all(not(feature = "https"), not(feature = "enclave")), clap(skip))]
-    #[cfg_attr(any(feature = "https", feature = "enclave"), clap(flatten))]
+    #[cfg_attr(
+        all(
+            not(feature = "https"),
+            not(feature = "enclave"),
+            not(feature = "enclave-db")
+        ),
+        clap(skip)
+    )]
+    #[cfg_attr(
+        any(feature = "https", feature = "enclave", not(feature = "enclave-db")),
+        clap(flatten)
+    )]
     pub workspace: WorkspaceConfig,
 }
 
@@ -102,6 +119,9 @@ pub struct SharedConfig {
 
     #[cfg(feature = "enclave")]
     pub manifest_path: PathBuf,
+
+    #[cfg(feature = "enclave-db")]
+    pub enclave_db: EnclaveDB,
 }
 
 pub(crate) fn init(conf: SharedConfig) {
@@ -167,6 +187,16 @@ pub(crate) fn kms_url() -> String {
 }
 
 #[inline(always)]
+#[cfg(feature = "enclave-db")]
+pub(crate) fn enclave_db() -> EnclaveDB {
+    INSTANCE_CONFIG
+        .get()
+        .expect("config must be initialised")
+        .enclave_db
+        .clone()
+}
+
+#[inline(always)]
 #[cfg(feature = "https")]
 pub(crate) fn certbot() -> &'static Arc<Mutex<Certbot>> {
     &INSTANCE_CONFIG
@@ -178,7 +208,7 @@ pub(crate) fn certbot() -> &'static Arc<Mutex<Certbot>> {
 pub async fn init_config(conf: &Config) -> eyre::Result<()> {
     info!("initialising with configuration: {conf:#?}");
 
-    #[cfg(any(feature = "https", feature = "enclave"))]
+    #[cfg(any(feature = "https", feature = "enclave-db", feature = "enclave"))]
     let workspace = conf.workspace.init()?;
 
     // In case of HTTPS, we build the http_url by ourself
@@ -196,12 +226,30 @@ pub async fn init_config(conf: &Config) -> eyre::Result<()> {
         }
     };
 
+    // In case of EnclaveDB, we build the mysql_url by ourself
+    #[cfg(feature = "enclave-db")]
+    let enclavedb = conf.enclave_db.init(&workspace)?;
+
+    let db = {
+        #[cfg(not(feature = "enclave-db"))]
+        {
+            conf.db.clone()
+        }
+        #[cfg(feature = "enclave-db")]
+        {
+            DBConfig {
+                mysql_url: Some(enclavedb.mysql_connection_uri()),
+                ..DBConfig::default()
+            }
+        }
+    };
+
     let shared_conf = SharedConfig {
         #[cfg(feature = "auth")]
         jwks: conf.auth.init().await?,
         #[cfg(feature = "auth")]
         delegated_authority_domain: conf.auth.delegated_authority_domain.to_owned(),
-        db_params: conf.db.init()?,
+        db_params: db.init()?,
         kms_url: http_url.init()?,
         #[cfg(feature = "enclave")]
         manifest_path: conf.enclave.init(&workspace)?,
@@ -209,6 +257,8 @@ pub async fn init_config(conf: &Config) -> eyre::Result<()> {
         certbot: Arc::new(Mutex::new(HTTPSConfig::init(&conf.https, &workspace)?)),
         #[cfg(not(feature = "auth"))]
         default_username: "admin".to_string(),
+        #[cfg(feature = "enclave-db")]
+        enclave_db: enclavedb,
     };
 
     debug!("generated shared conf: {shared_conf:#?}");
