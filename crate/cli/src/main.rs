@@ -25,8 +25,9 @@ enum CliCommands {
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
-    let conf = CliConf::load()?;
     let opts = CliCommands::parse();
+
+    let conf = CliConf::load()?;
 
     match opts {
         CliCommands::Abe(action) => action.process(&conf).await?,
