@@ -43,7 +43,9 @@ impl KMS {
         let db: Box<dyn Database + Sync + Send> = match db_params() {
             DbParams::Sqlite(db_path) => Box::new(SqlitePool::instantiate(&db_path).await?),
             DbParams::Postgres(url) => Box::new(Pgsql::instantiate(&url).await?),
-            DbParams::Mysql(url, user_cert) => Box::new(Sql::instantiate(&url, user_cert).await?),
+            DbParams::Mysql(url, user_cert, ssl_cert) => {
+                Box::new(Sql::instantiate(&url, user_cert, ssl_cert).await?)
+            }
         };
 
         Ok(KMS { db })

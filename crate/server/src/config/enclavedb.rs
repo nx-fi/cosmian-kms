@@ -33,7 +33,7 @@ impl Default for EnclaveDBConfig {
 
 impl EnclaveDBConfig {
     pub fn init(&self, workspace: &WorkspaceConfig) -> eyre::Result<EnclaveDB> {
-        let private_path = workspace.private_path.join("edglessdb");
+        let private_path = workspace.tmp_path.join("edglessdb");
 
         if !Path::new(&private_path).exists() {
             info!("Creating {:?}...", private_path);

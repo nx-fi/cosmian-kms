@@ -37,6 +37,8 @@ use actix_web::{
 use config::kms_url;
 use database::KMSServer;
 use openssl::ssl::SslAcceptorBuilder;
+#[cfg(feature = "enclave_db")]
+use {crate::core::enclavedb::EnclaveDBState, config::enclave_db};
 
 use crate::routes::endpoint;
 
@@ -246,6 +248,38 @@ pub async fn start_kms_server() -> eyre::Result<()> {
     } else {
         error!("Abort program, failed to get a valid certificate");
         eyre::bail!("Abort program, failed to get a valid certificate")
+    }
+
+    Ok(())
+}
+
+// Initialize the Edgeless DB
+#[cfg(feature = "enclave_db")]
+pub async fn start_edgeless_db() -> eyre::Result<()> {
+    let enclave_db = enclave_db();
+    let state = enclave_db.get_state();
+    info!("Edgeless state: {state:?}");
+    match state {
+        EnclaveDBState::ToInit => {
+            info!("Edgeless initializing...");
+            enclave_db.init_first_time().await?;
+        }
+        EnclaveDBState::ToRecover(_) => {
+            info!("Edgeless recovering...");
+            enclave_db.recover_after_migration().await?;
+        }
+        EnclaveDBState::PartialInitialized => {}
+        EnclaveDBState::Initialized => {}
+        EnclaveDBState::Failure(error) => eyre::bail!("Cant connect the Edgeless: {error}"),
+    };
+
+    // At every restart, regenerate a new client certificat
+    info!("Edgeless user certificate generating...");
+    enclave_db.connect_after_init()?;
+
+    let new_state = enclave_db.get_state();
+    if enclave_db.get_state() != EnclaveDBState::Initialized {
+        eyre::bail!("Wrong Edgeless state after connection: {new_state:?}");
     }
 
     Ok(())

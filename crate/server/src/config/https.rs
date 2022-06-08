@@ -7,7 +7,6 @@ use {
     tracing::info,
 };
 
-
 #[derive(Debug, Args)]
 pub struct HTTPSConfig {
     /// The domain name of the HTTPS server
@@ -29,10 +28,7 @@ impl Default for HTTPSConfig {
 }
 
 impl HTTPSConfig {
-<<<<<<< HEAD
     #[cfg(feature = "https")]
-=======
->>>>>>> fcc3503 (:wrench: update how to deal with the server configuration)
     pub fn init(&self, workspace: &WorkspaceConfig) -> eyre::Result<Certbot> {
         let keys_path = workspace.private_path.join("ssl");
 

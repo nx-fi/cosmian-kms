@@ -11,7 +11,7 @@ auth = []
 # Enable enclave mode
 enclave = []
 # Enable edgeless DB as kms database. If disabled, use mysql/sql/postgres
-enclave-db = [] 
+enclave_db = [] 
 # Enable https in the KMS in order to encrypt query between client and the KMS. If disabled, use http
 https = []
 # Do not verify auth0 token expiration date and https ssl is auto-signed (to avoid to be banned by edgeless)
@@ -25,10 +25,10 @@ dev = ["auth", "insecure"]
 
 # Enable all but unsecurely (but timeout)
 # To run in a test environment using a real domain name and enclaves without the rest api limit of let's encrypt
-staging = ["auth", "insecure", "https", "enclave-db", "enclave"]
+staging = ["auth", "insecure", "https", "enclave_db", "enclave"]
 
 # Enable all but timeout
-prod = ["auth", "https", "enclave-db", "enclave"]
+prod = ["auth", "https", "enclave_db", "enclave"]
 default = ["prod"]
 
 

@@ -9,7 +9,7 @@ The KMS server provides several features which can be enabled at compilation tim
 | ---------- | ---------------------------------------------------------------------------------------------------------- | --- | ------- | ------ |
 | auth       | Enable authentication (via auth0). If disabled, multi-user is not supported                                | ✅   | ✅       | ✅      |
 | enclave    | Enable the ability to run inside an enclave                                                                |     | ✅       | ✅      |
-| enclave-db | Enable edgeless DB as kms database. If disabled, use mysql/sql/postgres                                    |     | ✅       | ✅      |
+| enclave_db | Enable edgeless DB as kms database. If disabled, use mysql/sql/postgres                                    |     | ✅       | ✅      |
 | https      | Enable https in the KMS in order to encrypt query between client and the KMS. If disabled, use http        |     | ✅       | ✅      |
 | insecure   | Do not verify auth0 token expiration date and https ssl is auto-signed (to avoid to be banned by edgeless) | ✅   | ✅       |        |
 | timeout    | The binary won't start after a date chosen at compile-time                                                 |     |         |        |

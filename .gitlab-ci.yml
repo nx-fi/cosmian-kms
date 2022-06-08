@@ -129,8 +129,12 @@ compile_and_test:
     - echo "$KMS_USER_CERT_PATH"
     - ls -alh /builds/core/kms/data/data-ssl
   script:
+    - apt update -y
+    - apt install docker.io -y
+    - dockerd&
     - cat /proc/meminfo
     - /usr/bin/time -v cargo make ci
+    - killall dockerd
     - sccache -s
 
 #

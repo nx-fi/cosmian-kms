@@ -22,11 +22,7 @@ pub async fn init_test_server() {
     // Configure the serveur
     let config = Config {
         auth: AuthConfig {
-<<<<<<< HEAD
             delegated_authority_domain: "dev-1mbsbmin.us.auth0.com".to_string(),
-=======
-            delegated_authority_domain: Some("dev-1mbsbmin.us.auth0.com".to_string()),
->>>>>>> fcc3503 (:wrench: update how to deal with the server configuration)
         },
         ..Default::default()
     };

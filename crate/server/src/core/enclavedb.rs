@@ -1,5 +1,9 @@
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
+use mysql::{prelude::Queryable, Opts, OptsBuilder, Pool, SslOpts};
 use openssl::{
     asn1::Asn1Time,
     bn::{BigNum, MsbOption},
@@ -17,6 +21,20 @@ use openssl::{
 use serde::{Deserialize, Serialize};
 
 use crate::{error::KmsError, kms_bail, result::KResult};
+
+#[derive(Debug, PartialEq)]
+pub enum EnclaveDBState {
+    /// The edgeless is not initialized
+    ToInit,
+    /// The edgeless is initialized but without the user cert
+    PartialInitialized,
+    /// The edgeless is initialized and properly working
+    Initialized,
+    /// The edgeless need to be recover
+    ToRecover(String),
+    /// The edgeless is in an unrecovered state and is lost :(
+    Failure(String),
+}
 
 #[derive(Clone, Debug)]
 pub struct EnclaveDB {
@@ -50,12 +68,16 @@ pub struct EnclaveDB {
     manifest: PathBuf,
 
     /// The url of the database
-    pub host: String,
+    host: String,
 
     /// The port to use when connecting through MYSQL
-    pub sql_port: u16,
+    sql_port: u16,
     /// The port to use when connecting through HTTP
-    pub http_port: u16,
+    http_port: u16,
+    /// The username use by the kms to connect the database
+    sql_user: String,
+    /// The name of the datase
+    sql_database: String,
 }
 
 impl EnclaveDB {
@@ -68,7 +90,7 @@ impl EnclaveDB {
         http_port: u16,
     ) -> EnclaveDB {
         EnclaveDB {
-            ssl_cert: private_path.join("ssl-cert.pem"),
+            ssl_cert: public_path.join("ssl-cert.pem"),
             ca_cert: public_path.join("ca-cert.pem"),
             ca_key: public_path.join("ca-key.pem"),
             ca_key_size: 2048,
@@ -85,6 +107,8 @@ impl EnclaveDB {
             host,
             sql_port,
             http_port,
+            sql_user: "root".to_string(),
+            sql_database: "kms".to_string(),
         }
     }
 }
@@ -249,11 +273,11 @@ impl EnclaveDB {
             // TODO: not too much rights
             sql: vec![
                 format!(
-                    "CREATE USER root REQUIRE ISSUER '/CN={}' SUBJECT '/CN={}'",
-                    &self.ca_cn, &self.username
+                    "CREATE USER {} REQUIRE ISSUER '/CN={}' SUBJECT '/CN={}'",
+                    &self.sql_user, &self.ca_cn, &self.username
                 ),
-                "GRANT ALL ON *.* TO root WITH GRANT OPTION".to_string(),
-                "CREATE DATABASE kms".to_string(),
+                format!("GRANT ALL ON *.* TO {} WITH GRANT OPTION", &self.sql_user),
+                format!("CREATE DATABASE {}", &self.sql_database),
             ],
             ca: std::str::from_utf8(&ca_cert.to_pem()?)?.to_string(),
             recovery: Some(std::str::from_utf8(&recovery_key.public_key_to_pem()?)?.to_string()),
@@ -300,7 +324,7 @@ impl EnclaveDB {
         if !status_code.is_success() {
             kms_bail!(KmsError::EdgelessDBError(format!(
                 "Failed to send manifest (status_code={status_code} | error={})",
-                res.text().await?
+                res.text().await?.trim()
             )))
         }
 
@@ -343,7 +367,7 @@ impl EnclaveDB {
         if !status_code.is_success() {
             kms_bail!(KmsError::EdgelessDBError(format!(
                 "Failed to get the EdgelessDB ssl cert (status_code={status_code} | error={})",
-                res.text().await?
+                res.text().await?.trim()
             )))
         }
 
@@ -381,7 +405,7 @@ impl EnclaveDB {
             kms_bail!(KmsError::EdgelessDBError(format!(
                 "Failed to query the EdgelessDB recover endpoint (status_code={status_code} | \
                  error={})",
-                res.text().await?
+                res.text().await?.trim()
             )))
         }
 
@@ -421,7 +445,7 @@ impl EnclaveDB {
     }
 
     /// Initialize a new user connection to the EdgelessDB
-    pub async fn connect_after_init(&self) -> KResult<Pkcs12> {
+    pub fn connect_after_init(&self) -> KResult<Pkcs12> {
         // Generate a user certificate and sign it with the CA
         let ca_cert = fs::read(&self.ca_cert)?;
         let ca_key_pair = fs::read(&self.ca_key)?;
@@ -439,9 +463,75 @@ impl EnclaveDB {
         Ok(pkcs12)
     }
 
+    /// Determine in which state is the connection to the enclave db
+    pub fn get_state(&self) -> EnclaveDBState {
+        if Path::new(&self.ca_cert).exists()
+            && Path::new(&self.ssl_cert).exists()
+            && Path::new(&self.ca_key).exists()
+            && Path::new(&self.recovery_key).exists()
+        {
+            if !Path::new(&self.user_p12).exists() {
+                return EnclaveDBState::PartialInitialized
+            }
+
+            // Query the DB to make sure it is sane
+            let client = SslOpts::default();
+            let ssl_opts = client
+                .with_pkcs12_path(Some(self.user_p12.clone()))
+                .with_root_cert_path(Some(self.ssl_cert.clone()));
+
+            let opts = match Opts::from_url(&self.mysql_connection_uri()) {
+                Ok(opts) => opts,
+                Err(e) => return EnclaveDBState::Failure(e.to_string()),
+            };
+
+            let builder = OptsBuilder::from_opts(opts).ssl_opts(ssl_opts);
+
+            let pool = match Pool::new(builder) {
+                Ok(pool) => pool,
+                // It could be a lot of error kinds: edgeless is down, edgeless is in recovery mode, etc.
+                // We can't determine the real state of the edgeless. Let's assume it needs to be recover.
+                Err(e) => return EnclaveDBState::ToRecover(format!("pool: {}", e)),
+            };
+
+            let mut conn = match pool.get_conn() {
+                Ok(conn) => conn,
+                Err(e) => return EnclaveDBState::ToRecover(format!("conn: {}", e)),
+            };
+
+            let val: Vec<String> = match conn.query("SHOW DATABASES") {
+                Ok(val) => val,
+                Err(e) => return EnclaveDBState::ToRecover(format!("query: {}", e)),
+            };
+
+            if val.contains(&String::from("kms")) {
+                return EnclaveDBState::Initialized
+            } else {
+                return EnclaveDBState::Failure(String::from(
+                    "Can't find table 'kms' in the database",
+                ))
+            }
+        }
+
+        if Path::new(&self.ca_cert).exists()
+            || Path::new(&self.ssl_cert).exists()
+            || Path::new(&self.ca_key).exists()
+            || Path::new(&self.recovery_key).exists()
+        {
+            return EnclaveDBState::Failure(String::from(
+                "Some Edgeless certs and keys are missing!",
+            ))
+        }
+
+        EnclaveDBState::ToInit
+    }
+
     /// Return the mysql connection uri for the EdgelessDB
     pub fn mysql_connection_uri(&self) -> String {
-        return format!("mysql://root@{}:{}/kms", self.host, self.sql_port)
+        return format!(
+            "mysql://{}@{}:{}/{}",
+            self.sql_user, self.host, self.sql_port, self.sql_database
+        )
     }
 }
 
@@ -450,7 +540,7 @@ mod tests {
     use core::time;
     use std::{
         fs::{create_dir_all, remove_dir_all, remove_file},
-        path::PathBuf,
+        path::{Path, PathBuf},
         process::{Command, Stdio},
         thread,
     };
@@ -500,9 +590,9 @@ mod tests {
             .arg("ghcr.io/edgelesssys/edgelessdb-sgx-1gb")
             .output()?;
 
-        create_dir_all(WORKDIR).expect("Can't create WORKDIR dir");
+        _ = create_dir_all(WORKDIR);
 
-        Command::new("docker")
+        _ = Command::new("docker")
             .arg("run")
             .arg("--rm")
             .arg("--name")
@@ -516,7 +606,7 @@ mod tests {
             .arg("-t")
             .arg("ghcr.io/edgelesssys/edgelessdb-sgx-1gb")
             .stdout(Stdio::null())
-            .spawn()?;
+            .spawn();
 
         thread::sleep(time::Duration::from_secs(10));
         Ok(())
@@ -533,30 +623,29 @@ mod tests {
             .arg("-R")
             .arg(format!("{id}:{group}"))
             .arg("/data")
-            .output()?;
+            .output();
 
         Ok(())
     }
 
     fn stop_edgeless_docker() -> KResult<()> {
-        fix_workspace_owner()?;
+        if Path::new(WORKDIR).exists() {
+            fix_workspace_owner()?;
+        }
 
-        _ = Command::new("docker")
-            .arg("stop")
-            .arg(DOCKERNAME)
-            .output()?;
+        _ = Command::new("docker").arg("stop").arg(DOCKERNAME).output();
 
-        _ = Command::new("docker").arg("rm").arg(DOCKERNAME).output()?;
+        _ = Command::new("docker").arg("rm").arg(DOCKERNAME).output();
 
-        remove_dir_all(WORKDIR)?;
+        _ = remove_dir_all(WORKDIR);
         Ok(())
     }
 
     fn delete_edgeless_docker() -> KResult<()> {
-        Command::new("docker")
+        _ = Command::new("docker")
             .arg("rmi")
             .arg("ghcr.io/edgelesssys/edgelessdb-sgx-1gb")
-            .output()?;
+            .output();
 
         Ok(())
     }
@@ -577,8 +666,8 @@ mod tests {
     #[actix_rt::test]
     #[serial(edgelessdb)]
     pub async fn test_edgelessdb_0_initialize() {
-        stop_edgeless_docker().ok();
-        delete_edgeless_docker().ok();
+        stop_edgeless_docker().unwrap();
+        delete_edgeless_docker().unwrap();
 
         // We use non standard port to avoid any conflicts with other tests outside this file
         let db = EnclaveDB::new(
@@ -609,8 +698,8 @@ mod tests {
     #[actix_rt::test]
     #[serial(edgelessdb)]
     pub async fn test_edgelessdb_1_connect_after_init() {
-        stop_edgeless_docker().ok();
-        delete_edgeless_docker().ok();
+        stop_edgeless_docker().unwrap();
+        delete_edgeless_docker().unwrap();
 
         // We use non standard port to avoid any conflicts with other tests outside this file
         let db = EnclaveDB::new(
@@ -622,18 +711,18 @@ mod tests {
         );
 
         // No edgeless started
-        let r = db.connect_after_init().await;
+        let r = db.connect_after_init();
         assert!(r.is_err());
 
         // Edgeless started but not init
         start_edgeless_docker(db.sql_port, db.http_port).expect("Fail to start edgeless");
-        let r = db.connect_after_init().await;
+        let r = db.connect_after_init();
         assert!(r.is_err());
 
         // Edgeless started
         _ = db.init_first_time().await.expect("Can't init the database");
         thread::sleep(time::Duration::from_secs(5));
-        let r = db.connect_after_init().await;
+        let r = db.connect_after_init();
         assert!(r.is_ok());
         let r = query_edgeless(&db);
         assert!(r.is_ok());
@@ -648,8 +737,8 @@ mod tests {
     #[actix_rt::test]
     #[serial(edgelessdb)]
     pub async fn test_edgelessdb_2_recover_after_migration() {
-        stop_edgeless_docker().ok();
-        delete_edgeless_docker().ok();
+        stop_edgeless_docker().unwrap();
+        delete_edgeless_docker().unwrap();
 
         // We use non standard port to avoid any conflicts with other tests outside this file
         let db = EnclaveDB::new(
@@ -672,7 +761,7 @@ mod tests {
         // Edgeless started&init but not in recovery mode
         _ = db.init_first_time().await.expect("Can't init the database");
         thread::sleep(time::Duration::from_secs(5));
-        db.connect_after_init().await.expect("Can't init the user");
+        db.connect_after_init().expect("Can't init the user");
         let r = db.recover_after_migration().await;
         assert!(r.is_err());
 

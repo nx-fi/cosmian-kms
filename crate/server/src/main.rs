@@ -1,3 +1,5 @@
+#[cfg(feature = "enclave_db")]
+use cosmian_kms_server::start_edgeless_db;
 use cosmian_kms_server::{
     config::{init_config, Config},
     start_kms_server,
@@ -34,11 +36,7 @@ async fn main() -> eyre::Result<()> {
     let conf = Config::parse();
     init_config(&conf).await?;
 
-<<<<<<< HEAD
     #[cfg(feature = "timeout")]
-=======
-    #[cfg(feature = "demo_timeout")]
->>>>>>> 4d923d0 (:recycle: fix the features behavior in the rest of the code)
     {
         warn!("This is a demo version, the server will stop in 3 months");
         let demo = actix_rt::spawn(expiry::demo_timeout());
@@ -58,6 +56,10 @@ async fn main() -> eyre::Result<()> {
     info!("- Timeout");
     #[cfg(feature = "insecure")]
     info!("- Insecure");
+
+    // Initialize the Edgeless DB
+    #[cfg(feature = "enclave_db")]
+    start_edgeless_db().await?;
 
     // Start the KMS
     start_kms_server().await?;

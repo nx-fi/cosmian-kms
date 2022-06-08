@@ -18,6 +18,10 @@ pub struct DBConfig {
     #[clap(long, env = "KMS_USER_CERT_PATH", parse(from_os_str))]
     pub user_cert_path: Option<PathBuf>,
 
+    /// The path of the ssl certificate of the mysql server
+    #[clap(long, env = "KMS_MYSQL_SSL_CERT_PATH", parse(from_os_str))]
+    pub mysql_ssl_cert_path: Option<PathBuf>,
+
     /// The dir of the sqlite database
     #[clap(
         long,
@@ -35,6 +39,7 @@ impl Default for DBConfig {
             mysql_url: None,
             user_cert_path: None,
             sqlite_dir: PathBuf::from("/tmp"),
+            mysql_ssl_cert_path: None,
         }
     }
 }
@@ -52,18 +57,10 @@ impl DBConfig {
                 self.postgres_url.as_ref().unwrap().to_string(),
             ))
         } else if self.mysql_url.is_some() {
-            if self.user_cert_path.is_some()
-                && !Path::new(&self.user_cert_path.as_ref().unwrap()).exists()
-            {
-                eyre::bail!(
-                    "Can't find '{:?}' as user_cert_path",
-                    self.user_cert_path.as_ref().unwrap()
-                );
-            }
-
             return Ok(DbParams::Mysql(
                 self.mysql_url.as_ref().unwrap().to_string(),
                 self.user_cert_path.clone(),
+                self.mysql_ssl_cert_path.clone(),
             ))
         } else {
             return Ok(DbParams::Sqlite(

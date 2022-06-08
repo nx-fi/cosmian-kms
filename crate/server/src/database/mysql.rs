@@ -27,11 +27,22 @@ pub(crate) struct Sql {
 }
 
 impl Sql {
-    pub async fn instantiate(connection_url: &str, user_cert: Option<PathBuf>) -> KResult<Sql> {
+    pub async fn instantiate(
+        connection_url: &str,
+        user_cert: Option<PathBuf>,
+        ssl_cert: Option<PathBuf>,
+    ) -> KResult<Sql> {
         let client = SslOpts::default();
         let ssl_opts = client
             .with_pkcs12_path(user_cert)
-            .with_danger_accept_invalid_certs(true);
+            .with_root_cert_path(ssl_cert);
+
+        let ssl_opts = if cfg!(feature = "insecure") {
+            ssl_opts.with_danger_accept_invalid_certs(true)
+        } else {
+            ssl_opts
+        };
+
         debug!("{ssl_opts:#?}");
 
         let opts =
@@ -651,7 +662,8 @@ mod tests {
     pub async fn test_crud() -> KResult<()> {
         let mysql_url = std::option_env!("KMS_MYSQL_URL").expect("No MySQL database configured");
         let user_cert = std::option_env!("KMS_USER_CERT_PATH").expect("No user cert configured");
-        let mysql = Sql::instantiate(mysql_url, Some(std::path::PathBuf::from(user_cert))).await?;
+        let mysql =
+            Sql::instantiate(mysql_url, Some(std::path::PathBuf::from(user_cert)), None).await?;
         mysql.clean_database().await;
 
         let owner = "eyJhbGciOiJSUzI1Ni";
@@ -742,7 +754,8 @@ mod tests {
     pub async fn test_upsert() -> KResult<()> {
         let mysql_url = std::option_env!("KMS_MYSQL_URL").expect("No MySQL database configured");
         let user_cert = std::option_env!("KMS_USER_CERT_PATH").expect("No user cert configured");
-        let mysql = Sql::instantiate(mysql_url, Some(std::path::PathBuf::from(user_cert))).await?;
+        let mysql =
+            Sql::instantiate(mysql_url, Some(std::path::PathBuf::from(user_cert)), None).await?;
         mysql.clean_database().await;
 
         let owner = "eyJhbGciOiJSUzI1Ni";
@@ -809,7 +822,8 @@ mod tests {
     pub async fn test_tx_and_list() -> KResult<()> {
         let mysql_url = std::option_env!("KMS_MYSQL_URL").expect("No MySQL database configured");
         let user_cert = std::option_env!("KMS_USER_CERT_PATH").expect("No user cert configured");
-        let mysql = Sql::instantiate(mysql_url, Some(std::path::PathBuf::from(user_cert))).await?;
+        let mysql =
+            Sql::instantiate(mysql_url, Some(std::path::PathBuf::from(user_cert)), None).await?;
         mysql.clean_database().await;
 
         let owner = "eyJhbGciOiJSUzI1Ni";
@@ -877,7 +891,8 @@ mod tests {
     pub async fn test_owner() -> KResult<()> {
         let mysql_url = std::option_env!("KMS_MYSQL_URL").expect("No MySQL database configured");
         let user_cert = std::option_env!("KMS_USER_CERT_PATH").expect("No user cert configured");
-        let mysql = Sql::instantiate(mysql_url, Some(std::path::PathBuf::from(user_cert))).await?;
+        let mysql =
+            Sql::instantiate(mysql_url, Some(std::path::PathBuf::from(user_cert)), None).await?;
         mysql.clean_database().await;
 
         let owner = "eyJhbGciOiJSUzI1Ni";
@@ -970,7 +985,6 @@ mod tests {
             .await?;
 
         let objects = mysql.find(None, None, owner).await?;
-        println!("--------- OBJ: {objects:#?}");
         assert_eq!(objects.len(), 1);
         let (o_uid, o_state, _) = &objects[0];
         assert_eq!(o_uid, &uid);
@@ -1052,7 +1066,8 @@ mod tests {
         let userid2 = "bar@example.org";
         let mysql_url = std::option_env!("KMS_MYSQL_URL").expect("No MySQL database configured");
         let user_cert = std::option_env!("KMS_USER_CERT_PATH").expect("No user cert configured");
-        let mysql = Sql::instantiate(mysql_url, Some(std::path::PathBuf::from(user_cert))).await?;
+        let mysql =
+            Sql::instantiate(mysql_url, Some(std::path::PathBuf::from(user_cert)), None).await?;
         mysql.clean_database().await;
 
         let uid = Uuid::new_v4().to_string();
@@ -1134,7 +1149,8 @@ mod tests {
     pub async fn test_json_access() -> KResult<()> {
         let mysql_url = std::option_env!("KMS_MYSQL_URL").expect("No MySQL database configured");
         let user_cert = std::option_env!("KMS_USER_CERT_PATH").expect("No user cert configured");
-        let db = Sql::instantiate(mysql_url, Some(std::path::PathBuf::from(user_cert))).await?;
+        let db =
+            Sql::instantiate(mysql_url, Some(std::path::PathBuf::from(user_cert)), None).await?;
         db.clean_database().await;
 
         let owner = "eyJhbGciOiJSUzI1Ni";
