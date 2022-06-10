@@ -48,6 +48,8 @@ async fn main() -> eyre::Result<()> {
     info!("- Https");
     #[cfg(feature = "enclave")]
     info!("- Enclave");
+    #[cfg(feature = "enclave_db")]
+    info!("- EnclaveDB");
     #[cfg(feature = "timeout")]
     info!("- Timeout");
     #[cfg(feature = "insecure")]

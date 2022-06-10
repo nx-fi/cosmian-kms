@@ -1,9 +1,15 @@
 use std::sync::Arc;
 
+#[cfg(feature = "enclave")]
+use actix_web::web::Query;
 use actix_web::{
     delete, get, post,
     web::{Data, Json, Path},
+<<<<<<< HEAD
     HttpRequest, HttpResponse, HttpResponseBuilder,
+=======
+    HttpMessage, HttpRequest, HttpResponse, HttpResponseBuilder,
+>>>>>>> fcc3503 (:wrench: update how to deal with the server configuration)
 };
 use cosmian_kmip::kmip::{
     kmip_operations::{
@@ -13,6 +19,8 @@ use cosmian_kmip::kmip::{
     kmip_types::UniqueIdentifier,
     ttlv::{deserializer::from_ttlv, serializer::to_ttlv, TTLV},
 };
+#[cfg(feature = "enclave")]
+use cosmian_kms_utils::types::QuoteParams;
 use cosmian_kms_utils::types::{
     Access, ObjectOwnedResponse, ObjectSharedResponse, SuccessResponse, UserAccessResponse,
 };
@@ -25,6 +33,11 @@ use {actix_web::web::Query, cosmian_kms_utils::types::QuoteParams};
 
 #[cfg(not(feature = "auth"))]
 use crate::config;
+<<<<<<< HEAD
+=======
+#[cfg(feature = "auth")]
+use crate::middlewares::auth::AuthClaim;
+>>>>>>> fcc3503 (:wrench: update how to deal with the server configuration)
 use crate::{
     core::crud::KmipServer, database::KMSServer, error::KmsError, kms_bail, result::KResult,
 };
@@ -256,10 +269,25 @@ fn get_owner(_req_http: HttpRequest) -> KResult<String> {
 
 #[cfg(feature = "auth")]
 fn get_owner(req_http: HttpRequest) -> KResult<String> {
+<<<<<<< HEAD
     match req_http.extensions().get::<AuthClaim>() {
         Some(claim) => Ok(claim.email.clone()),
         None => Err(KmsError::Unauthorized(
             "No valid auth claim owner (email) from JWT".to_owned(),
         )),
+=======
+    #[cfg(not(feature = "auth"))]
+    {
+        return Ok(config::default_username())
+    }
+    #[cfg(feature = "auth")]
+    {
+        match req_http.extensions().get::<AuthClaim>() {
+            Some(claim) => Ok(claim.email.clone()),
+            None => Err(KmsError::Unauthorized(
+                "No valid auth claim owner (email) from JWT".to_owned(),
+            )),
+        }
+>>>>>>> fcc3503 (:wrench: update how to deal with the server configuration)
     }
 }
