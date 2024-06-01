@@ -34,6 +34,7 @@ use crate::{
     core::attribute::{Attribute, AttributeType, Attributes},
     traits::{
         backend, Certificate, DataObject, KeyAlgorithm, PrivateKey, PublicKey, RemoteObjectId,
+        RemoteObjectType,
     },
 };
 
@@ -77,7 +78,7 @@ impl PartialEq for Object {
 impl Object {
     pub fn attribute(&self, type_: AttributeType) -> Option<Attribute> {
         let attribute = match self {
-            Self::Certificate(cert) => match type_ {
+            Object::Certificate(cert) => match type_ {
                 AttributeType::CertificateCategory => Some(Attribute::CertificateCategory(
                     CK_CERTIFICATE_CATEGORY_UNSPECIFIED,
                 )),
@@ -104,7 +105,7 @@ impl Object {
                     None
                 }
             },
-            Self::PrivateKey(private_key) => match type_ {
+            Object::PrivateKey(private_key) => match type_ {
                 AttributeType::AlwaysSensitive => Some(Attribute::AlwaysSensitive(true)),
                 AttributeType::AlwaysAuthenticate => Some(Attribute::AlwaysAuthenticate(false)),
                 AttributeType::Class => Some(Attribute::Class(CKO_PRIVATE_KEY)),
@@ -163,7 +164,7 @@ impl Object {
                     None
                 }
             },
-            Self::Profile(id) => match type_ {
+            Object::Profile(id) => match type_ {
                 AttributeType::Class => Some(Attribute::Class(CKO_PROFILE)),
                 AttributeType::ProfileId => Some(Attribute::ProfileId(*id)),
                 AttributeType::Token => Some(Attribute::Token(true)),
@@ -173,7 +174,7 @@ impl Object {
                     None
                 }
             },
-            Self::PublicKey(pk) => match type_ {
+            Object::PublicKey(pk) => match type_ {
                 AttributeType::Class => Some(Attribute::Class(CKO_PUBLIC_KEY)),
                 AttributeType::Label => Some(Attribute::Label(pk.label())),
                 AttributeType::Modulus => {
@@ -212,7 +213,7 @@ impl Object {
                     None
                 }
             },
-            Self::DataObject(data) => match type_ {
+            Object::DataObject(data) => match type_ {
                 AttributeType::Class => Some(Attribute::Class(CKO_DATA)),
                 AttributeType::Id => Some(Attribute::Id(
                     crate::core::compoundid::encode(&crate::core::compoundid::Id {
@@ -231,12 +232,17 @@ impl Object {
                     None
                 }
             },
-            Self::RemoteObjectId(remote_object_id) => {
-                if type_ == AttributeType::Id {
-                    Some(Attribute::Id(
-                        remote_object_id.remote_id().as_bytes().to_vec(),
-                    ))
-                } else {
+            Object::RemoteObjectId(remote_object_id) => match type_ {
+                AttributeType::Id => Some(Attribute::Id(
+                    remote_object_id.remote_id().as_bytes().to_vec(),
+                )),
+                AttributeType::Decrypt => match remote_object_id.remote_type() {
+                    RemoteObjectType::PrivateKey | RemoteObjectType::SymmetricKey => {
+                        Some(Attribute::Decrypt(true))
+                    }
+                    _ => Some(Attribute::Decrypt(false)),
+                },
+                _ => {
                     debug!("Remote object id: type_ unimplemented: {:?}", type_);
                     None
                 }
