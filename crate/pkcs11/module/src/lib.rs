@@ -86,7 +86,6 @@ where
 #[macro_export]
 macro_rules! cryptoki_fn {
     (fn $name:ident ( $($arg:ident : $type:ty),* $(,)?) $body:block) => {
-        #[allow(unreachable_pub)]
         #[tracing::instrument(level = tracing::Level::TRACE, ret)]
         #[no_mangle]
         pub extern "C" fn $name($($arg: $type),*) -> CK_RV {
@@ -94,7 +93,6 @@ macro_rules! cryptoki_fn {
         }
     };
     (unsafe fn $name:ident ( $($arg:ident : $type:ty),* $(,)?) $body:block) => {
-        #[allow(unreachable_pub)]
         #[tracing::instrument(level = tracing::Level::TRACE, ret)]
         #[no_mangle]
         pub unsafe extern "C" fn $name($($arg: $type),*) -> CK_RV {
@@ -568,13 +566,15 @@ cryptoki_fn!(
             hObject
         );
         sessions::session(hSession, |session| -> MResult<()> {
-            let object_store = &session
+            let find_ctx = session
                 .find_ctx
                 .as_ref()
-                .ok_or_else(|| MError::OperationNotInitialized)?
-                .objects;
-            let Some(object) = object_store.get(hObject as usize) else {
-                return Err(MError::ObjectHandleInvalid(hObject));
+                .ok_or_else(|| MError::OperationNotInitialized)?;
+            let object = match find_ctx.get_using_handle(hObject) {
+                Some(object) => object,
+                None => {
+                    return Err(MError::ObjectHandleInvalid(hObject));
+                }
             };
             let template = if ulCount > 0 {
                 if pTemplate.is_null() {
@@ -589,7 +589,7 @@ cryptoki_fn!(
                     .type_
                     .try_into()
                     .map_err(|_| MError::AttributeTypeInvalid(attribute.type_))?;
-                if let Some(value) = object.attribute(type_) {
+                if let Some(value) = object.attribute(type_)? {
                     let value = value.as_raw_value();
                     attribute.ulValueLen = value.len() as CK_ULONG;
                     if attribute.pValue.is_null() {
@@ -659,9 +659,12 @@ cryptoki_fn!(
         not_null!(phObject);
         not_null!(pulObjectCount);
         sessions::session(hSession, |session| -> MResult<()> {
-            let Some(find_ctx) = &mut session.find_ctx else {
-                unsafe { *pulObjectCount = 0 };
-                return Err(MError::OperationNotInitialized);
+            let find_ctx = match &mut session.find_ctx {
+                Some(find_ctx) => find_ctx,
+                None => {
+                    unsafe { *pulObjectCount = 0 };
+                    return Err(MError::OperationNotInitialized);
+                }
             };
             debug!(
                 "C_FindObjects: objects still available: {:?}",
@@ -750,12 +753,11 @@ cryptoki_fn!(
         not_null!(pMechanism);
         sessions::session(hSession, |session| -> MResult<()> {
             let mechanism = unsafe { parse_mechanism(pMechanism.read()) }?;
-            let object_store = &session
+            let find_ctx = session
                 .find_ctx
                 .as_ref()
-                .ok_or(MError::OperationNotInitialized)?
-                .objects;
-            match object_store.get(hKey as usize) {
+                .ok_or(MError::OperationNotInitialized)?;
+            match find_ctx.get_using_handle(hKey).as_deref() {
                 Some(Object::RemoteObjectId(remote_object)) => match remote_object.remote_type() {
                     RemoteObjectType::PublicKey | RemoteObjectType::Certificate => {
                         Err(MError::KeyHandleInvalid(hKey))
@@ -893,13 +895,14 @@ cryptoki_fn!(
         valid_session!(hSession);
         not_null!(pMechanism);
         sessions::session(hSession, |session| -> MResult<()> {
-            let object_store = &session
+            let find_ctx = &session
                 .find_ctx
                 .as_ref()
-                .ok_or(MError::OperationNotInitialized)?
-                .objects;
-            let Some(Object::PrivateKey(private_key)) = object_store.get(hKey as usize) else {
-                return Err(MError::KeyHandleInvalid(hKey))
+                .ok_or(MError::OperationNotInitialized)?;
+            let object = find_ctx.get_using_handle(hKey);
+            let private_key = match object.as_deref() {
+                Some(Object::PrivateKey(private_key)) => private_key,
+                Some(_) | None => return Err(MError::KeyHandleInvalid(hKey)),
             };
             let mechanism = unsafe { parse_mechanism(pMechanism.read()) }?;
             session.sign_ctx = Some(SignContext {
