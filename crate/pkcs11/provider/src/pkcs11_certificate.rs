@@ -9,9 +9,11 @@ use crate::{error::Pkcs11Error, kms_object::KmsObject, pkcs11_public_key::Pkcs11
 
 /// A PKCS11 Certificate is a Certificate that wraps data from a KMS object
 #[derive(Debug)]
-pub(crate) struct Pkcs11Certificate {
+pub struct Pkcs11Certificate {
+    /// The remote id
+    pub remote_id: String,
+    /// The certificate
     pub certificate: X509Certificate,
-    pub label: String,
 }
 
 impl TryFrom<KmsObject> for Pkcs11Certificate {
@@ -30,22 +32,22 @@ impl TryFrom<KmsObject> for Pkcs11Certificate {
                             "Invalid X509 Certificate DER bytes: {e:?}"
                         ))
                     })?,
-                    label: kms_object.other_tags.join(","),
+                    remote_id: kms_object.remote_id,
                 }),
-                CertificateType::PGP | CertificateType::PKCS7 => Err(Pkcs11Error::ServerError(
-                    format!("Invalid Certificate Type: {certificate_type:?}"),
-                )),
+                _ => Err(Pkcs11Error::ServerError(format!(
+                    "Invalid Certificate Type: {certificate_type:?}"
+                ))),
             },
             o => Err(Pkcs11Error::ServerError(format!(
-                "Invalid KMS Object for a certificate: {o}"
+                "Invalid KMS Object for a certificate: {o:?}"
             ))),
         }
     }
 }
 
 impl Certificate for Pkcs11Certificate {
-    fn label(&self) -> String {
-        self.label.clone()
+    fn remote_id(&self) -> String {
+        self.remote_id.clone()
     }
 
     fn to_der(&self) -> cosmian_pkcs11_module::MResult<Vec<u8>> {
