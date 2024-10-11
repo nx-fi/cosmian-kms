@@ -134,7 +134,7 @@ impl ExportKeyAction {
     /// - There is a server error while exporting the object.
     ///
     pub async fn run(&self, kms_rest_client: &KmsClient) -> CliResult<()> {
-        let id = if let Some(key_id) = &self.key_id {
+        let id_or_tags = if let Some(key_id) = &self.key_id {
             key_id.clone()
         } else if let Some(tags) = &self.tags {
             serde_json::to_string(&tags)?
@@ -181,9 +181,9 @@ impl ExportKeyAction {
         };
 
         // export the object
-        let (unique_identifier, object, _) = export_object(
+        let (id, object, _) = export_object(
             kms_rest_client,
-            &id,
+            &id_or_tags,
             ExportObjectParams {
                 unwrap: self.unwrap,
                 wrapping_key_id: self.wrap_key_id.as_deref(),
@@ -225,7 +225,7 @@ impl ExportKeyAction {
 
         let stdout = format!(
             "The key {} of type {} was exported to {:?}",
-            &unique_identifier.to_string(),
+            &id,
             object.object_type(),
             &self.key_file
         );

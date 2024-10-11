@@ -160,7 +160,7 @@ impl CreateKeyPairsAction {
         };
 
         // Export wrapped private key with google CSE key
-        let (wrapped_private_key, _attributes) = export_object(
+        let (_, wrapped_private_key, _attributes) = export_object(
             kms_rest_client,
             &private_key_id,
             ExportObjectParams {
@@ -206,7 +206,7 @@ impl CreateKeyPairsAction {
             .unique_identifier;
 
         // From the created leaf certificate, export the associated PKCS7 containing the whole cert chain
-        let (pkcs7_object, _pkcs7_object_export_attributes) = export_object(
+        let (_, pkcs7_object, _pkcs7_object_export_attributes) = export_object(
             kms_rest_client,
             &certificate_unique_identifier.to_string(),
             ExportObjectParams {

@@ -55,7 +55,7 @@ impl TryFrom<KmsObject> for Pkcs11Certificate {
                 ))),
             },
             o => Err(Pkcs11Error::ServerError(format!(
-                "Invalid KMS Object for a certificate: {o:?}"
+                "Invalid KMS Object for a certificate: {o}"
             ))),
         }
     }

@@ -6,7 +6,9 @@ use cosmian_kmip::kmip::{
         RecommendedCurve, UniqueIdentifier,
     },
 };
-use cosmian_kms_client::{batch_export_objects, export_object, ClientConf, KmsClient};
+use cosmian_kms_client::{
+    batch_export_objects, export_object, ClientConf, ExportObjectParams, KmsClient,
+};
 use cosmian_pkcs11_module::traits::{EncryptionAlgorithm, KeyAlgorithm};
 use tracing::{debug, error, trace};
 use zeroize::Zeroizing;
@@ -15,7 +17,6 @@ use crate::error::Pkcs11Error;
 
 /// A wrapper around a KMS KMIP object.
 #[allow(dead_code)]
-#[derive(Debug)]
 pub struct KmsObject {
     pub remote_id: String,
     pub object: Object,
@@ -26,7 +27,7 @@ pub struct KmsObject {
 pub fn get_kms_client() -> Result<KmsClient, Pkcs11Error> {
     let conf_path = ClientConf::location(None)?;
     let conf = ClientConf::load(&conf_path)?;
-    let kms_client = conf.initialize_kms_client(None, None)?;
+    let kms_client = conf.initialize_kms_client(None, None, false)?;
     Ok(kms_client)
 }
 
@@ -62,27 +63,25 @@ pub(crate) async fn get_kms_objects_async(
     key_format_type: KeyFormatType,
 ) -> Result<Vec<KmsObject>, Pkcs11Error> {
     let key_ids = locate_objects(kms_client, tags).await?;
-    let responses = batch_export_objects(
-        kms_client,
-        key_ids,
-        true,
-        None,
-        false,
-        Some(key_format_type),
-    )
-    .await?;
-    trace!("Found objects: {:?}", responses);
+    let export_object_params = ExportObjectParams {
+        unwrap: true,
+        wrapping_key_id: None,
+        allow_revoked: false,
+        key_format_type: Some(key_format_type),
+        block_cipher_mode: None,
+        authenticated_encryption_additional_data: None,
+    };
+    let responses = batch_export_objects(kms_client, key_ids, export_object_params).await?;
+    trace!("Found {} objects", responses.len());
     let mut results = vec![];
-    for response in responses {
-        let (id, object, attributes) =
-            response.map_err(|e| Pkcs11Error::ServerError(e.to_string()))?;
+    for (id, object, attributes) in responses {
         let other_tags = attributes
             .get_tags()
             .into_iter()
             .filter(|t| !t.is_empty() && !tags.contains(t) && !t.starts_with('_'))
             .collect::<Vec<String>>();
         results.push(KmsObject {
-            remote_id: id,
+            remote_id: id.to_string(),
             object,
             attributes,
             other_tags,
@@ -111,10 +110,14 @@ pub(crate) async fn get_kms_object_async(
     let (id, object, _) = export_object(
         kms_client,
         object_id_or_tags,
-        true,
-        None,
-        false,
-        Some(key_format_type),
+        ExportObjectParams {
+            unwrap: true,
+            wrapping_key_id: None,
+            allow_revoked: false,
+            key_format_type: Some(key_format_type),
+            block_cipher_mode: None,
+            authenticated_encryption_additional_data: None,
+        },
     )
     .await?;
 

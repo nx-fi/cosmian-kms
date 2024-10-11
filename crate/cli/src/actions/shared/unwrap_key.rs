@@ -100,7 +100,7 @@ impl UnwrapKeyAction {
             trace!("unwrap using the KMS server with the unique identifier of the unwrapping key");
             export_object(kms_rest_client, key_id, ExportObjectParams::default())
                 .await?
-                .0
+                .1
         } else if let Some(key_file) = &self.unwrap_key_file {
             trace!("unwrap using a key file path");
             read_object_from_json_ttlv_file(key_file)?

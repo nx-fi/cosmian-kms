@@ -145,8 +145,8 @@ pub async fn export_object(
     kms_rest_client: &KmsClient,
     object_id_or_tags: &str,
     params: ExportObjectParams<'_>,
-) -> Result<(Object, Option<Attributes>), ClientError> {
-    let (object, object_type, attributes) = if params.allow_revoked {
+) -> Result<(UniqueIdentifier, Object, Option<Attributes>), ClientError> {
+    let (id, object, object_type, attributes) = if params.allow_revoked {
         //use the KMIP export function to get revoked objects
         let export_response = kms_rest_client
             .export(export_request(
@@ -160,6 +160,7 @@ pub async fn export_object(
             .await
             .with_context(|| "Export")?;
         (
+            export_response.unique_identifier,
             export_response.object,
             export_response.object_type,
             Some(export_response.attributes),
@@ -177,10 +178,15 @@ pub async fn export_object(
             ))
             .await
             .with_context(|| "Get")?;
-        (get_response.object, get_response.object_type, None)
+        (
+            get_response.unique_identifier,
+            get_response.object,
+            get_response.object_type,
+            None,
+        )
     };
     // Return the object after post fixing the object type
-    Ok((Object::post_fix(object_type, object), attributes))
+    Ok((id, Object::post_fix(object_type, object), attributes))
 }
 
 /// Export a batch of Objects from the KMS
@@ -197,7 +203,7 @@ pub async fn batch_export_objects(
     kms_rest_client: &KmsClient,
     object_ids_or_tags: Vec<String>,
     params: ExportObjectParams<'_>,
-) -> Result<Vec<(Object, Attributes)>, ClientError> {
+) -> Result<Vec<(UniqueIdentifier, Object, Attributes)>, ClientError> {
     if params.allow_revoked {
         batch_export(
             kms_rest_client,
@@ -231,7 +237,7 @@ async fn batch_get(
     key_format_type: Option<KeyFormatType>,
     block_cipher_mode: Option<BlockCipherMode>,
     authenticated_encryption_additional_data: Option<String>,
-) -> ClientResult<Vec<(Object, Attributes)>> {
+) -> ClientResult<Vec<(UniqueIdentifier, Object, Attributes)>> {
     let operations = object_ids_or_tags
         .into_iter()
         .flat_map(|id| {
@@ -253,7 +259,7 @@ async fn batch_get(
         })
         .collect();
     let responses = batch_operations(kms_rest_client, operations).await?;
-    let mut results = vec![];
+    let mut results = Vec::with_capacity(responses.len());
 
     for response in responses.chunks(2) {
         match response {
@@ -262,7 +268,11 @@ async fn batch_get(
                 Operation::GetAttributesResponse(get_attributes_response),
             ] => {
                 let object = Object::post_fix(get.object_type, get.object.clone());
-                results.push((object, get_attributes_response.attributes.clone()));
+                results.push((
+                    get.unique_identifier.clone(),
+                    object,
+                    get_attributes_response.attributes.clone(),
+                ));
             }
             operations => {
                 let mut errors = String::new();
@@ -287,7 +297,7 @@ async fn batch_export(
     key_format_type: Option<KeyFormatType>,
     block_cipher_mode: Option<BlockCipherMode>,
     authenticated_encryption_additional_data: Option<String>,
-) -> ClientResult<Vec<(Object, Attributes)>> {
+) -> ClientResult<Vec<(UniqueIdentifier, Object, Attributes)>> {
     let operations = object_ids_or_tags
         .into_iter()
         .flat_map(|id| {
@@ -321,7 +331,11 @@ async fn batch_export(
                     Object::post_fix(export_response.object_type, export_response.object.clone());
                 let mut attributes = export_response.attributes.clone();
                 let _ = attributes.set_tags(get_attributes_response.attributes.get_tags());
-                results.push((object, get_attributes_response.attributes.clone()));
+                results.push((
+                    get_attributes_response.unique_identifier.clone(),
+                    object,
+                    get_attributes_response.attributes.clone(),
+                ));
             }
             operations => {
                 let mut errors = String::new();
