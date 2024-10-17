@@ -22,6 +22,7 @@ use super::{
 use crate::{
     config::{DbParams, ServerParams},
     database::{
+        cached_database::CachedDatabase,
         cached_sqlcipher::CachedSqlCipher,
         mysql::MySqlPool,
         pgsql::PgPool,
@@ -75,6 +76,9 @@ impl KMS {
         } else {
             kms_bail!("Fatal: no database configuration provided. Stopping.")
         };
+
+        // Use cache
+        let db = Box::new(CachedDatabase::new(db)?);
 
         Ok(Self {
             params: shared_config,

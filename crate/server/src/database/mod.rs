@@ -54,6 +54,7 @@ pub(crate) mod pgsql;
 pub(crate) mod redis;
 pub(crate) mod sqlite;
 pub(crate) use database_trait::{AtomicOperation, Database};
+pub(crate) mod cached_database;
 mod locate_query;
 mod migrate;
 mod retrieve_object_utils;
