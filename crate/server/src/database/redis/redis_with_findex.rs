@@ -321,7 +321,7 @@ impl Database for RedisWithFindex {
                         redis_db_object.object,
                         redis_db_object.owner,
                         redis_db_object.state,
-                        vec![],
+                        HashSet::new(),
                         redis_db_object.attributes.unwrap_or_default(),
                     ),
                 );

@@ -1,4 +1,7 @@
-use std::fmt::{self, Display, Formatter};
+use std::{
+    collections::HashSet,
+    fmt::{self, Display, Formatter},
+};
 
 use cosmian_kmip::kmip::{
     kmip_objects::Object,
@@ -25,7 +28,7 @@ pub(crate) struct ObjectWithMetadata {
     object: Object,
     owner: String,
     state: StateEnumeration,
-    permissions: Vec<ObjectOperationType>,
+    permissions: HashSet<ObjectOperationType>,
     attributes: Attributes,
     // If the key is wrapped, this will be the unwrapped object.
     // A key is usually retrieved to perform some operation.
@@ -42,7 +45,7 @@ impl ObjectWithMetadata {
         object: Object,
         owner: String,
         state: StateEnumeration,
-        permissions: Vec<ObjectOperationType>,
+        permissions: HashSet<ObjectOperationType>,
         attributes: Attributes,
     ) -> Self {
         Self {
@@ -86,11 +89,11 @@ impl ObjectWithMetadata {
         self.state
     }
 
-    pub(crate) fn permissions(&self) -> &[ObjectOperationType] {
+    pub(crate) fn permissions(&self) -> &HashSet<ObjectOperationType> {
         &self.permissions
     }
 
-    pub(crate) fn permissions_mut(&mut self) -> &mut Vec<ObjectOperationType> {
+    pub(crate) fn permissions_mut(&mut self) -> &mut HashSet<ObjectOperationType> {
         &mut self.permissions
     }
 
@@ -183,8 +186,8 @@ impl TryFrom<&PgRow> for ObjectWithMetadata {
             .reason(ErrorReason::Internal_Server_Error)?;
         let owner = row.get::<String, _>(3);
         let state = state_from_string(&row.get::<String, _>(4))?;
-        let permissions: Vec<ObjectOperationType> = match row.try_get::<Value, _>(5) {
-            Err(_) => vec![],
+        let permissions: HashSet<ObjectOperationType> = match row.try_get::<Value, _>(5) {
+            Err(_) => HashSet::new(),
             Ok(v) => serde_json::from_value(v)
                 .context("failed deserializing the permissions")
                 .reason(ErrorReason::Internal_Server_Error)?,
@@ -216,8 +219,8 @@ impl TryFrom<&SqliteRow> for ObjectWithMetadata {
         let owner = row.get::<String, _>(3);
         let state = state_from_string(&row.get::<String, _>(4))?;
         let raw_permissions = row.get::<Vec<u8>, _>(5);
-        let perms: Vec<ObjectOperationType> = if raw_permissions.is_empty() {
-            vec![]
+        let perms: HashSet<ObjectOperationType> = if raw_permissions.is_empty() {
+            HashSet::new()
         } else {
             serde_json::from_slice(&raw_permissions)
                 .context("failed deserializing the permissions")
@@ -251,8 +254,8 @@ impl TryFrom<&MySqlRow> for ObjectWithMetadata {
             .reason(ErrorReason::Internal_Server_Error)?;
         let owner = row.get::<String, _>(3);
         let state = state_from_string(&row.get::<String, _>(4))?;
-        let permissions: Vec<ObjectOperationType> = match row.try_get::<Value, _>(5) {
-            Err(_) => vec![],
+        let permissions: HashSet<ObjectOperationType> = match row.try_get::<Value, _>(5) {
+            Err(_) => HashSet::new(),
             Ok(v) => serde_json::from_value(v)
                 .context("failed deserializing the permissions")
                 .reason(ErrorReason::Internal_Server_Error)?,

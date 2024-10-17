@@ -485,9 +485,9 @@ where
         match res.get_mut(object_with_metadata.id()) {
             Some(existing_object) => {
                 // update the permissions
-                existing_object
-                    .permissions_mut()
-                    .extend_from_slice(&object_with_metadata.permissions());
+                for permission in object_with_metadata.permissions() {
+                    existing_object.permissions_mut().insert(*permission);
+                }
             }
             None => {
                 // insert the object

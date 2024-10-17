@@ -108,7 +108,7 @@ pub(crate) async fn tags<DB: Database>(
         assert_eq!(owm.attributes(), &expected_attributes);
     }
     assert_eq!(owm.state(), StateEnumeration::Active);
-    assert_eq!(owm.permissions(), vec![]);
+    assert!(owm.permissions().is_empty());
     let tags = db.retrieve_tags(owm.id(), db_params).await?;
     assert!(tags.contains("tag1"));
     assert!(tags.contains("tag2"));
@@ -133,7 +133,7 @@ pub(crate) async fn tags<DB: Database>(
         assert_eq!(owm.attributes(), &expected_attributes);
     }
     assert_eq!(owm.state(), StateEnumeration::Active);
-    assert_eq!(owm.permissions(), vec![]);
+    assert!(owm.permissions().is_empty());
     let tags = db.retrieve_tags(owm.id(), db_params).await?;
     assert!(tags.contains("tag1"));
     assert!(tags.contains("tag2"));
@@ -158,7 +158,7 @@ pub(crate) async fn tags<DB: Database>(
         assert_eq!(owm.attributes(), &expected_attributes);
     }
     assert_eq!(owm.state(), StateEnumeration::Active);
-    assert_eq!(owm.permissions(), vec![]);
+    assert!(owm.permissions().is_empty());
     let tags = db.retrieve_tags(owm.id(), db_params).await?;
     assert!(tags.contains("tag1"));
     assert!(tags.contains("tag2"));
@@ -223,7 +223,10 @@ pub(crate) async fn tags<DB: Database>(
         assert_eq!(owm.attributes(), &expected_attributes);
     }
     assert_eq!(owm.state(), StateEnumeration::Active);
-    assert_eq!(owm.permissions(), vec![ObjectOperationType::Get]);
+    assert_eq!(
+        owm.permissions(),
+        &HashSet::from([ObjectOperationType::Get])
+    );
     let tags = db.retrieve_tags(&owm.id(), db_params).await?;
     assert!(tags.contains("tag1"));
     assert!(tags.contains("tag2"));
@@ -248,7 +251,10 @@ pub(crate) async fn tags<DB: Database>(
         assert_eq!(owm.attributes(), &expected_attributes);
     }
     assert_eq!(owm.state(), StateEnumeration::Active);
-    assert_eq!(owm.permissions(), vec![ObjectOperationType::Decrypt]);
+    assert_eq!(
+        owm.permissions(),
+        &HashSet::from([ObjectOperationType::Decrypt])
+    );
     let tags = db.retrieve_tags(owm.id(), db_params).await?;
     assert!(tags.contains("tag1"));
     assert!(tags.contains("tag2"));

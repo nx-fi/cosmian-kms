@@ -21,10 +21,46 @@ use crate::{
     result::KResult,
 };
 
+/// This is the object kept in the Main LRU cache
+///
+/// The difference with `ObjectWithMetadata` is that it contains a cache of permissions
+/// per user.
+pub(crate) struct CachedObjectWithMetadata {
+    owm: ObjectWithMetadata,
+    permissions_cache: RwLock<LruCache<String, HashSet<ObjectOperationType>>>,
+}
+
+impl CachedObjectWithMetadata {
+    pub(crate) async fn to_object_with_metadata(&self, user: &str) -> Option<ObjectWithMetadata> {
+        self.permissions_cache.read().await.peek(user).map_or_else(
+            || None,
+            |permissions| {
+                let mut owm = self.owm.clone();
+                owm.permissions_mut().clone_from(permissions);
+                Some(owm)
+            },
+        )
+    }
+
+    pub(crate) fn from_object_with_metadata(owm: &ObjectWithMetadata, user: &str) -> KResult<Self> {
+        // set permissions for the user on the cache
+        let mut permissions_cache = LruCache::new(NonZeroUsize::new(100).ok_or_else(|| {
+            KmsError::ServerError("Failed instantiating the permissions LRU Cache".to_owned())
+        })?);
+        permissions_cache.put(user.to_owned(), owm.permissions().clone());
+        // remove permissions on the owm
+        let mut owm = owm.clone();
+        *owm.permissions_mut() = HashSet::new();
+        Ok(Self {
+            owm,
+            permissions_cache: RwLock::new(permissions_cache),
+        })
+    }
+}
+
 pub(crate) struct CachedDatabase {
     db: Box<dyn Database + Sync + Send>,
-    // id -> user -> OWM
-    cache: RwLock<LruCache<String, RwLock<LruCache<String, ObjectWithMetadata>>>>,
+    cache: RwLock<LruCache<String, CachedObjectWithMetadata>>,
 }
 
 impl CachedDatabase {
@@ -69,29 +105,29 @@ impl Database for CachedDatabase {
         query_access_grant: ObjectOperationType,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<HashMap<String, ObjectWithMetadata>> {
-        if let Some(user_cache) = self.cache.read().await.peek(uid_or_tags) {
-            if let Some(owm) = user_cache.read().await.peek(user) {
+        if let Some(cowm) = self.cache.read().await.peek(uid_or_tags) {
+            if let Some(owm) = cowm.to_object_with_metadata(user).await {
                 if (user == owm.owner()) || owm.permissions().contains(&query_access_grant) {
-                    trace!("LRU Cache hit for object {}", uid_or_tags);
-                    return Ok(HashMap::from([(uid_or_tags.to_owned(), owm.clone())]));
+                    trace!("LRU Cache hit for object: {uid_or_tags}, for user: {user}");
+                    return Ok(HashMap::from([(uid_or_tags.to_owned(), owm)]));
                 }
             }
         }
-        trace!("LRU Cache miss for object {}", uid_or_tags);
+        trace!("LRU Cache miss for object: {uid_or_tags}, for user: {user}");
         let objects = self
             .db
             .retrieve(uid_or_tags, user, query_access_grant, params)
             .await?;
         for (uid, owm) in &objects {
             let mut main_cache = self.cache.write().await;
-            if let Some(user_cache) = main_cache.get(user) {
-                user_cache.write().await.put(user.to_owned(), owm.clone());
+            if let Some(cowm) = main_cache.get(user) {
+                cowm.permissions_cache
+                    .write()
+                    .await
+                    .put(user.to_owned(), owm.permissions().clone());
             } else {
-                let mut user_cache = LruCache::new(NonZeroUsize::new(100).ok_or_else(|| {
-                    KmsError::ServerError("Failed instantiating the LRU Cache".to_owned())
-                })?);
-                user_cache.put(user.to_owned(), owm.to_owned());
-                main_cache.put(uid.to_string(), RwLock::new(user_cache));
+                let cowm = CachedObjectWithMetadata::from_object_with_metadata(owm, user)?;
+                main_cache.put(uid.to_string(), cowm);
             }
         }
         Ok(objects)
@@ -186,8 +222,8 @@ impl Database for CachedDatabase {
             .grant_access(uid, user, operation_types, params)
             .await?;
         let mut main_cache = self.cache.write().await;
-        if let Some(user_cache) = main_cache.get(uid) {
-            user_cache.write().await.pop(user);
+        if let Some(cowm) = main_cache.get(uid) {
+            cowm.permissions_cache.write().await.pop(user);
         }
         Ok(())
     }
@@ -203,8 +239,8 @@ impl Database for CachedDatabase {
             .remove_access(uid, user, operation_types, params)
             .await?;
         let mut main_cache = self.cache.write().await;
-        if let Some(user_cache) = main_cache.get(uid) {
-            user_cache.write().await.pop(user);
+        if let Some(cowm) = main_cache.get(uid) {
+            cowm.permissions_cache.write().await.pop(user);
         }
         Ok(())
     }
@@ -272,7 +308,6 @@ impl Database for CachedDatabase {
 
 #[cfg(test)]
 mod tests {
-
     use std::collections::HashSet;
 
     use cloudproof::reexport::crypto_core::{
