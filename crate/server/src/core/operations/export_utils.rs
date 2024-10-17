@@ -491,18 +491,12 @@ async fn transform_to_key_wrap_type(
     user: &str,
     params: Option<&ExtraDatabaseParams>,
 ) -> Result<(), KmsError> {
-    let id = object_with_metadata.id().to_owned();
     if let Some(key_wrap_type) = key_wrap_type {
         if *key_wrap_type == KeyWrapType::NotWrapped {
             // The owm must be made an object where the unwrapped version is the version "as is"
-            let object = object_with_metadata
-                .unwrapped(kms, user, params)
-                .await
-                .ok_or_else(|| {
-                    KmsError::InvalidRequest(format!("The object {id} cannot be unwrapped"))
-                })?
-                .clone();
-            object_with_metadata.set_object(object);
+            object_with_metadata
+                .make_unwrapped(kms, user, params)
+                .await?;
         }
     }
     Ok(())

@@ -137,6 +137,6 @@ pub(crate) async fn delete_attribute(
         .await?;
 
     Ok(DeleteAttributeResponse {
-        unique_identifier: UniqueIdentifier::TextString(owm.id().to_string()),
+        unique_identifier: UniqueIdentifier::TextString(owm.id().to_owned()),
     })
 }

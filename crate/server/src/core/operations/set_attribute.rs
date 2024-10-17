@@ -121,6 +121,6 @@ pub(crate) async fn set_attribute(
         .await?;
 
     Ok(SetAttributeResponse {
-        unique_identifier: UniqueIdentifier::TextString(owm.id().to_string()),
+        unique_identifier: UniqueIdentifier::TextString(owm.id().to_owned()),
     })
 }

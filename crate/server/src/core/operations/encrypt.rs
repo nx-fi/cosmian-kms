@@ -34,7 +34,7 @@ use tracing::{debug, trace};
 use zeroize::Zeroizing;
 
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, operations::unwrap_key, KMS},
+    core::{extra_database_params::ExtraDatabaseParams, KMS},
     database::object_with_metadata::ObjectWithMetadata,
     error::KmsError,
     kms_bail,
@@ -147,7 +147,7 @@ pub(crate) fn encrypt_bulk(
         ciphertexts.len()
     );
     Ok(EncryptResponse {
-        unique_identifier: UniqueIdentifier::TextString(owm.id().to_string()),
+        unique_identifier: UniqueIdentifier::TextString(owm.id().to_owned()),
         data: Some(BulkData::new(ciphertexts).serialize()?.to_vec()),
         iv_counter_nonce: None,
         correlation_value: request.correlation_value,
@@ -209,15 +209,16 @@ async fn get_key(
     }
 
     // unwrap if wrapped
+    // We could have the downstream code call unwrap() on the owm
+    // to get the unwrapped key; but this has a pretty big impact.
+    // Just update the the owm.object with the
+    let id = owm.id().to_owned();
     match &mut owm.object() {
         Object::Certificate { .. } => {}
-        _ => {
-            if owm.object().key_wrapping_data().is_some() {
-                let owner = owm.owner().to_string();
-                let key_block = owm.object_mut().key_block_mut()?;
-                unwrap_key(key_block, kms, &owner, params).await?;
-            }
-        }
+        _ => owm
+            .make_unwrapped(kms, user, params)
+            .await
+            .with_context(|| format!("The key: {id}, cannot be unwrapped."))?,
     }
     Ok(owm)
 }
@@ -240,7 +241,7 @@ fn encrypt_with_symmetric_key(
         .unwrap_or(EMPTY_SLICE);
     let (ciphertext, tag) = sym_encrypt(aead, &key_bytes, &nonce, aad, plaintext)?;
     Ok(EncryptResponse {
-        unique_identifier: UniqueIdentifier::TextString(owm.id().to_string()),
+        unique_identifier: UniqueIdentifier::TextString(owm.id().to_owned()),
         data: Some(ciphertext),
         iv_counter_nonce: Some(nonce),
         correlation_value: request.correlation_value.clone(),

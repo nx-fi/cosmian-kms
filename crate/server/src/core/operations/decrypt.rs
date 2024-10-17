@@ -30,7 +30,7 @@ use tracing::{debug, trace};
 use zeroize::Zeroizing;
 
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, operations::unwrap_key, KMS},
+    core::{extra_database_params::ExtraDatabaseParams, KMS},
     database::object_with_metadata::ObjectWithMetadata,
     error::KmsError,
     kms_bail,
@@ -143,11 +143,10 @@ async fn get_key(
     }
 
     // unwrap if wrapped
-    if owm.object().key_wrapping_data().is_some() {
-        let owner = owm.owner().to_string();
-        let key_block = owm.object_mut().key_block_mut()?;
-        unwrap_key(key_block, kms, &owner, params).await?;
-    }
+    let id = owm.id().to_owned();
+    owm.make_unwrapped(kms, user, params)
+        .await
+        .with_context(|| format!("The key: {id}, cannot be unwrapped."))?;
     Ok(owm)
 }
 
@@ -220,7 +219,7 @@ fn decrypt_bulk(
         plaintexts.len()
     );
     Ok(DecryptResponse {
-        unique_identifier: UniqueIdentifier::TextString(owm.id().to_string()),
+        unique_identifier: UniqueIdentifier::TextString(owm.id().to_owned()),
         data: Some(BulkData::new(plaintexts).serialize()?),
         correlation_value: request.correlation_value.clone(),
     })
@@ -289,7 +288,7 @@ fn decrypt_single_with_symmetric_key(
         .unwrap_or(EMPTY_SLICE);
     let plaintext = sym_decrypt(aead, &key_bytes, nonce, aad, ciphertext, tag)?;
     Ok(Ok(DecryptResponse {
-        unique_identifier: UniqueIdentifier::TextString(owm.id().to_string()),
+        unique_identifier: UniqueIdentifier::TextString(owm.id().to_owned()),
         data: Some(plaintext),
         correlation_value: request.correlation_value.clone(),
     }))
@@ -346,7 +345,7 @@ fn decrypt_with_public_key(
         }
     };
     Ok(DecryptResponse {
-        unique_identifier: UniqueIdentifier::TextString(owm.id().to_string()),
+        unique_identifier: UniqueIdentifier::TextString(owm.id().to_owned()),
         data: Some(plaintext),
         correlation_value: request.correlation_value.clone(),
     })

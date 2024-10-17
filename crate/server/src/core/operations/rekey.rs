@@ -76,7 +76,7 @@ pub(crate) async fn rekey(
 
     // import new KMIP object into the database (but overwrite the existing one)
     let import_request = Import {
-        unique_identifier: UniqueIdentifier::TextString(owm.id().to_string()),
+        unique_identifier: UniqueIdentifier::TextString(owm.id().to_owned()),
         object_type: ObjectType::SymmetricKey,
         replace_existing: Some(true),
         key_wrap_type: None,

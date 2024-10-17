@@ -110,7 +110,7 @@ pub(crate) async fn recursively_revoke_key(
             }
             ObjectType::PrivateKey => {
                 //add this key to the ids to skip
-                ids_to_skip.insert(owm.id().to_string());
+                ids_to_skip.insert(owm.id().to_owned());
                 // for Covercrypt, if that is a master secret key, revoke the user decryption keys
                 if owm.object().key_block()?.key_format_type == KeyFormatType::CoverCryptSecretKey {
                     revoke_user_decryption_keys(
@@ -156,7 +156,7 @@ pub(crate) async fn recursively_revoke_key(
             }
             ObjectType::PublicKey => {
                 //add this key to the ids to skip
-                ids_to_skip.insert(owm.id().to_string());
+                ids_to_skip.insert(owm.id().to_owned());
                 // revoke any linked private key
                 if let Some(private_key_id) = owm
                     .object()

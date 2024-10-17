@@ -14,7 +14,7 @@ use super::{state_from_string, DBObject};
 use crate::{
     core::{extra_database_params::ExtraDatabaseParams, KMS},
     error::KmsError,
-    result::KResultHelper,
+    result::{KResult, KResultHelper},
 };
 
 /// An object with its metadata such as permissions and state
@@ -60,7 +60,7 @@ impl ObjectWithMetadata {
         &self.id
     }
 
-    pub(crate) fn object(&self) -> &Object {
+    pub(crate) const fn object(&self) -> &Object {
         &self.object
     }
 
@@ -82,7 +82,7 @@ impl ObjectWithMetadata {
         &self.owner
     }
 
-    pub(crate) fn state(&self) -> StateEnumeration {
+    pub(crate) const fn state(&self) -> StateEnumeration {
         self.state
     }
 
@@ -94,7 +94,7 @@ impl ObjectWithMetadata {
         &mut self.permissions
     }
 
-    pub(crate) fn attributes(&self) -> &Attributes {
+    pub(crate) const fn attributes(&self) -> &Attributes {
         &self.attributes
     }
 
@@ -111,43 +111,50 @@ impl ObjectWithMetadata {
         kms: &KMS,
         user: &str,
         params: Option<&ExtraDatabaseParams>,
-    ) -> Option<&Object> {
+    ) -> KResult<Option<&Object>> {
         if self.unwrapped.is_some() {
-            return self.unwrapped.as_ref()
+            return Ok(self.unwrapped.as_ref())
         }
         if let Ok(key_block) = self.object.key_block() {
             if key_block.key_wrapping_data.is_some() {
                 // attempt unwrapping
                 let mut unwrapped_object = self.object.clone();
-                if let Ok(key_block) = unwrapped_object.key_block_mut() {
-                    if crate::core::wrapping::unwrap_key(key_block, kms, user, params)
-                        .await
-                        .is_ok()
-                    {
-                        self.unwrapped = Some(unwrapped_object.clone());
-                        self.unwrapped.as_ref()
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
+                let key_block = unwrapped_object.key_block_mut()?;
+                crate::core::wrapping::unwrap_key(key_block, kms, user, params).await?;
+                self.unwrapped = Some(unwrapped_object.clone());
+                Ok(self.unwrapped.as_ref())
             } else {
                 // the object is unwrapped
                 // TODO: this duplicates it and is maybe not worth the memory
                 // TODO: it will speed up the next retrieve though
                 self.unwrapped = Some(self.object.clone());
-                self.unwrapped.as_ref()
+                Ok(self.unwrapped.as_ref())
             }
         } else {
             // not a wrappable object
-            None
+            Ok(None)
         }
     }
 
-    /// Clear the Unwrapped value if any, forcin unwrapping again on a call to `unwrapped()`
+    /// Clear the Unwrapped value if any, forcing unwrapping again on a call to `unwrapped()`
     pub(crate) fn clear_unwrapped(&mut self) {
         self.unwrapped = None;
+    }
+
+    /// Transform this own to its unwrapped version.
+    /// Returns false if this fails
+    /// Has not effect on a non wrappable object such as a Certificate
+    pub(crate) async fn make_unwrapped(
+        &mut self,
+        kms: &KMS,
+        user: &str,
+        params: Option<&ExtraDatabaseParams>,
+    ) -> KResult<()> {
+        if let Some(object) = self.unwrapped(kms, user, params).await? {
+            self.object = object.clone();
+            // the unwrapped property is already set to the unwrapped object
+        }
+        Ok(())
     }
 }
 

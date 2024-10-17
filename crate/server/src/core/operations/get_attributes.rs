@@ -240,7 +240,7 @@ pub(crate) async fn get_attributes(
     );
     trace!("Get Attributes: Response: {res:?}");
     Ok(GetAttributesResponse {
-        unique_identifier: UniqueIdentifier::TextString(owm.id().to_string()),
+        unique_identifier: UniqueIdentifier::TextString(owm.id().to_owned()),
         attributes: res,
     })
 }

@@ -84,7 +84,7 @@ pub(crate) async fn rekey_keypair(
         rekey_keypair_cover_crypt(
             kms,
             Covercrypt::default(),
-            owm.id().to_string(),
+            owm.id().to_owned(),
             user,
             action,
             params,
