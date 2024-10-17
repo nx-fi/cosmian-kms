@@ -105,12 +105,15 @@ pub(crate) async fn retrieve_certificate_for_private_key(
     user: &str,
     params: Option<&ExtraDatabaseParams>,
 ) -> Result<ObjectWithMetadata, KmsError> {
-    trace!("Retrieving certificate for private key: {}", private_key.id);
+    trace!(
+        "Retrieving certificate for private key: {}",
+        private_key.id()
+    );
     // recover the Certificate Link inside the Private Key
     let certificate_id = private_key
-        .attributes
+        .attributes()
         .get_link(LinkType::PKCS12CertificateLink)
-        .or_else(|| private_key.attributes.get_link(LinkType::CertificateLink));
+        .or_else(|| private_key.attributes().get_link(LinkType::CertificateLink));
 
     let certificate_id = if let Some(certificate_id) = certificate_id {
         trace!("found link to certificate: {}", certificate_id);
@@ -118,7 +121,7 @@ pub(crate) async fn retrieve_certificate_for_private_key(
     } else {
         // check if there is a link to a public key
         let public_key_id = private_key
-            .attributes
+            .attributes()
             .get_link(LinkType::PublicKeyLink)
             .ok_or_else(|| {
                 KmsError::InvalidRequest("No public key link found for the private key".to_owned())
@@ -152,8 +155,8 @@ pub(crate) async fn retrieve_certificate_for_private_key(
     })?;
     trace!(
         "Retrieved certificate: {} for private key: {}",
-        cert_owm.id,
-        private_key.id
+        cert_owm.id(),
+        private_key.id()
     );
     Ok(cert_owm)
 }
@@ -179,14 +182,14 @@ pub(crate) async fn retrieve_private_key_for_certificate(
     )
     .await?;
 
-    let private_key_id = owm.attributes.get_link(LinkType::PrivateKeyLink);
+    let private_key_id = owm.attributes().get_link(LinkType::PrivateKeyLink);
 
     let private_key_id = if let Some(private_key_id) = private_key_id {
         private_key_id
     } else {
         // check if there is a link to a public key
         let public_key_id = owm
-            .attributes
+            .attributes()
             .get_link(LinkType::PublicKeyLink)
             .ok_or_else(|| {
                 KmsError::InvalidRequest(
@@ -234,7 +237,7 @@ async fn find_link_in_public_key(
         params,
     )
     .await?;
-    let public_key_attributes = public_key_owm.attributes;
+    let public_key_attributes = public_key_owm.attributes();
     // retrieve the private key linked to the public key
     public_key_attributes.get_link(link_type).ok_or_else(|| {
         KmsError::InvalidRequest(format!("No {link_type:?} found in the public key"))

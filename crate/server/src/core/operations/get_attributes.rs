@@ -55,12 +55,12 @@ pub(crate) async fn get_attributes(
         "Get Attributes: Retrieved object for get attributes: {:?}",
         serde_json::to_string(&owm)
     );
-    let object_type = owm.object.object_type();
+    let object_type = owm.object().object_type();
 
-    let attributes = match &owm.object {
+    let attributes = match owm.object() {
         Object::Certificate { .. } => {
             // KMIP Attributes retrieved from dedicated column `Attributes`
-            owm.attributes
+            owm.attributes().to_owned()
         }
         Object::PrivateKey { key_block } => {
             let mut attributes = key_block.key_value.attributes.clone().unwrap_or_default();
@@ -70,7 +70,7 @@ pub(crate) async fn get_attributes(
                 *attributes
             } else {
                 // we want the default format which yields the most infos
-                let pkey = kmip_private_key_to_openssl(&owm.object)?;
+                let pkey = kmip_private_key_to_openssl(owm.object())?;
                 let default_kmip = openssl_private_key_to_kmip_default_format(
                     &pkey,
                     attributes.cryptographic_usage_mask,
@@ -82,7 +82,7 @@ pub(crate) async fn get_attributes(
                     .vendor_attributes
                     .clone_from(&attributes.vendor_attributes);
                 // re-add the links
-                default_attributes.link.clone_from(&owm.attributes.link);
+                default_attributes.link.clone_from(&owm.attributes().link);
                 default_attributes
             }
         }
@@ -94,7 +94,7 @@ pub(crate) async fn get_attributes(
                 *attributes
             } else {
                 // we want the default format which yields the most infos
-                let pkey = kmip_public_key_to_openssl(&owm.object)?;
+                let pkey = kmip_public_key_to_openssl(owm.object())?;
                 let default_kmip = openssl_public_key_to_kmip_default_format(
                     &pkey,
                     attributes.cryptographic_usage_mask,
@@ -106,14 +106,14 @@ pub(crate) async fn get_attributes(
                     .vendor_attributes
                     .clone_from(&attributes.vendor_attributes);
                 // re-add the links
-                default_attributes.link.clone_from(&owm.attributes.link);
+                default_attributes.link.clone_from(&owm.attributes().link);
                 default_attributes
             }
         }
         Object::SymmetricKey { key_block } => {
             let mut attributes = key_block.key_value.attributes.clone().unwrap_or_default();
             attributes.object_type = Some(object_type);
-            attributes.link.clone_from(&owm.attributes.link);
+            attributes.link.clone_from(&owm.attributes().link);
             *attributes
         }
         Object::CertificateRequest { .. }
@@ -160,7 +160,7 @@ pub(crate) async fn get_attributes(
                 attribute_name,
             }) => {
                 if vendor_identification == VENDOR_ID_COSMIAN && attribute_name == VENDOR_ATTR_TAG {
-                    let tags = kms.db.retrieve_tags(&owm.id, params).await?;
+                    let tags = kms.db.retrieve_tags(owm.id(), params).await?;
                     res.add_vendor_attribute(VendorAttribute {
                         vendor_identification: VENDOR_ID_COSMIAN.to_owned(),
                         attribute_name: VENDOR_ATTR_TAG.to_owned(),
@@ -234,13 +234,13 @@ pub(crate) async fn get_attributes(
     }
     debug!(
         "Retrieved Attributes for {} {}, tags {:?}",
-        owm.object.object_type(),
-        owm.id,
+        owm.object().object_type(),
+        owm.id(),
         res.get_tags()
     );
     trace!("Get Attributes: Response: {res:?}");
     Ok(GetAttributesResponse {
-        unique_identifier: UniqueIdentifier::TextString(owm.id.clone()),
+        unique_identifier: UniqueIdentifier::TextString(owm.id().to_string()),
         attributes: res,
     })
 }

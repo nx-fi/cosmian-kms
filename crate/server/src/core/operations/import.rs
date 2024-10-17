@@ -27,9 +27,8 @@ use openssl::{
 use tracing::{debug, trace};
 use uuid::Uuid;
 
-use super::wrapping::unwrap_key;
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, KMS},
+    core::{extra_database_params::ExtraDatabaseParams, wrapping::unwrap_key, KMS},
     database::AtomicOperation,
     error::KmsError,
     kms_bail,

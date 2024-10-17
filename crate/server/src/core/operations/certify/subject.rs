@@ -96,7 +96,7 @@ impl Subject {
                 .public_key()
                 .map_err(|e| kms_error!("No public key: {e}")),
             Self::PublicKeyAndSubjectName(_, owm, _sn) => {
-                kmip_public_key_to_openssl(&owm.object).map_err(Into::into)
+                kmip_public_key_to_openssl(owm.object()).map_err(Into::into)
             }
             Self::KeypairAndSubjectName(_, keypair, _sn) => {
                 kmip_public_key_to_openssl(&keypair.public_key_object).map_err(Into::into)

@@ -69,8 +69,8 @@ pub(crate) async fn recursively_destroy_key(
         .await?
         .into_values()
         .filter(|owm| {
-            let object_type = owm.object.object_type();
-            owm.state != StateEnumeration::Destroyed
+            let object_type = owm.object().object_type();
+            owm.state() != StateEnumeration::Destroyed
                 && (object_type == ObjectType::PrivateKey
                     || object_type == ObjectType::SymmetricKey
                     || object_type == ObjectType::Certificate
@@ -88,23 +88,25 @@ pub(crate) async fn recursively_destroy_key(
     // destroy the keys found
     for mut owm in owm_s {
         // perform the chain of destroy operations depending on the type of object
-        let object_type = owm.object.object_type();
+        let object_type = owm.object().object_type();
         match object_type {
             SymmetricKey | ObjectType::Certificate => {
                 // destroy the key
-                destroy_key_core(&owm.id, &mut owm.object, owm.state, kms, params).await?;
+                let id = owm.id().to_string();
+                let state = owm.state();
+                destroy_key_core(&id, &mut owm.object_mut(), state, kms, params).await?;
             }
             PrivateKey => {
                 //add this key to the ids to skip
-                ids_to_skip.insert(owm.id.clone());
+                ids_to_skip.insert(owm.id().to_string());
                 // for Covercrypt, if that is a master secret key, destroy the user decryption keys
-                if owm.object.key_block()?.key_format_type == KeyFormatType::CoverCryptSecretKey {
-                    destroy_user_decryption_keys(&owm.id, kms, user, params, ids_to_skip.clone())
+                if owm.object().key_block()?.key_format_type == KeyFormatType::CoverCryptSecretKey {
+                    destroy_user_decryption_keys(&owm.id(), kms, user, params, ids_to_skip.clone())
                         .await?;
                 }
                 // destroy any linked public key
                 if let Some(public_key_id) = owm
-                    .object
+                    .object()
                     .attributes()?
                     .get_link(LinkType::PublicKeyLink)
                     .map(|l| l.to_string())
@@ -122,14 +124,16 @@ pub(crate) async fn recursively_destroy_key(
                 }
 
                 // destroy the private key
-                destroy_key_core(&owm.id, &mut owm.object, owm.state, kms, params).await?;
+                let id = owm.id().to_string();
+                let state = owm.state();
+                destroy_key_core(&id, &mut owm.object_mut(), state, kms, params).await?;
             }
             PublicKey => {
                 //add this key to the ids to skip
-                ids_to_skip.insert(owm.id.clone());
+                ids_to_skip.insert(owm.id().to_string());
                 // destroy any linked private key
                 if let Some(private_key_id) = owm
-                    .object
+                    .object()
                     .attributes()?
                     .get_link(LinkType::PrivateKeyLink)
                     .map(|l| l.to_string())
@@ -147,7 +151,9 @@ pub(crate) async fn recursively_destroy_key(
                 }
 
                 // destroy the public key
-                destroy_key_core(&owm.id, &mut owm.object, owm.state, kms, params).await?;
+                let id = owm.id().to_string();
+                let state = owm.state();
+                destroy_key_core(&id, &mut owm.object_mut(), state, kms, params).await?;
             }
             x => kms_bail!(KmsError::NotSupported(format!(
                 "destroy operation is not supported for object type {x:?}"

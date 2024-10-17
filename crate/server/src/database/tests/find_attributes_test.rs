@@ -73,10 +73,10 @@ pub(crate) async fn find_attributes<DB: Database>(
     assert_eq!(objs_.len(), 1);
     match objs_.len() {
         1 => {
-            assert_eq!(StateEnumeration::Active, objs_[0].state);
-            assert!(symmetric_key == objs_[0].object);
+            assert_eq!(StateEnumeration::Active, objs_[0].state());
+            assert!(&symmetric_key == objs_[0].object());
             assert_eq!(
-                objs_[0].object.attributes()?.link.as_ref().unwrap()[0].linked_object_identifier,
+                objs_[0].object().attributes()?.link.as_ref().unwrap()[0].linked_object_identifier,
                 LinkedObjectIdentifier::TextString("foo".to_owned())
             );
         }

@@ -50,15 +50,15 @@ pub(crate) async fn rekey_keypair(
         .into_values()
         .filter(|owm| {
             // only active objects
-            if owm.state != StateEnumeration::Active {
+            if owm.state() != StateEnumeration::Active {
                 return false
             }
             // only private keys
-            if owm.object.object_type() != ObjectType::PrivateKey {
+            if owm.object().object_type() != ObjectType::PrivateKey {
                 return false
             }
             // if a Covercrypt key, it must be a master secret key
-            if let Ok(attributes) = owm.object.attributes() {
+            if let Ok(attributes) = owm.object().attributes() {
                 if attributes.key_format_type == Some(KeyFormatType::CoverCryptSecretKey) {
                     // a master key should have policies in the attributes
                     return policy_from_attributes(attributes).is_ok()
@@ -81,7 +81,15 @@ pub(crate) async fn rekey_keypair(
 
     if Some(CryptographicAlgorithm::CoverCrypt) == attributes.cryptographic_algorithm {
         let action = rekey_edit_action_from_attributes(attributes)?;
-        rekey_keypair_cover_crypt(kms, Covercrypt::default(), owm.id, user, action, params).await
+        rekey_keypair_cover_crypt(
+            kms,
+            Covercrypt::default(),
+            owm.id().to_string(),
+            user,
+            action,
+            params,
+        )
+        .await
     } else if let Some(other) = attributes.cryptographic_algorithm {
         kms_bail!(KmsError::NotSupported(format!(
             "The rekey of a key pair for algorithm: {other:?} is not yet supported"

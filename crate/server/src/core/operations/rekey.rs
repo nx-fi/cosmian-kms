@@ -44,11 +44,11 @@ pub(crate) async fn rekey(
         .into_values()
         .filter(|owm| {
             // only active objects
-            if owm.state != StateEnumeration::Active {
+            if owm.state() != StateEnumeration::Active {
                 return false
             }
             // only symmetric keys
-            if owm.object.object_type() != ObjectType::SymmetricKey {
+            if owm.object().object_type() != ObjectType::SymmetricKey {
                 return false
             }
             true
@@ -69,14 +69,14 @@ pub(crate) async fn rekey(
     // create a new symmetric key KMIP object (in memory)
     let create_request = Create {
         object_type: ObjectType::SymmetricKey,
-        attributes: owm.attributes,
+        attributes: owm.attributes().to_owned(),
         protection_storage_masks: None,
     };
     let (_uid, new_object, _tags) = KMS::create_symmetric_key_and_tags(&create_request)?;
 
     // import new KMIP object into the database (but overwrite the existing one)
     let import_request = Import {
-        unique_identifier: UniqueIdentifier::TextString(owm.id),
+        unique_identifier: UniqueIdentifier::TextString(owm.id().to_string()),
         object_type: ObjectType::SymmetricKey,
         replace_existing: Some(true),
         key_wrap_type: None,
@@ -89,7 +89,7 @@ pub(crate) async fn rekey(
     kms.db.atomic(owner, &operations, params).await?;
 
     // return the uid
-    debug!("Rekey symmetric key with uid: {uid}");
+    debug!("Re-key symmetric key with uid: {uid}");
 
     Ok(ReKeyResponse {
         unique_identifier: UniqueIdentifier::TextString(uid),

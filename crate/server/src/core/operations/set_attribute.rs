@@ -43,7 +43,7 @@ pub(crate) async fn set_attribute(
         serde_json::to_string(&owm)
     );
 
-    let mut attributes = owm.attributes;
+    let mut attributes = owm.attributes_mut().clone();
 
     match request.new_attribute {
         Attribute::ActivationDate(activation_date) => {
@@ -94,33 +94,33 @@ pub(crate) async fn set_attribute(
         }
     }
 
-    let tags = kms.db.retrieve_tags(&owm.id, params).await?;
+    let tags = kms.db.retrieve_tags(owm.id(), params).await?;
 
-    match owm.object.object_type() {
+    match owm.object().object_type() {
         ObjectType::PublicKey
         | ObjectType::PrivateKey
         | ObjectType::SplitKey
         | ObjectType::SecretData
         | ObjectType::PGPKey
         | ObjectType::SymmetricKey => {
-            let object_attributes = owm.object.attributes_mut()?;
+            let object_attributes = owm.object_mut().attributes_mut()?;
             *object_attributes = attributes.clone();
             debug!("Set Object Attribute: {:?}", object_attributes);
         }
         _ => {
             trace!(
                 "Set Attribute: Object type {:?} does not have attributes (nor key block)",
-                owm.object.object_type()
+                owm.object().object_type()
             );
         }
     }
 
     debug!("Set Attribute: {:?}", attributes);
     kms.db
-        .update_object(&owm.id, &owm.object, &attributes, Some(&tags), params)
+        .update_object(owm.id(), owm.object(), &attributes, Some(&tags), params)
         .await?;
 
     Ok(SetAttributeResponse {
-        unique_identifier: UniqueIdentifier::TextString(owm.id.clone()),
+        unique_identifier: UniqueIdentifier::TextString(owm.id().to_string()),
     })
 }

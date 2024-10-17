@@ -108,7 +108,7 @@ pub(crate) async fn certify(
                  {from_public_key}"
             );
             // update the public key attributes with a link to the certificate
-            let mut public_key_attributes = from_public_key.attributes;
+            let mut public_key_attributes = from_public_key.attributes().to_owned();
             public_key_attributes.set_link(
                 LinkType::CertificateLink,
                 LinkedObjectIdentifier::from(unique_identifier.clone()),
@@ -117,7 +117,7 @@ pub(crate) async fn certify(
             let mut certificate_attributes = attributes.clone();
             certificate_attributes.set_link(
                 LinkType::PublicKeyLink,
-                LinkedObjectIdentifier::TextString(from_public_key.id.clone()),
+                LinkedObjectIdentifier::TextString(from_public_key.id().to_string()),
             );
             // update the link to the private for the certificate
             if let Some(private_key_id) = public_key_attributes.get_link(LinkType::PrivateKeyLink) {
@@ -135,8 +135,8 @@ pub(crate) async fn certify(
                     )),
                     // update the public key
                     AtomicOperation::UpdateObject((
-                        from_public_key.id,
-                        from_public_key.object,
+                        from_public_key.id().to_string(),
+                        from_public_key.object().to_owned(),
                         public_key_attributes,
                         None,
                     )),
@@ -300,7 +300,7 @@ async fn get_subject(
         )
         .await
         {
-            let object_type = owm.object.object_type();
+            let object_type = owm.object().object_type();
             match object_type {
                 // If the user passed a certificate, attempt to renew it
                 ObjectType::Certificate => {
@@ -311,8 +311,8 @@ async fn get_subject(
                         .unwrap_or_else(|| request_id.clone());
                     return Ok(Subject::Certificate(
                         certificate_id,
-                        kmip_certificate_to_openssl(&owm.object)?,
-                        owm.attributes,
+                        kmip_certificate_to_openssl(owm.object())?,
+                        owm.attributes().to_owned(),
                     ))
                 }
                 //If the user passed a public key, it is a new certificate signing this public key
@@ -447,9 +447,9 @@ async fn get_issuer<'a>(
     )
     .await?;
     Ok(Issuer::PrivateKeyAndCertificate(
-        UniqueIdentifier::TextString(issuer_certificate.id.clone()),
-        kmip_private_key_to_openssl(&issuer_private_key.object)?,
-        kmip_certificate_to_openssl(&issuer_certificate.object)?,
+        UniqueIdentifier::TextString(issuer_certificate.id().to_string()),
+        kmip_private_key_to_openssl(issuer_private_key.object())?,
+        kmip_certificate_to_openssl(issuer_certificate.object())?,
     ))
 }
 
@@ -507,7 +507,7 @@ async fn issuer_for_self_signed_certificate<'a>(
             })?;
             Ok(Issuer::PrivateKeyAndCertificate(
                 unique_identifier.clone(),
-                kmip_private_key_to_openssl(&private_key.object)?,
+                kmip_private_key_to_openssl(private_key.object())?,
                 certificate.clone(),
             ))
         }
@@ -517,7 +517,7 @@ async fn issuer_for_self_signed_certificate<'a>(
             let private_key = fetch_object_from_attributes(
                 LinkType::PrivateKeyLink,
                 kms,
-                &public_key.attributes,
+                public_key.attributes(),
                 user,
                 params,
             )
@@ -533,7 +533,7 @@ async fn issuer_for_self_signed_certificate<'a>(
             let certificate = fetch_object_from_attributes(
                 LinkType::CertificateLink,
                 kms,
-                &public_key.attributes,
+                public_key.attributes(),
                 user,
                 params,
             )
@@ -541,12 +541,12 @@ async fn issuer_for_self_signed_certificate<'a>(
             match certificate {
                 Some(certificate) => Ok(Issuer::PrivateKeyAndCertificate(
                     unique_identifier.clone(),
-                    kmip_private_key_to_openssl(&private_key.object)?,
-                    kmip_certificate_to_openssl(&certificate.object)?,
+                    kmip_private_key_to_openssl(private_key.object())?,
+                    kmip_certificate_to_openssl(certificate.object())?,
                 )),
                 None => Ok(Issuer::PrivateKeyAndSubjectName(
                     unique_identifier.clone(),
-                    kmip_private_key_to_openssl(&private_key.object)?,
+                    kmip_private_key_to_openssl(private_key.object())?,
                     subject_name,
                 )),
             }

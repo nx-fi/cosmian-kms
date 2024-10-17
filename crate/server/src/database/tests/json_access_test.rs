@@ -65,8 +65,8 @@ pub(crate) async fn json_access<DB: Database>(
     assert!(!objs_.is_empty());
     match objs_.len() {
         1 => {
-            assert_eq!(StateEnumeration::Active, objs_[0].state);
-            assert!(symmetric_key == objs_[0].object);
+            assert_eq!(StateEnumeration::Active, objs_[0].state());
+            assert!(&symmetric_key == objs_[0].object());
         }
         _ => kms_bail!("There should be one object"),
     }

@@ -39,16 +39,16 @@ impl KeyAlgorithm {
     }
 
     pub fn is_ecc(&self) -> bool {
-        match self {
+        matches!(
+            self,
             KeyAlgorithm::EccP256
-            | KeyAlgorithm::EccP384
-            | KeyAlgorithm::EccP521
-            | KeyAlgorithm::Ed448
-            | KeyAlgorithm::Ed25519
-            | KeyAlgorithm::X448
-            | KeyAlgorithm::X25519 => true,
-            _ => false,
-        }
+                | KeyAlgorithm::EccP384
+                | KeyAlgorithm::EccP521
+                | KeyAlgorithm::Ed448
+                | KeyAlgorithm::Ed25519
+                | KeyAlgorithm::X448
+                | KeyAlgorithm::X25519
+        )
     }
 
     pub fn to_oid_str(&self) -> &'static str {

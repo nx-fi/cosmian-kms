@@ -4,5 +4,6 @@ pub mod extra_database_params;
 pub(crate) mod implementation;
 pub mod kms;
 pub(crate) mod operations;
+pub(crate) mod wrapping;
 
 pub use kms::KMS;

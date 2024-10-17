@@ -18,7 +18,6 @@ mod rekey_keypair;
 mod revoke;
 mod set_attribute;
 mod validate;
-mod wrapping;
 
 pub(crate) use certify::certify;
 pub(crate) use create::create;
@@ -40,4 +39,5 @@ pub(crate) use rekey_keypair::rekey_keypair;
 pub(crate) use revoke::{recursively_revoke_key, revoke_operation};
 pub(crate) use set_attribute::set_attribute;
 pub(crate) use validate::validate_operation;
-pub(crate) use wrapping::unwrap_key;
+
+pub(crate) use crate::core::wrapping::unwrap_key;

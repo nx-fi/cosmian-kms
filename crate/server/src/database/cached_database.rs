@@ -12,7 +12,7 @@ use cosmian_kmip::kmip::{
 use cosmian_kms_client::access::{IsWrapped, ObjectOperationType};
 use log::trace;
 use lru::LruCache;
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 
 use crate::{
     core::extra_database_params::ExtraDatabaseParams,
@@ -23,15 +23,16 @@ use crate::{
 
 pub(crate) struct CachedDatabase {
     db: Box<dyn Database + Sync + Send>,
-    cache: Mutex<LruCache<String, ObjectWithMetadata>>,
+    // id -> user -> OWM
+    cache: RwLock<LruCache<String, RwLock<LruCache<String, ObjectWithMetadata>>>>,
 }
 
 impl CachedDatabase {
     pub(crate) fn new(db: Box<dyn Database + Sync + Send>) -> KResult<Self> {
         Ok(Self {
             db,
-            cache: Mutex::new(LruCache::new(NonZeroUsize::new(100).ok_or_else(|| {
-                KmsError::ServerError("Failed instantiating the LRU Cache".to_string())
+            cache: RwLock::new(LruCache::new(NonZeroUsize::new(100).ok_or_else(|| {
+                KmsError::ServerError("Failed instantiating the LRU Cache".to_owned())
             })?)),
         })
     }
@@ -68,17 +69,30 @@ impl Database for CachedDatabase {
         query_access_grant: ObjectOperationType,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<HashMap<String, ObjectWithMetadata>> {
-        if let Some(owm) = self.cache.lock().await.get(uid_or_tags) {
-            trace!("LRU Cache hit for object {}", uid_or_tags);
-            return Ok(HashMap::from([(uid_or_tags.to_string(), owm.clone())]));
+        if let Some(user_cache) = self.cache.read().await.peek(uid_or_tags) {
+            if let Some(owm) = user_cache.read().await.peek(user) {
+                if (user == owm.owner()) || owm.permissions().contains(&query_access_grant) {
+                    trace!("LRU Cache hit for object {}", uid_or_tags);
+                    return Ok(HashMap::from([(uid_or_tags.to_owned(), owm.clone())]));
+                }
+            }
         }
         trace!("LRU Cache miss for object {}", uid_or_tags);
         let objects = self
             .db
             .retrieve(uid_or_tags, user, query_access_grant, params)
             .await?;
-        for (uid, object) in objects.iter() {
-            self.cache.lock().await.put(uid.clone(), object.clone());
+        for (uid, owm) in &objects {
+            let mut main_cache = self.cache.write().await;
+            if let Some(user_cache) = main_cache.get(user) {
+                user_cache.write().await.put(user.to_owned(), owm.clone());
+            } else {
+                let mut user_cache = LruCache::new(NonZeroUsize::new(100).ok_or_else(|| {
+                    KmsError::ServerError("Failed instantiating the LRU Cache".to_owned())
+                })?);
+                user_cache.put(user.to_owned(), owm.to_owned());
+                main_cache.put(uid.to_string(), RwLock::new(user_cache));
+            }
         }
         Ok(objects)
     }
@@ -102,7 +116,7 @@ impl Database for CachedDatabase {
         self.db
             .update_object(uid, object, attributes, tags, params)
             .await?;
-        self.cache.lock().await.pop(uid);
+        self.cache.write().await.pop(uid);
         Ok(())
     }
 
@@ -113,7 +127,7 @@ impl Database for CachedDatabase {
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<()> {
         self.db.update_state(uid, state, params).await?;
-        self.cache.lock().await.pop(uid);
+        self.cache.write().await.pop(uid);
         Ok(())
     }
 
@@ -130,7 +144,7 @@ impl Database for CachedDatabase {
         self.db
             .upsert(uid, user, object, attributes, tags, state, params)
             .await?;
-        self.cache.lock().await.pop(uid);
+        self.cache.write().await.pop(uid);
         Ok(())
     }
 
@@ -141,7 +155,7 @@ impl Database for CachedDatabase {
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<()> {
         self.db.delete(uid, user, params).await?;
-        self.cache.lock().await.pop(uid);
+        self.cache.write().await.pop(uid);
         Ok(())
     }
 
@@ -170,7 +184,12 @@ impl Database for CachedDatabase {
     ) -> KResult<()> {
         self.db
             .grant_access(uid, user, operation_types, params)
-            .await
+            .await?;
+        let mut main_cache = self.cache.write().await;
+        if let Some(user_cache) = main_cache.get(uid) {
+            user_cache.write().await.pop(user);
+        }
+        Ok(())
     }
 
     async fn remove_access(
@@ -182,7 +201,12 @@ impl Database for CachedDatabase {
     ) -> KResult<()> {
         self.db
             .remove_access(uid, user, operation_types, params)
-            .await
+            .await?;
+        let mut main_cache = self.cache.write().await;
+        if let Some(user_cache) = main_cache.get(uid) {
+            user_cache.write().await.pop(user);
+        }
+        Ok(())
     }
 
     async fn is_object_owned_by(
@@ -234,13 +258,13 @@ impl Database for CachedDatabase {
         self.db.atomic(user, operations, params).await?;
         for operation in operations {
             let uid = match operation {
-                AtomicOperation::Create((id, _, _, _)) => id,
-                AtomicOperation::Upsert((id, _, _, _, _)) => id,
-                AtomicOperation::UpdateObject((id, _, _, _)) => id,
-                AtomicOperation::UpdateState((id, _)) => id,
-                AtomicOperation::Delete(id) => id,
+                AtomicOperation::Create((id, _, _, _))
+                | AtomicOperation::Upsert((id, _, _, _, _))
+                | AtomicOperation::UpdateObject((id, _, _, _))
+                | AtomicOperation::UpdateState((id, _))
+                | AtomicOperation::Delete(id) => id,
             };
-            self.cache.lock().await.pop(uid);
+            self.cache.write().await.pop(uid);
         }
         Ok(())
     }
@@ -306,27 +330,33 @@ mod tests {
         assert_eq!(&uid, &uid_);
 
         // The key should not be in cache
-        assert!(db.cache.lock().await.get(&uid).is_none());
+        assert!(db.cache.read().await.peek(&uid).is_none());
 
         // fetch the key
         let map = db
-            .retrieve(&uid, &owner, ObjectOperationType::Get, db_params.as_ref())
+            .retrieve(&uid, owner, ObjectOperationType::Get, db_params.as_ref())
             .await?;
         assert_eq!(map.len(), 1);
-        assert!(map.get(&uid).is_some());
+        assert!(map.contains_key(&uid));
         let owm = map
             .get(&uid)
             .expect("this cannot happen due to previous assert");
 
         // the key should now be in the cache
-        assert!(db.cache.lock().await.get(&uid).is_some());
+        assert!(db.cache.read().await.peek(&uid).is_some());
 
         // update the key
-        db.update_object(&uid, &owm.object, &owm.attributes, None, db_params.as_ref())
-            .await?;
+        db.update_object(
+            &uid,
+            owm.object(),
+            owm.attributes(),
+            None,
+            db_params.as_ref(),
+        )
+        .await?;
 
         // the key should not be in cache anymore
-        assert!(db.cache.lock().await.get(&uid).is_none());
+        assert!(db.cache.read().await.peek(&uid).is_none());
 
         Ok(())
     }

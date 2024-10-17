@@ -51,12 +51,12 @@ pub(crate) async fn unwrap_key(
     .await?;
 
     // in the case the key is a PublicKey or Certificate, we need to fetch the corresponding private key
-    let object_type = unwrapping_key.object.object_type();
+    let object_type = unwrapping_key.object().object_type();
     let unwrapping_key = match object_type {
         ObjectType::PrivateKey | ObjectType::SymmetricKey => unwrapping_key,
         ObjectType::PublicKey | ObjectType::Certificate => {
             let attributes = match object_type {
-                ObjectType::PublicKey | ObjectType::Certificate => unwrapping_key.attributes,
+                ObjectType::PublicKey | ObjectType::Certificate => unwrapping_key.attributes(),
                 _ => kms_bail!("unwrap_key: unsupported object type: {object_type}"),
             };
             let private_key_uid =
@@ -79,7 +79,7 @@ pub(crate) async fn unwrap_key(
     };
 
     // Check on key CryptographicUsageMask is done inside `unwrap_key_block`.
-    unwrap_key_block(object_key_block, &unwrapping_key.object)?;
+    unwrap_key_block(object_key_block, unwrapping_key.object())?;
 
     Ok(())
 }

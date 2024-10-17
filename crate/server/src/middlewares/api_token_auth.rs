@@ -50,11 +50,11 @@ async fn get_api_token(kms_server: &Arc<KMS>, api_token_id: &str) -> KResult<Str
         .into_values()
         .filter(|owm| {
             // only active objects
-            if owm.state != StateEnumeration::Active {
+            if owm.state() != StateEnumeration::Active {
                 return false
             }
             // only symmetric keys
-            if owm.object.object_type() != ObjectType::SymmetricKey {
+            if owm.object().object_type() != ObjectType::SymmetricKey {
                 return false
             }
             true
@@ -77,7 +77,7 @@ async fn get_api_token(kms_server: &Arc<KMS>, api_token_id: &str) -> KResult<Str
 
     // Get the API token bytes in base64
     Ok(base64::engine::general_purpose::STANDARD
-        .encode(owm.object.key_block()?.key_bytes()?)
+        .encode(owm.object().key_block()?.key_bytes()?)
         .to_lowercase())
 }
 

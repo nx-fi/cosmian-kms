@@ -467,8 +467,8 @@ where
         let object_with_metadata = ObjectWithMetadata::try_from(&row)?;
 
         // check if the user, who is not an owner, has the right permissions
-        if (user != object_with_metadata.owner)
-            && !object_with_metadata.permissions.contains(&operation_type)
+        if (user != object_with_metadata.owner())
+            && !object_with_metadata.permissions().contains(&operation_type)
         {
             continue
         }
@@ -476,16 +476,16 @@ where
         // check if the object is already in the result
         // this can happen as permissions may have been granted
         // to both this user and the wildcard user
-        match res.get_mut(&object_with_metadata.id) {
+        match res.get_mut(object_with_metadata.id()) {
             Some(existing_object) => {
                 // update the permissions
                 existing_object
-                    .permissions
-                    .extend_from_slice(&object_with_metadata.permissions);
+                    .permissions_mut()
+                    .extend_from_slice(&object_with_metadata.permissions());
             }
             None => {
                 // insert the object
-                res.insert(object_with_metadata.id.clone(), object_with_metadata);
+                res.insert(object_with_metadata.id().to_string(), object_with_metadata);
             }
         };
     }

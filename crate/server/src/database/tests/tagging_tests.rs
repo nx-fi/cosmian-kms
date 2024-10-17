@@ -81,9 +81,9 @@ pub(crate) async fn tags<DB: Database>(
     };
     assert_eq!(res.len(), 1);
     let owm = res[0].clone();
-    assert_eq!(StateEnumeration::Active, owm.state);
-    assert!(symmetric_key == owm.object);
-    let tags = db.retrieve_tags(&owm.id, db_params).await?;
+    assert_eq!(StateEnumeration::Active, owm.state());
+    assert!(&symmetric_key == owm.object());
+    let tags = db.retrieve_tags(owm.id(), db_params).await?;
     assert_eq!(tags.len(), 2);
     assert!(tags.contains("tag1"));
     assert!(tags.contains("tag2"));
@@ -102,14 +102,14 @@ pub(crate) async fn tags<DB: Database>(
 
     assert_eq!(res.len(), 1);
     let owm = res[0].clone();
-    assert_eq!(owm.id, uid);
-    assert_eq!(owm.owner, owner);
+    assert_eq!(owm.id(), uid);
+    assert_eq!(owm.owner(), owner);
     if verify_attributes {
-        assert_eq!(owm.attributes, expected_attributes);
+        assert_eq!(owm.attributes(), &expected_attributes);
     }
-    assert_eq!(owm.state, StateEnumeration::Active);
-    assert_eq!(owm.permissions, vec![]);
-    let tags = db.retrieve_tags(&owm.id, db_params).await?;
+    assert_eq!(owm.state(), StateEnumeration::Active);
+    assert_eq!(owm.permissions(), vec![]);
+    let tags = db.retrieve_tags(owm.id(), db_params).await?;
     assert!(tags.contains("tag1"));
     assert!(tags.contains("tag2"));
 
@@ -127,14 +127,14 @@ pub(crate) async fn tags<DB: Database>(
 
     assert_eq!(res.len(), 1);
     let owm = res[0].clone();
-    assert_eq!(owm.id, uid);
-    assert_eq!(owm.owner, owner);
+    assert_eq!(owm.id(), uid);
+    assert_eq!(owm.owner(), owner);
     if verify_attributes {
-        assert_eq!(owm.attributes, expected_attributes);
+        assert_eq!(owm.attributes(), &expected_attributes);
     }
-    assert_eq!(owm.state, StateEnumeration::Active);
-    assert_eq!(owm.permissions, vec![]);
-    let tags = db.retrieve_tags(&owm.id, db_params).await?;
+    assert_eq!(owm.state(), StateEnumeration::Active);
+    assert_eq!(owm.permissions(), vec![]);
+    let tags = db.retrieve_tags(owm.id(), db_params).await?;
     assert!(tags.contains("tag1"));
     assert!(tags.contains("tag2"));
 
@@ -152,14 +152,14 @@ pub(crate) async fn tags<DB: Database>(
 
     assert_eq!(res.len(), 1);
     let owm = res[0].clone();
-    assert_eq!(owm.id, uid);
-    assert_eq!(owm.owner, owner);
+    assert_eq!(owm.id(), uid);
+    assert_eq!(owm.owner(), owner);
     if verify_attributes {
-        assert_eq!(owm.attributes, expected_attributes);
+        assert_eq!(owm.attributes(), &expected_attributes);
     }
-    assert_eq!(owm.state, StateEnumeration::Active);
-    assert_eq!(owm.permissions, vec![]);
-    let tags = db.retrieve_tags(&owm.id, db_params).await?;
+    assert_eq!(owm.state(), StateEnumeration::Active);
+    assert_eq!(owm.permissions(), vec![]);
+    let tags = db.retrieve_tags(owm.id(), db_params).await?;
     assert!(tags.contains("tag1"));
     assert!(tags.contains("tag2"));
 
@@ -217,14 +217,14 @@ pub(crate) async fn tags<DB: Database>(
 
     assert_eq!(res.len(), 1);
     let owm = res[0].clone();
-    assert_eq!(owm.id, uid);
-    assert_eq!(owm.owner, owner);
+    assert_eq!(owm.id(), uid);
+    assert_eq!(owm.owner(), owner);
     if verify_attributes {
-        assert_eq!(owm.attributes, expected_attributes);
+        assert_eq!(owm.attributes(), &expected_attributes);
     }
-    assert_eq!(owm.state, StateEnumeration::Active);
-    assert_eq!(owm.permissions, vec![ObjectOperationType::Get]);
-    let tags = db.retrieve_tags(&owm.id, db_params).await?;
+    assert_eq!(owm.state(), StateEnumeration::Active);
+    assert_eq!(owm.permissions(), vec![ObjectOperationType::Get]);
+    let tags = db.retrieve_tags(&owm.id(), db_params).await?;
     assert!(tags.contains("tag1"));
     assert!(tags.contains("tag2"));
 
@@ -242,14 +242,14 @@ pub(crate) async fn tags<DB: Database>(
 
     assert_eq!(res.len(), 1);
     let owm = res[0].clone();
-    assert_eq!(owm.id, uid);
-    assert_eq!(owm.owner, owner);
+    assert_eq!(owm.id(), uid);
+    assert_eq!(owm.owner(), owner);
     if verify_attributes {
-        assert_eq!(owm.attributes, expected_attributes);
+        assert_eq!(owm.attributes(), &expected_attributes);
     }
-    assert_eq!(owm.state, StateEnumeration::Active);
-    assert_eq!(owm.permissions, vec![ObjectOperationType::Decrypt]);
-    let tags = db.retrieve_tags(&owm.id, db_params).await?;
+    assert_eq!(owm.state(), StateEnumeration::Active);
+    assert_eq!(owm.permissions(), vec![ObjectOperationType::Decrypt]);
+    let tags = db.retrieve_tags(owm.id(), db_params).await?;
     assert!(tags.contains("tag1"));
     assert!(tags.contains("tag2"));
 

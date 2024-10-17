@@ -51,7 +51,7 @@ pub(crate) async fn decrypt(
 
     // Make sure that the key used to decrypt can be used to decrypt.
     if !owm
-        .object
+        .object()
         .attributes()?
         .is_usage_authorized_for(CryptographicUsageMask::Decrypt)?
     {
@@ -61,7 +61,7 @@ pub(crate) async fn decrypt(
         ))
     }
 
-    match &owm.object {
+    match owm.object() {
         Object::SymmetricKey { .. } | Object::PrivateKey { .. } => {
             // we do not (yet) support continuation cases
             let data = request.data.as_ref().ok_or_else(|| {
@@ -103,8 +103,8 @@ async fn get_key(
         .await?
         .into_values()
         .filter(|owm| {
-            let object_type = owm.object.object_type();
-            if owm.state != StateEnumeration::Active {
+            let object_type = owm.object().object_type();
+            if owm.state() != StateEnumeration::Active {
                 return false
             }
             if object_type == ObjectType::SymmetricKey {
@@ -113,7 +113,7 @@ async fn get_key(
             if object_type != ObjectType::PrivateKey {
                 return false
             }
-            if let Ok(attributes) = owm.object.attributes() {
+            if let Ok(attributes) = owm.object().attributes() {
                 // is it a Covercrypt secret key?
                 if attributes.key_format_type == Some(KeyFormatType::CoverCryptSecretKey) {
                     // does it have an access policy that allows decryption?
@@ -143,9 +143,10 @@ async fn get_key(
     }
 
     // unwrap if wrapped
-    if owm.object.key_wrapping_data().is_some() {
-        let key_block = owm.object.key_block_mut()?;
-        unwrap_key(key_block, kms, &owm.owner, params).await?;
+    if owm.object().key_wrapping_data().is_some() {
+        let owner = owm.owner().to_string();
+        let key_block = owm.object_mut().key_block_mut()?;
+        unwrap_key(key_block, kms, &owner, params).await?;
     }
     Ok(owm)
 }
@@ -159,7 +160,7 @@ fn decrypt_bulk(
         "decrypt_bulk: ==> decrypting {} ciphertexts",
         bulk_data.len()
     );
-    let key_block = owm.object.key_block()?;
+    let key_block = owm.object().key_block()?;
     let mut plaintexts = Vec::with_capacity(bulk_data.len());
 
     match &key_block.key_format_type {
@@ -219,7 +220,7 @@ fn decrypt_bulk(
         plaintexts.len()
     );
     Ok(DecryptResponse {
-        unique_identifier: UniqueIdentifier::TextString(owm.id.clone()),
+        unique_identifier: UniqueIdentifier::TextString(owm.id().to_string()),
         data: Some(BulkData::new(plaintexts).serialize()?),
         correlation_value: request.correlation_value.clone(),
     })
@@ -227,7 +228,7 @@ fn decrypt_bulk(
 
 fn decrypt_single(owm: &ObjectWithMetadata, request: &Decrypt) -> KResult<DecryptResponse> {
     trace!("decrypt_single");
-    let key_block = owm.object.key_block()?;
+    let key_block = owm.object().key_block()?;
     match &key_block.key_format_type {
         KeyFormatType::CoverCryptSecretKey => decrypt_with_covercrypt(owm, request),
 
@@ -256,7 +257,7 @@ fn decrypt_with_covercrypt(
     owm: &ObjectWithMetadata,
     request: &Decrypt,
 ) -> Result<DecryptResponse, KmsError> {
-    CovercryptDecryption::instantiate(Covercrypt::default(), &owm.id, &owm.object)?
+    CovercryptDecryption::instantiate(Covercrypt::default(), owm.id(), owm.object())?
         .decrypt(request)
         .map_err(Into::into)
 }
@@ -288,7 +289,7 @@ fn decrypt_single_with_symmetric_key(
         .unwrap_or(EMPTY_SLICE);
     let plaintext = sym_decrypt(aead, &key_bytes, nonce, aad, ciphertext, tag)?;
     Ok(Ok(DecryptResponse {
-        unique_identifier: UniqueIdentifier::TextString(owm.id.clone()),
+        unique_identifier: UniqueIdentifier::TextString(owm.id().to_string()),
         data: Some(plaintext),
         correlation_value: request.correlation_value.clone(),
     }))
@@ -298,7 +299,7 @@ fn get_aead_and_key(
     owm: &ObjectWithMetadata,
     request: &Decrypt,
 ) -> Result<(Zeroizing<Vec<u8>>, SymCipher), KmsError> {
-    let key_block = owm.object.key_block()?;
+    let key_block = owm.object().key_block()?;
     // recover the cryptographic algorithm from the request or the key block or default to AES
     let cryptographic_algorithm = request
         .cryptographic_parameters
@@ -330,7 +331,7 @@ fn decrypt_with_public_key(
     let ciphertext = request.data.as_ref().ok_or_else(|| {
         KmsError::InvalidRequest("Decrypt: data to decrypt must be provided".to_owned())
     })?;
-    let private_key = kmip_private_key_to_openssl(&owm.object)?;
+    let private_key = kmip_private_key_to_openssl(owm.object())?;
 
     let plaintext = match private_key.id() {
         Id::RSA => decrypt_with_rsa(
@@ -345,7 +346,7 @@ fn decrypt_with_public_key(
         }
     };
     Ok(DecryptResponse {
-        unique_identifier: UniqueIdentifier::TextString(owm.id.clone()),
+        unique_identifier: UniqueIdentifier::TextString(owm.id().to_string()),
         data: Some(plaintext),
         correlation_value: request.correlation_value.clone(),
     })

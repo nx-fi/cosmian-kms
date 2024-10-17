@@ -31,7 +31,6 @@ mod additional_redis_findex_tests;
 mod database_tests;
 mod find_attributes_test;
 mod json_access_test;
-mod lru_cache_test;
 mod owner_test;
 mod permissions_test;
 mod tagging_tests;

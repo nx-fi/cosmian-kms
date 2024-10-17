@@ -41,7 +41,7 @@ pub(crate) async fn delete_attribute(
         serde_json::to_string(&owm)
     );
 
-    let mut attributes = owm.attributes;
+    let mut attributes = owm.attributes().to_owned();
 
     if let Some(attribute) = request.current_attribute {
         match attribute {
@@ -126,17 +126,17 @@ pub(crate) async fn delete_attribute(
         }
     }
 
-    let tags = kms.db.retrieve_tags(&owm.id, params).await?;
+    let tags = kms.db.retrieve_tags(owm.id(), params).await?;
 
-    if let Ok(object_attributes) = owm.object.attributes_mut() {
+    if let Ok(object_attributes) = owm.object_mut().attributes_mut() {
         *object_attributes = attributes.clone();
     }
 
     kms.db
-        .update_object(&owm.id, &owm.object, &attributes, Some(&tags), params)
+        .update_object(owm.id(), owm.object(), &attributes, Some(&tags), params)
         .await?;
 
     Ok(DeleteAttributeResponse {
-        unique_identifier: UniqueIdentifier::TextString(owm.id.clone()),
+        unique_identifier: UniqueIdentifier::TextString(owm.id().to_string()),
     })
 }

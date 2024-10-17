@@ -23,14 +23,15 @@ use openssl::{
     stack::Stack,
     x509::X509,
 };
-use tracing::{debug, trace};
+use tracing::trace;
 use zeroize::Zeroizing;
 
 use crate::{
     core::{
         certificate::{retrieve_certificate_for_private_key, retrieve_private_key_for_certificate},
         extra_database_params::ExtraDatabaseParams,
-        operations::{import::upsert_imported_links_in_attributes, unwrap_key, wrapping::wrap_key},
+        operations::import::upsert_imported_links_in_attributes,
+        wrapping::wrap_key,
         KMS,
     },
     database::{object_with_metadata::ObjectWithMetadata, retrieve_object_for_operation},
@@ -60,21 +61,21 @@ pub(crate) async fn export_get(
         .context("Export: unique_identifier or tags must be a string")?;
     let mut owm =
         retrieve_object_for_operation(uid_or_tags, operation_type, kms, user, params).await?;
-    let object_type = owm.object.object_type();
+    let object_type = owm.object().object_type();
     let export = operation_type == ObjectOperationType::Export;
 
     // export based on the Object type
     match object_type {
         ObjectType::PrivateKey => {
-            export_get_private_key(kms, operation_type, user, params, &request, &mut owm).await?;
+            post_process_private_key(kms, operation_type, user, params, &request, &mut owm).await?;
         }
         ObjectType::PublicKey => {
             // according to the KMIP specs the KeyMaterial is not returned if the object is destroyed
             if export
-                && (owm.state == StateEnumeration::Destroyed
-                    || owm.state == StateEnumeration::Destroyed_Compromised)
+                && (owm.state() == StateEnumeration::Destroyed
+                    || owm.state() == StateEnumeration::Destroyed_Compromised)
             {
-                let key_block = owm.object.key_block_mut()?;
+                let key_block = owm.object_mut().key_block_mut()?;
                 key_block.key_value = KeyValue {
                     key_material: KeyMaterial::ByteString(Zeroizing::from(vec![])),
                     attributes: None,
@@ -96,10 +97,10 @@ pub(crate) async fn export_get(
         ObjectType::SymmetricKey => {
             // according to the KMIP specs the KeyMaterial is not returned if the object is destroyed
             if export
-                && (owm.state == StateEnumeration::Destroyed
-                    || owm.state == StateEnumeration::Destroyed_Compromised)
+                && (owm.state() == StateEnumeration::Destroyed
+                    || owm.state() == StateEnumeration::Destroyed_Compromised)
             {
-                let key_block = owm.object.key_block_mut()?;
+                let key_block = owm.object_mut().key_block_mut()?;
                 key_block.key_value = KeyValue {
                     key_material: KeyMaterial::ByteString(Zeroizing::from(vec![])),
                     attributes: None,
@@ -135,13 +136,15 @@ pub(crate) async fn export_get(
                         params,
                     )
                     .await?;
-                    export_get_private_key(
+                    post_process_private_key(
                         kms,
                         operation_type,
                         user,
                         params,
                         &Export {
-                            unique_identifier: Some(UniqueIdentifier::TextString(owm.id.clone())),
+                            unique_identifier: Some(UniqueIdentifier::TextString(
+                                owm.id().to_owned(),
+                            )),
                             key_format_type: Some(*key_format_type),
                             key_wrap_type: Some(KeyWrapType::NotWrapped),
                             key_compression_type: request.key_compression_type,
@@ -173,20 +176,20 @@ pub(crate) async fn export_get(
         _ => {
             kms_bail!(
                 "export: unsupported object type: {:?}",
-                owm.object.object_type()
+                owm.object().object_type()
             )
         }
     };
 
     Ok(ExportResponse {
-        object_type: owm.object.object_type(),
-        unique_identifier: UniqueIdentifier::TextString(owm.id),
-        attributes: owm.attributes,
-        object: owm.object,
+        object_type: owm.object().object_type(),
+        unique_identifier: UniqueIdentifier::TextString(owm.id().to_owned()),
+        attributes: owm.attributes().clone(),
+        object: owm.object().clone(),
     })
 }
 
-async fn export_get_private_key(
+async fn post_process_private_key(
     kms: &KMS,
     operation_type: ObjectOperationType,
     user: &str,
@@ -196,7 +199,7 @@ async fn export_get_private_key(
 ) -> Result<(), KmsError> {
     trace!(
         "export_get_private_key: {} for operation: {}",
-        owm.id,
+        owm.id(),
         operation_type
     );
     // determine if the user wants a PKCS#12
@@ -207,17 +210,17 @@ async fn export_get_private_key(
     let is_pkcs12 = request.key_format_type == Some(KeyFormatType::PKCS12);
     // according to the KMIP specs the KeyMaterial is not returned if the object is destroyed
     if (operation_type == ObjectOperationType::Export)
-        && (owm.state == StateEnumeration::Destroyed
-            || owm.state == StateEnumeration::Destroyed_Compromised)
+        && (owm.state() == StateEnumeration::Destroyed
+            || owm.state() == StateEnumeration::Destroyed_Compromised)
     {
-        let key_block = owm.object.key_block_mut()?;
+        let key_block = owm.object_mut().key_block_mut()?;
         key_block.key_value = KeyValue {
             key_material: KeyMaterial::ByteString(Zeroizing::from(vec![])),
             attributes: None,
         };
         key_block.key_format_type = KeyFormatType::Opaque;
     } else {
-        process_private_key(
+        post_process_active_private_key(
             owm,
             &request.key_format_type,
             &request.key_wrap_type,
@@ -241,7 +244,7 @@ async fn export_get_private_key(
     Ok(())
 }
 
-async fn process_private_key(
+async fn post_process_active_private_key(
     object_with_metadata: &mut ObjectWithMetadata,
     key_format_type: &Option<KeyFormatType>,
     key_wrap_type: &Option<KeyWrapType>,
@@ -250,11 +253,11 @@ async fn process_private_key(
     user: &str,
     params: Option<&ExtraDatabaseParams>,
 ) -> KResult<()> {
-    let object_type = object_with_metadata.object.object_type();
-    let key_block = object_with_metadata.object.key_block_mut()?;
+    // First perform any necessary unwrapping to the expected type
+    transform_to_key_wrap_type(object_with_metadata, key_wrap_type, kms, user, params).await?;
 
-    // First check if any unwrapping needs to be done
-    maybe_unwrap(key_block, object_type, kms, key_wrap_type, user, params).await?;
+    let mut attributes = object_with_metadata.attributes().clone();
+    let key_block = object_with_metadata.object_mut().key_block_mut()?;
 
     // If the key is still wrapped then the exported `KeyFormatType` must be the default (`None`)
     if key_block.key_wrapping_data.is_some() {
@@ -283,14 +286,14 @@ async fn process_private_key(
     }
 
     // Make a copy of the existing attributes
-    let mut attributes = object_with_metadata.attributes.clone();
+
     upsert_imported_links_in_attributes(
         &mut attributes,
         key_block.key_value.attributes.get_or_insert(Box::default()),
     );
 
     // parse the key to an openssl object
-    let openssl_key = kmip_private_key_to_openssl(&object_with_metadata.object)
+    let openssl_key = kmip_private_key_to_openssl(object_with_metadata.object())
         .context("export: unable to parse the private key to openssl")?;
 
     // Wrapping is only available for KeyFormatType being the default (i.e. None)
@@ -314,7 +317,7 @@ async fn process_private_key(
         // wrap the key
         wrap_key(key_block, key_wrapping_specification, kms, user, params).await?;
         // reassign the wrapped key
-        object_with_metadata.object = object;
+        object_with_metadata.set_object(object);
         return Ok(())
     }
 
@@ -350,17 +353,17 @@ async fn process_private_key(
             *key_format_type,
             attributes.cryptographic_usage_mask,
         )?;
-        object_with_metadata.object = object;
+        object_with_metadata.set_object(object);
     } else {
         // No format type requested: export the private key to the default format
         let object = openssl_private_key_to_kmip_default_format(
             &openssl_key,
             attributes.cryptographic_usage_mask,
         )?;
-        object_with_metadata.object = object;
+        object_with_metadata.set_object(object);
     }
     // add the attributes back
-    let key_block = object_with_metadata.object.key_block_mut()?;
+    let key_block = object_with_metadata.object_mut().key_block_mut()?;
     key_block.key_value.attributes = Some(Box::new(attributes));
     Ok(())
 }
@@ -374,11 +377,12 @@ async fn process_public_key(
     user: &str,
     params: Option<&ExtraDatabaseParams>,
 ) -> KResult<()> {
-    let object_type = object_with_metadata.object.object_type();
-    let key_block = object_with_metadata.object.key_block_mut()?;
+    // perform any necessary unwrapping
+    transform_to_key_wrap_type(object_with_metadata, key_wrap_type, kms, user, params).await?;
 
-    // First check if any unwrapping needs to be done
-    maybe_unwrap(key_block, object_type, kms, key_wrap_type, user, params).await?;
+    //make a copy of the existing attributes
+    let mut attributes = object_with_metadata.attributes().clone();
+    let key_block = object_with_metadata.object_mut().key_block_mut()?;
 
     // If the key is still wrapped then the exported `KeyFormatType` must be the default (`None`)
     if key_block.key_wrapping_data.is_some() {
@@ -406,15 +410,13 @@ async fn process_public_key(
         .await
     }
 
-    //make a copy of the existing attributes
-    let mut attributes = object_with_metadata.attributes.clone();
     upsert_imported_links_in_attributes(
         &mut attributes,
         key_block.key_value.attributes.get_or_insert(Box::default()),
     );
 
     // parse the key to an openssl object
-    let openssl_key = kmip_public_key_to_openssl(&object_with_metadata.object)
+    let openssl_key = kmip_public_key_to_openssl(object_with_metadata.object())
         .context("export: unable to parse the private key to openssl")?;
 
     // Wrapping is only available for KeyFormatType being the default (i.e. None)
@@ -444,7 +446,8 @@ async fn process_public_key(
         )
         .await?;
         // reassign the wrapped key
-        object_with_metadata.object = object;
+        *object_with_metadata.object_mut() = object;
+        object_with_metadata.clear_unwrapped();
         return Ok(())
     }
 
@@ -460,7 +463,8 @@ async fn process_public_key(
                     *key_format_type,
                     attributes.cryptographic_usage_mask,
                 )?;
-                object_with_metadata.object = object;
+                *object_with_metadata.object_mut() = object;
+                object_with_metadata.clear_unwrapped();
             }
             _ => kms_bail!("export: unsupported Key Format Type: {:?}", key_format_type),
         }
@@ -470,34 +474,35 @@ async fn process_public_key(
             &openssl_key,
             attributes.cryptographic_usage_mask,
         )?;
-        object_with_metadata.object = object;
+        object_with_metadata.set_object(object);
     }
 
     // add the attributes back
-    let key_block = object_with_metadata.object.key_block_mut()?;
+    let key_block = object_with_metadata.object_mut().key_block_mut()?;
     key_block.key_value.attributes = Some(Box::new(attributes));
 
     Ok(())
 }
 
-async fn maybe_unwrap(
-    key_block: &mut KeyBlock,
-    object_type: ObjectType,
-    kms: &KMS,
+async fn transform_to_key_wrap_type(
+    object_with_metadata: &mut ObjectWithMetadata,
     key_wrap_type: &Option<KeyWrapType>,
+    kms: &KMS,
     user: &str,
     params: Option<&ExtraDatabaseParams>,
-) -> KResult<()> {
-    if key_block.key_wrapping_data.is_none() {
-        return Ok(())
-    }
+) -> Result<(), KmsError> {
+    let id = object_with_metadata.id().to_owned();
     if let Some(key_wrap_type) = key_wrap_type {
         if *key_wrap_type == KeyWrapType::NotWrapped {
-            debug!(
-                "export: unwrapping before exporting on object: {:?}",
-                object_type
-            );
-            unwrap_key(key_block, kms, user, params).await?;
+            // The owm must be made an object where the unwrapped version is the version "as is"
+            let object = object_with_metadata
+                .unwrapped(kms, user, params)
+                .await
+                .ok_or_else(|| {
+                    KmsError::InvalidRequest(format!("The object {id} cannot be unwrapped"))
+                })?
+                .clone();
+            object_with_metadata.set_object(object);
         }
     }
     Ok(())
@@ -584,11 +589,11 @@ async fn process_symmetric_key(
         "process_symmetric_key: object_with_metadata: {}",
         object_with_metadata
     );
-    let object_type = object_with_metadata.object.object_type();
-    let key_block = object_with_metadata.object.key_block_mut()?;
 
     // First check is any unwrapping needs to be done
-    maybe_unwrap(key_block, object_type, kms, key_wrap_type, user, params).await?;
+    transform_to_key_wrap_type(object_with_metadata, key_wrap_type, kms, user, params).await?;
+
+    let key_block = object_with_metadata.object_mut().key_block_mut()?;
 
     // If the key is still wrapped the the export KeyFormatType must be the default (none)
     if key_block.key_wrapping_data.is_some() {
@@ -667,22 +672,22 @@ async fn build_pkcs12_for_private_key(
 ) -> Result<(), KmsError> {
     trace!(
         "build_pkcs12_for_private_key: {} with format: {:?}",
-        private_key_owm.id,
+        private_key_owm.id(),
         request.key_format_type
     );
 
     let mut cert_owm =
         retrieve_certificate_for_private_key(private_key_owm, operation_type, kms, user, params)
             .await?;
-    let certificate = kmip_certificate_to_openssl(&cert_owm.object)?;
+    let certificate = kmip_certificate_to_openssl(cert_owm.object())?;
 
-    trace!("building chain from leaf certificate:  {}", cert_owm.id);
+    trace!("building chain from leaf certificate:  {}", cert_owm.id());
 
     // retrieve the certificate chain
     let mut chain: Stack<X509> = Stack::new()?;
-    while let Some(parent_id) = cert_owm.attributes.get_link(LinkType::CertificateLink) {
+    while let Some(parent_id) = cert_owm.attributes().get_link(LinkType::CertificateLink) {
         // if the parent_id is identical to the current certificate => self-signed cert, we must stop
-        if parent_id.to_string() == cert_owm.id {
+        if parent_id.to_string() == cert_owm.id() {
             break;
         }
         trace!("certificate parent id is:  {}", parent_id);
@@ -695,7 +700,7 @@ async fn build_pkcs12_for_private_key(
             params,
         )
         .await?;
-        let certificate = kmip_certificate_to_openssl(&cert_owm.object)?;
+        let certificate = kmip_certificate_to_openssl(cert_owm.object())?;
         chain.push(certificate)?;
     }
 
@@ -709,9 +714,9 @@ async fn build_pkcs12_for_private_key(
     // convert the Private Key to openssl
     trace!(
         "converting the private key {} to openssl pkey",
-        private_key_owm.id
+        private_key_owm.id()
     );
-    let private_key = kmip_private_key_to_openssl(&private_key_owm.object)
+    let private_key = kmip_private_key_to_openssl(private_key_owm.object())
         .context("export: unable to parse the private key to openssl")?;
 
     // Create the PKCS12
@@ -737,7 +742,7 @@ async fn build_pkcs12_for_private_key(
         .context("export: unable to build the PKCS12")?;
 
     // add the certificate to the private key
-    private_key_owm.object = Object::PrivateKey {
+    private_key_owm.set_object(Object::PrivateKey {
         key_block: KeyBlock {
             key_format_type: KeyFormatType::PKCS12,
             key_compression_type: None,
@@ -750,7 +755,7 @@ async fn build_pkcs12_for_private_key(
             cryptographic_length: None,
             key_wrapping_data: None,
         },
-    };
+    });
     Ok(())
 }
 
@@ -762,14 +767,14 @@ async fn post_process_pkcs7(
     owm: ObjectWithMetadata,
 ) -> KResult<ObjectWithMetadata> {
     // convert the cert to openssl
-    let certificate = kmip_certificate_to_openssl(&owm.object)
+    let certificate = kmip_certificate_to_openssl(owm.object())
         .context("export: unable to parse the certificate to openssl")?;
 
     let mut cert_owm = owm.clone();
 
     let leaf_cert = certificate.clone();
     let public_key_id = cert_owm
-        .attributes
+        .attributes()
         .get_link(LinkType::PublicKeyLink)
         .ok_or_else(|| {
             KmipError::Default("No Public Key found in the leaf certificate".to_owned())
@@ -782,7 +787,9 @@ async fn post_process_pkcs7(
         params,
     )
     .await?;
-    let private_key_id = public_key_owm.attributes.get_link(LinkType::PrivateKeyLink);
+    let private_key_id = public_key_owm
+        .attributes()
+        .get_link(LinkType::PrivateKeyLink);
     if let Some(private_key_id) = private_key_id {
         let private_key_owm = retrieve_object_for_operation(
             &private_key_id.to_string(),
@@ -792,14 +799,14 @@ async fn post_process_pkcs7(
             params,
         )
         .await?;
-        let pkey = kmip_private_key_to_openssl(&private_key_owm.object)
+        let pkey = kmip_private_key_to_openssl(private_key_owm.object())
             .context("export: unable to parse the private key to openssl")?;
 
         // Create the PKCS7 structure
         let mut chain: Stack<X509> = Stack::new()?;
 
         // Retrieve the certificate chain
-        while let Some(parent_id) = cert_owm.attributes.get_link(LinkType::CertificateLink) {
+        while let Some(parent_id) = cert_owm.attributes().get_link(LinkType::CertificateLink) {
             trace!("Certificate parent id is: {parent_id}");
             // Retrieve the parent certificate
             cert_owm = retrieve_object_for_operation(
@@ -810,7 +817,7 @@ async fn post_process_pkcs7(
                 params,
             )
             .await?;
-            let certificate = kmip_certificate_to_openssl(&cert_owm.object)
+            let certificate = kmip_certificate_to_openssl(cert_owm.object())
                 .context("export: unable to parse the certificate to openssl")?;
             chain.push(certificate)?;
         }
@@ -825,10 +832,10 @@ async fn post_process_pkcs7(
         )?;
 
         // Modify initial owm
-        cert_owm.object = Object::Certificate {
+        cert_owm.set_object(Object::Certificate {
             certificate_type: CertificateType::PKCS7,
             certificate_value: pkcs7.to_der()?,
-        };
+        });
     }
 
     Ok(cert_owm)

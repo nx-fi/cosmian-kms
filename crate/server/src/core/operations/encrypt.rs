@@ -72,12 +72,12 @@ pub(crate) async fn encrypt(
 }
 
 fn encrypt_single(owm: &ObjectWithMetadata, request: &Encrypt) -> KResult<EncryptResponse> {
-    match &owm.object {
+    match owm.object() {
         Object::SymmetricKey { .. } => encrypt_with_symmetric_key(request, owm),
         Object::PublicKey { .. } => encrypt_with_public_key(request, owm),
         Object::Certificate {
             certificate_value, ..
-        } => encrypt_with_certificate(request, &owm.id, certificate_value),
+        } => encrypt_with_certificate(request, owm.id(), certificate_value),
         other => kms_bail!(KmsError::NotSupported(format!(
             "encrypt: encryption with keys of type: {} is not supported",
             other.object_type()
@@ -101,7 +101,7 @@ pub(crate) fn encrypt_bulk(
     );
     let mut ciphertexts = Vec::with_capacity(bulk_data.len());
 
-    match &owm.object {
+    match owm.object() {
         Object::SymmetricKey { .. } => {
             let aad = request
                 .authenticated_encryption_additional_data
@@ -132,7 +132,7 @@ pub(crate) fn encrypt_bulk(
         } => {
             for plaintext in <BulkData as Into<Vec<Zeroizing<Vec<u8>>>>>::into(bulk_data) {
                 request.data = Some(plaintext.clone());
-                let response = encrypt_with_certificate(&request, &owm.id, certificate_value)?;
+                let response = encrypt_with_certificate(&request, owm.id(), certificate_value)?;
                 ciphertexts.push(Zeroizing::new(response.data.unwrap_or_default()));
             }
         }
@@ -147,7 +147,7 @@ pub(crate) fn encrypt_bulk(
         ciphertexts.len()
     );
     Ok(EncryptResponse {
-        unique_identifier: UniqueIdentifier::TextString(owm.id.clone()),
+        unique_identifier: UniqueIdentifier::TextString(owm.id().to_string()),
         data: Some(BulkData::new(ciphertexts).serialize()?.to_vec()),
         iv_counter_nonce: None,
         correlation_value: request.correlation_value,
@@ -178,8 +178,8 @@ async fn get_key(
         .await?
         .into_values()
         .filter(|owm| {
-            let object_type = owm.object.object_type();
-            owm.state == StateEnumeration::Active
+            let object_type = owm.object().object_type();
+            owm.state() == StateEnumeration::Active
                 && (object_type == ObjectType::PublicKey
                     || object_type == ObjectType::SymmetricKey
                     || object_type == ObjectType::Certificate)
@@ -202,19 +202,20 @@ async fn get_key(
     }
 
     // the key must be active
-    if owm.state != StateEnumeration::Active {
+    if owm.state() != StateEnumeration::Active {
         kms_bail!(KmsError::InconsistentOperation(
             "encrypt: the server cannot if the key is not active".to_owned()
         ));
     }
 
     // unwrap if wrapped
-    match &mut owm.object {
+    match &mut owm.object() {
         Object::Certificate { .. } => {}
         _ => {
-            if owm.object.key_wrapping_data().is_some() {
-                let key_block = owm.object.key_block_mut()?;
-                unwrap_key(key_block, kms, &owm.owner, params).await?;
+            if owm.object().key_wrapping_data().is_some() {
+                let owner = owm.owner().to_string();
+                let key_block = owm.object_mut().key_block_mut()?;
+                unwrap_key(key_block, kms, &owner, params).await?;
             }
         }
     }
@@ -239,7 +240,7 @@ fn encrypt_with_symmetric_key(
         .unwrap_or(EMPTY_SLICE);
     let (ciphertext, tag) = sym_encrypt(aead, &key_bytes, &nonce, aad, plaintext)?;
     Ok(EncryptResponse {
-        unique_identifier: UniqueIdentifier::TextString(owm.id.clone()),
+        unique_identifier: UniqueIdentifier::TextString(owm.id().to_string()),
         data: Some(ciphertext),
         iv_counter_nonce: Some(nonce),
         correlation_value: request.correlation_value.clone(),
@@ -253,7 +254,7 @@ fn get_cipher_and_key(
 ) -> KResult<(Zeroizing<Vec<u8>>, SymCipher)> {
     // Make sure that the key used to encrypt can be used to encrypt.
     if !owm
-        .object
+        .object()
         .attributes()?
         .is_usage_authorized_for(CryptographicUsageMask::Encrypt)?
     {
@@ -262,7 +263,7 @@ fn get_cipher_and_key(
             "CryptographicUsageMask not authorized for Encrypt".to_owned(),
         ))
     }
-    let key_block = owm.object.key_block()?;
+    let key_block = owm.object().key_block()?;
     let key_bytes = key_block.key_bytes()?;
     let aead = match key_block.key_format_type {
         KeyFormatType::TransparentSymmetricKey | KeyFormatType::Raw => {
@@ -302,7 +303,7 @@ fn encrypt_with_public_key(
 ) -> KResult<EncryptResponse> {
     // Make sure that the key used to encrypt can be used to encrypt.
     if !owm
-        .object
+        .object()
         .attributes()?
         .is_usage_authorized_for(CryptographicUsageMask::Encrypt)?
     {
@@ -312,10 +313,10 @@ fn encrypt_with_public_key(
         ))
     }
 
-    let key_block = owm.object.key_block()?;
+    let key_block = owm.object().key_block()?;
     match &key_block.key_format_type {
         KeyFormatType::CoverCryptPublicKey => {
-            CoverCryptEncryption::instantiate(Covercrypt::default(), &owm.id, &owm.object)?
+            CoverCryptEncryption::instantiate(Covercrypt::default(), owm.id(), owm.object())?
                 .encrypt(request)
                 .map_err(Into::into)
         }
@@ -330,9 +331,9 @@ fn encrypt_with_public_key(
                 "get_encryption_system: matching on key format type: {:?}",
                 key_block.key_format_type
             );
-            let public_key = kmip_public_key_to_openssl(&owm.object)?;
+            let public_key = kmip_public_key_to_openssl(owm.object())?;
             trace!("get_encryption_system: OpenSSL Public Key instantiated before encryption");
-            encrypt_with_pkey(request, &owm.id, plaintext, &public_key)
+            encrypt_with_pkey(request, owm.id(), plaintext, &public_key)
         }
         other => Err(KmsError::NotSupported(format!(
             "encryption with public keys of format: {other}"

@@ -217,7 +217,7 @@ pub(crate) async fn atomic<DB: Database>(
             .await?
             .get(&uid_1)
             .expect("uid_1 should be in the db")
-            .state,
+            .state(),
         StateEnumeration::Deactivated
     );
     assert_eq!(
@@ -225,7 +225,7 @@ pub(crate) async fn atomic<DB: Database>(
             .await?
             .get(&uid_2)
             .expect("uid_1 should be in the db")
-            .state,
+            .state(),
         StateEnumeration::Deactivated
     );
     Ok(())
@@ -268,8 +268,8 @@ pub(crate) async fn upsert<DB: Database>(
         .collect::<Vec<ObjectWithMetadata>>();
     match objs_.len() {
         1 => {
-            assert_eq!(StateEnumeration::Active, objs_[0].state);
-            assert!(symmetric_key == objs_[0].object);
+            assert_eq!(StateEnumeration::Active, objs_[0].state());
+            assert!(&symmetric_key == objs_[0].object());
         }
         _ => kms_bail!("There should be only one object"),
     }
@@ -298,10 +298,10 @@ pub(crate) async fn upsert<DB: Database>(
         .collect::<Vec<ObjectWithMetadata>>();
     match objs_.len() {
         1 => {
-            assert_eq!(StateEnumeration::PreActive, objs_[0].state);
+            assert_eq!(StateEnumeration::PreActive, objs_[0].state());
             assert_eq!(
                 objs_[0]
-                    .object
+                    .object()
                     .attributes()?
                     .link
                     .as_ref()
@@ -380,8 +380,8 @@ pub(crate) async fn crud<DB: Database>(
 
     match objs_.len() {
         1 => {
-            assert_eq!(StateEnumeration::Active, objs_[0].state);
-            assert!(symmetric_key == objs_[0].object);
+            assert_eq!(StateEnumeration::Active, objs_[0].state());
+            assert!(&symmetric_key == objs_[0].object());
         }
         _ => kms_bail!("There should be only one object. Found {}", objs_.len()),
     }
@@ -409,10 +409,10 @@ pub(crate) async fn crud<DB: Database>(
 
     match objs_.len() {
         1 => {
-            assert_eq!(StateEnumeration::Active, objs_[0].state);
+            assert_eq!(StateEnumeration::Active, objs_[0].state());
             assert_eq!(
                 objs_[0]
-                    .object
+                    .object()
                     .attributes()?
                     .link
                     .as_ref()
@@ -436,8 +436,8 @@ pub(crate) async fn crud<DB: Database>(
 
     match objs_.len() {
         1 => {
-            assert_eq!(StateEnumeration::Deactivated, objs_[0].state);
-            assert!(symmetric_key == objs_[0].object);
+            assert_eq!(StateEnumeration::Deactivated, objs_[0].state());
+            assert!(&symmetric_key == objs_[0].object());
         }
         _ => kms_bail!("There should be only one object"),
     }

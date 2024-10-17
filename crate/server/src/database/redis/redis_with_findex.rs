@@ -316,14 +316,14 @@ impl Database for RedisWithFindex {
             if redis_db_object.owner == user {
                 objects.insert(
                     uid.clone(),
-                    ObjectWithMetadata {
-                        id: uid,
-                        object: redis_db_object.object,
-                        owner: redis_db_object.owner,
-                        state: redis_db_object.state,
-                        permissions: vec![],
-                        attributes: redis_db_object.attributes.unwrap_or_default(),
-                    },
+                    ObjectWithMetadata::new(
+                        uid,
+                        redis_db_object.object,
+                        redis_db_object.owner,
+                        redis_db_object.state,
+                        vec![],
+                        redis_db_object.attributes.unwrap_or_default(),
+                    ),
                 );
                 continue
             }
@@ -337,14 +337,14 @@ impl Database for RedisWithFindex {
             if permissions.contains(&query_access_grant) {
                 objects.insert(
                     uid.clone(),
-                    ObjectWithMetadata {
-                        id: uid,
-                        object: redis_db_object.object,
-                        owner: redis_db_object.owner,
-                        state: redis_db_object.state,
-                        permissions: permissions.into_iter().collect(),
-                        attributes: redis_db_object.attributes.unwrap_or_default(),
-                    },
+                    ObjectWithMetadata::new(
+                        uid,
+                        redis_db_object.object,
+                        redis_db_object.owner,
+                        redis_db_object.state,
+                        permissions.into_iter().collect(),
+                        redis_db_object.attributes.unwrap_or_default(),
+                    ),
                 );
             }
         }

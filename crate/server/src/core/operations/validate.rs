@@ -651,13 +651,13 @@ async fn certificate_by_uid(
     if let Object::Certificate {
         certificate_type: _,
         certificate_value,
-    } = uid_owm.object
+    } = uid_owm.object()
     {
-        Ok(certificate_value)
+        Ok(certificate_value.to_vec())
     } else {
         Err(KmsError::Certificate(format!(
             "Requested a Certificate Object, got a {}",
-            uid_owm.object.object_type()
+            uid_owm.object().object_type()
         )))
     }
 }

@@ -70,14 +70,14 @@ async fn create_user_decryption_key_(
         .await?
         .into_values()
         .filter(|owm| {
-            if owm.state != StateEnumeration::Active {
+            if owm.state() != StateEnumeration::Active {
                 return false
             }
-            if owm.object.object_type() != ObjectType::PrivateKey {
+            if owm.object().object_type() != ObjectType::PrivateKey {
                 return false
             }
 
-            let Ok(attributes) = owm.object.attributes() else {
+            let Ok(attributes) = owm.object().attributes() else {
                 return false
             };
 
@@ -100,7 +100,7 @@ async fn create_user_decryption_key_(
         )))
     }
 
-    let master_private_key = &owm.object;
+    let master_private_key = owm.object();
     if master_private_key.key_wrapping_data().is_some() {
         kms_bail!(KmsError::InconsistentOperation(
             "The server can't create a decryption key: the master private key is wrapped"
@@ -109,7 +109,7 @@ async fn create_user_decryption_key_(
     }
 
     UserDecryptionKeysHandler::instantiate(cover_crypt, master_private_key)?
-        .create_user_decryption_key_object(&access_policy, Some(create_attributes), &owm.id)
+        .create_user_decryption_key_object(&access_policy, Some(create_attributes), &owm.id())
         .map_err(Into::into)
 }
 

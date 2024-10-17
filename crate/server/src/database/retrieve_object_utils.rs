@@ -52,7 +52,7 @@ async fn _retrieve_object(
         .await?
         .into_values()
         .filter(|owm| {
-            owm.state == StateEnumeration::Active || operation_type == ObjectOperationType::Export
+            owm.state() == StateEnumeration::Active || operation_type == ObjectOperationType::Export
         })
         .collect();
     // there can only be one object
