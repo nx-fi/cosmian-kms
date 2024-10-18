@@ -117,7 +117,7 @@ pub(crate) async fn certify(
             let mut certificate_attributes = attributes.clone();
             certificate_attributes.set_link(
                 LinkType::PublicKeyLink,
-                LinkedObjectIdentifier::TextString(from_public_key.id().to_string()),
+                LinkedObjectIdentifier::TextString(from_public_key.id().to_owned()),
             );
             // update the link to the private for the certificate
             if let Some(private_key_id) = public_key_attributes.get_link(LinkType::PrivateKeyLink) {
@@ -135,7 +135,7 @@ pub(crate) async fn certify(
                     )),
                     // update the public key
                     AtomicOperation::UpdateObject((
-                        from_public_key.id().to_string(),
+                        from_public_key.id().to_owned(),
                         from_public_key.object().to_owned(),
                         public_key_attributes,
                         None,
@@ -447,7 +447,7 @@ async fn get_issuer<'a>(
     )
     .await?;
     Ok(Issuer::PrivateKeyAndCertificate(
-        UniqueIdentifier::TextString(issuer_certificate.id().to_string()),
+        UniqueIdentifier::TextString(issuer_certificate.id().to_owned()),
         kmip_private_key_to_openssl(issuer_private_key.object())?,
         kmip_certificate_to_openssl(issuer_certificate.object())?,
     ))

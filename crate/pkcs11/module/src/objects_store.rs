@@ -32,7 +32,7 @@ impl ObjectsStore {
         if let Some((object, handle)) = self.objects.get_mut(&id) {
             debug!("STORE: updating object with remote id: {id} and handle: {handle}");
             *object = object.clone();
-            self.ids.insert(handle.clone(), Arc::downgrade(&object));
+            self.ids.insert(*handle, Arc::downgrade(object));
             return Ok(*handle);
         }
         let handle = self.ids.len() as CK_OBJECT_HANDLE;

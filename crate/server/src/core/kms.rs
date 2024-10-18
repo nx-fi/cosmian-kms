@@ -514,7 +514,8 @@ impl KMS {
         user: &str,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<MessageResponse> {
-        operations::message(self, request, user, params).await
+        // This is a large future, hence pinning
+        Box::pin(operations::message(self, request, user, params)).await
     }
 
     pub(crate) async fn validate(

@@ -491,7 +491,7 @@ where
             }
             None => {
                 // insert the object
-                res.insert(object_with_metadata.id().to_string(), object_with_metadata);
+                res.insert(object_with_metadata.id().to_owned(), object_with_metadata);
             }
         };
     }

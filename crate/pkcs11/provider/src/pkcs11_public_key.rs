@@ -58,7 +58,7 @@ impl PublicKey for Pkcs11PublicKey {
     fn delete(self: Arc<Self>) {}
 
     fn algorithm(&self) -> KeyAlgorithm {
-        self.algorithm.clone()
+        self.algorithm
     }
 
     fn rsa_public_key(&self) -> MResult<RsaPublicKey> {

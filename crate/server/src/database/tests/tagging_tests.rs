@@ -227,7 +227,7 @@ pub(crate) async fn tags<DB: Database>(
         owm.permissions(),
         &HashSet::from([ObjectOperationType::Get])
     );
-    let tags = db.retrieve_tags(&owm.id(), db_params).await?;
+    let tags = db.retrieve_tags(owm.id(), db_params).await?;
     assert!(tags.contains("tag1"));
     assert!(tags.contains("tag2"));
 

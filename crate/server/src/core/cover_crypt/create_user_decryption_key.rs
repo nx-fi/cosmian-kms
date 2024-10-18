@@ -109,7 +109,7 @@ async fn create_user_decryption_key_(
     }
 
     UserDecryptionKeysHandler::instantiate(cover_crypt, master_private_key)?
-        .create_user_decryption_key_object(&access_policy, Some(create_attributes), &owm.id())
+        .create_user_decryption_key_object(&access_policy, Some(create_attributes), owm.id())
         .map_err(Into::into)
 }
 

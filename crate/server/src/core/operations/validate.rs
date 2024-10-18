@@ -653,7 +653,7 @@ async fn certificate_by_uid(
         certificate_value,
     } = uid_owm.object()
     {
-        Ok(certificate_value.to_vec())
+        Ok(certificate_value.clone())
     } else {
         Err(KmsError::Certificate(format!(
             "Requested a Certificate Object, got a {}",

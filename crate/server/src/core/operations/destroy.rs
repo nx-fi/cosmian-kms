@@ -3,10 +3,7 @@ use std::collections::HashSet;
 use async_recursion::async_recursion;
 use cosmian_kmip::kmip::{
     kmip_data_structures::{KeyMaterial, KeyValue},
-    kmip_objects::{
-        Object,
-        ObjectType::{self, PrivateKey, PublicKey, SymmetricKey},
-    },
+    kmip_objects::{Object, ObjectType},
     kmip_operations::{Destroy, DestroyResponse, ErrorReason},
     kmip_types::{Attributes, KeyFormatType, LinkType, StateEnumeration},
 };
@@ -90,18 +87,18 @@ pub(crate) async fn recursively_destroy_key(
         // perform the chain of destroy operations depending on the type of object
         let object_type = owm.object().object_type();
         match object_type {
-            SymmetricKey | ObjectType::Certificate => {
+            ObjectType::SymmetricKey | ObjectType::Certificate => {
                 // destroy the key
                 let id = owm.id().to_owned();
                 let state = owm.state();
-                destroy_key_core(&id, &mut owm.object_mut(), state, kms, params).await?;
+                destroy_key_core(&id, owm.object_mut(), state, kms, params).await?;
             }
-            PrivateKey => {
+            ObjectType::PrivateKey => {
                 //add this key to the ids to skip
                 ids_to_skip.insert(owm.id().to_owned());
                 // for Covercrypt, if that is a master secret key, destroy the user decryption keys
                 if owm.object().key_block()?.key_format_type == KeyFormatType::CoverCryptSecretKey {
-                    destroy_user_decryption_keys(&owm.id(), kms, user, params, ids_to_skip.clone())
+                    destroy_user_decryption_keys(owm.id(), kms, user, params, ids_to_skip.clone())
                         .await?;
                 }
                 // destroy any linked public key
@@ -126,9 +123,9 @@ pub(crate) async fn recursively_destroy_key(
                 // destroy the private key
                 let id = owm.id().to_owned();
                 let state = owm.state();
-                destroy_key_core(&id, &mut owm.object_mut(), state, kms, params).await?;
+                destroy_key_core(&id, owm.object_mut(), state, kms, params).await?;
             }
-            PublicKey => {
+            ObjectType::PublicKey => {
                 //add this key to the ids to skip
                 ids_to_skip.insert(owm.id().to_owned());
                 // destroy any linked private key
@@ -153,7 +150,7 @@ pub(crate) async fn recursively_destroy_key(
                 // destroy the public key
                 let id = owm.id().to_owned();
                 let state = owm.state();
-                destroy_key_core(&id, &mut owm.object_mut(), state, kms, params).await?;
+                destroy_key_core(&id, owm.object_mut(), state, kms, params).await?;
             }
             x => kms_bail!(KmsError::NotSupported(format!(
                 "destroy operation is not supported for object type {x:?}"

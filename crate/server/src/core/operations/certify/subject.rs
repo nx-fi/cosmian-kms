@@ -44,6 +44,7 @@ impl Display for KeyPairData {
 }
 
 /// The party that gets signed by the issuer and gets the certificate
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum Subject {
     X509Req(
         /// Unique identifier of the certificate to create

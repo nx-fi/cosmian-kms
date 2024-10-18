@@ -32,10 +32,7 @@ impl KeyAlgorithm {
     }
 
     pub fn is_rsa(&self) -> bool {
-        match self {
-            KeyAlgorithm::Rsa => true,
-            _ => false,
-        }
+        matches!(self, KeyAlgorithm::Rsa)
     }
 
     pub fn is_ecc(&self) -> bool {

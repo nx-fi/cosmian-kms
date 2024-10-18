@@ -40,7 +40,7 @@ pub(crate) struct ObjectWithMetadata {
 }
 
 impl ObjectWithMetadata {
-    pub(crate) fn new(
+    pub(crate) const fn new(
         id: String,
         object: Object,
         owner: String,
@@ -89,7 +89,7 @@ impl ObjectWithMetadata {
         self.state
     }
 
-    pub(crate) fn permissions(&self) -> &HashSet<ObjectOperationType> {
+    pub(crate) const fn permissions(&self) -> &HashSet<ObjectOperationType> {
         &self.permissions
     }
 
