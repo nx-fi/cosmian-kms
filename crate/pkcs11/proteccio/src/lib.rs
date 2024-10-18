@@ -6,10 +6,7 @@
 //avoid renaming all unused parameters with _ in all unused functions
 #![allow(unused_variables)]
 
-use std::{
-    cmp, slice,
-    sync::atomic::{AtomicBool, Ordering},
-};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 // use pkcs11_sys::{
 //     CKF_HW_SLOT, CKF_PROTECTED_AUTHENTICATION_PATH, CKF_RNG, CKF_RW_SESSION, CKF_SERIAL_SESSION,
@@ -24,7 +21,6 @@ use std::{
 //     CRYPTOKI_VERSION_MAJOR, CRYPTOKI_VERSION_MINOR,
 // };
 pub use pkcs11_sys::{CKR_OK, CK_FUNCTION_LIST_PTR_PTR, CK_RV, CK_SLOT_ID};
-use tracing::{info, trace};
 
 // use crate::sessions::SignContext;
 // use crate::sessions::DecryptContext;
@@ -33,15 +29,15 @@ use tracing::{info, trace};
 mod error;
 
 pub use error::{PError, PResult};
-use pkcs11_sys::{CK_FUNCTION_LIST, CK_VERSION};
+use pkcs11_sys::CK_FUNCTION_LIST;
 
 mod hsm;
 #[cfg(test)]
 mod tests;
 
-const SLOT_DESCRIPTION: &[u8; 64] =
-    b"Platform Cryptography Support                                   ";
-const SLOT_ID: CK_SLOT_ID = 1;
+// const SLOT_DESCRIPTION: &[u8; 64] =
+//     b"Platform Cryptography Support                                   ";
+// const SLOT_ID: CK_SLOT_ID = 1;
 
 static INITIALIZED: AtomicBool = AtomicBool::new(false);
 //

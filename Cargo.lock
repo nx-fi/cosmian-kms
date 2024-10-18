@@ -3436,6 +3436,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "proteccio_pkcs11_loader"
+version = "4.19.1"
+dependencies = [
+ "hex",
+ "libloading",
+ "pkcs11_sys",
+ "serial_test",
+ "thiserror",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "pyo3"
 version = "0.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
