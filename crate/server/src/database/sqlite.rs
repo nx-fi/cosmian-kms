@@ -779,7 +779,7 @@ where
         .bind(json)
         .execute(executor)
         .await?;
-    trace!("Insert read access right in DB: {uid} / {userid}");
+    trace!("Insert read access right in DB: {uid} / {userid}: {operation_types:?}");
     Ok(())
 }
 

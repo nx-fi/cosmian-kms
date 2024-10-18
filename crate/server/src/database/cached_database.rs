@@ -13,6 +13,7 @@ use cosmian_kms_client::access::{IsWrapped, ObjectOperationType};
 use log::trace;
 use lru::LruCache;
 use tokio::sync::RwLock;
+use tracing::info;
 
 use crate::{
     core::extra_database_params::ExtraDatabaseParams,
@@ -105,29 +106,38 @@ impl Database for CachedDatabase {
         query_access_grant: ObjectOperationType,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<HashMap<String, ObjectWithMetadata>> {
-        if let Some(cowm) = self.cache.read().await.peek(uid_or_tags) {
-            if let Some(owm) = cowm.to_object_with_metadata(user).await {
-                if (user == owm.owner()) || owm.permissions().contains(&query_access_grant) {
-                    trace!("LRU Cache hit for object: {uid_or_tags}, for user: {user}");
-                    return Ok(HashMap::from([(uid_or_tags.to_owned(), owm)]));
+        {
+            let main_cache = self.cache.read().await;
+            if let Some(cowm) = main_cache.peek(uid_or_tags) {
+                if let Some(owm) = cowm.to_object_with_metadata(user).await {
+                    if (user == owm.owner()) || owm.permissions().contains(&query_access_grant) {
+                        trace!("LRU Cache hit for object: {uid_or_tags}, for user: {user}");
+                        return Ok(HashMap::from([(uid_or_tags.to_owned(), owm)]));
+                    }
                 }
             }
+            // main_cache should be dropped
         }
         trace!("LRU Cache miss for object: {uid_or_tags}, for user: {user}");
         let objects = self
             .db
             .retrieve(uid_or_tags, user, query_access_grant, params)
             .await?;
-        for (uid, owm) in &objects {
+        info!("objects: {}", objects.len());
+        if !objects.is_empty() {
+            // update the permissions cache
             let mut main_cache = self.cache.write().await;
-            if let Some(cowm) = main_cache.get(user) {
-                cowm.permissions_cache
-                    .write()
-                    .await
-                    .put(user.to_owned(), owm.permissions().clone());
-            } else {
-                let cowm = CachedObjectWithMetadata::from_object_with_metadata(owm, user)?;
-                main_cache.put(uid.to_string(), cowm);
+            info!("main_cache: {}", main_cache.len());
+            for (uid, owm) in &objects {
+                if let Some(cowm) = main_cache.get(user) {
+                    cowm.permissions_cache
+                        .write()
+                        .await
+                        .put(user.to_owned(), owm.permissions().clone());
+                } else {
+                    let cowm = CachedObjectWithMetadata::from_object_with_metadata(owm, user)?;
+                    main_cache.put(uid.to_string(), cowm);
+                }
             }
         }
         Ok(objects)
@@ -324,7 +334,11 @@ mod tests {
     use uuid::Uuid;
 
     use crate::{
-        database::{cached_database::CachedDatabase, sqlite::SqlitePool, Database},
+        core::extra_database_params::ExtraDatabaseParams,
+        database::{
+            cached_database::CachedDatabase, object_with_metadata::ObjectWithMetadata,
+            sqlite::SqlitePool, Database,
+        },
         result::KResult,
     };
 
@@ -368,17 +382,7 @@ mod tests {
         assert!(db.cache.read().await.peek(&uid).is_none());
 
         // fetch the key
-        let map = db
-            .retrieve(&uid, owner, ObjectOperationType::Get, db_params.as_ref())
-            .await?;
-        assert_eq!(map.len(), 1);
-        assert!(map.contains_key(&uid));
-        let owm = map
-            .get(&uid)
-            .expect("this cannot happen due to previous assert");
-
-        // the key should now be in the cache
-        assert!(db.cache.read().await.peek(&uid).is_some());
+        let owm = fetch_and_assert(&db, &db_params, owner, &uid).await?;
 
         // update the key
         db.update_object(
@@ -389,10 +393,74 @@ mod tests {
             db_params.as_ref(),
         )
         .await?;
-
         // the key should not be in cache anymore
         assert!(db.cache.read().await.peek(&uid).is_none());
 
+        // fetch and assert
+        fetch_and_assert(&db, &db_params, owner, &uid).await?;
+
+        // grant a permission to the user bob
+        db.grant_access(
+            &uid,
+            "bob",
+            HashSet::from([ObjectOperationType::Get]),
+            db_params.as_ref(),
+        )
+        .await?;
+        {
+            // the key should be in the cache but not for Bob
+            let cache = db.cache.read().await;
+            let cowm = cache.peek(&uid).expect("the key should be in the cache");
+            assert!(cowm.permissions_cache.read().await.peek("bob").is_none());
+            assert!(cowm.permissions_cache.read().await.peek(owner).is_some());
+        }
+
+        // fetch the key for bob
+        fetch_and_assert(&db, &db_params, "bob", &uid).await?;
+
+        // add another permission to Bob
+        db.grant_access(
+            &uid,
+            "bob",
+            HashSet::from([ObjectOperationType::Destroy]),
+            db_params.as_ref(),
+        )
+        .await?;
+
+        // the key should be in the cache but not for Bob anymore
+        {
+            let cache = db.cache.read().await;
+            let cowm = cache.peek(&uid).expect("the key should be in the cache");
+            assert!(cowm.permissions_cache.read().await.peek("bob").is_none());
+            assert!(cowm.permissions_cache.read().await.peek(owner).is_some());
+        }
+
         Ok(())
+    }
+
+    async fn fetch_and_assert(
+        db: &CachedDatabase,
+        db_params: &Option<ExtraDatabaseParams>,
+        user: &str,
+        uid: &str,
+    ) -> KResult<ObjectWithMetadata> {
+        let map = db
+            .retrieve(uid, user, ObjectOperationType::Get, db_params.as_ref())
+            .await?;
+        assert_eq!(map.len(), 1);
+        assert!(map.contains_key(uid));
+        let owm = map
+            .get(uid)
+            .expect("this cannot happen due to previous assert");
+
+        // the key should now be in the cache
+        let cache = db.cache.read().await;
+        let cowm = cache.peek(uid);
+        assert!(cowm.is_some());
+        let cowm = cowm.expect("this cannot happen due to previous assert");
+        let owm_ = cowm.to_object_with_metadata(user).await;
+        assert!(owm_.is_some());
+
+        Ok(owm.to_owned())
     }
 }
