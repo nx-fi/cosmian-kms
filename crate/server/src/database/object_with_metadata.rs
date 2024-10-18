@@ -1,6 +1,7 @@
 use std::{
     collections::HashSet,
     fmt::{self, Display, Formatter},
+    sync::Arc,
 };
 
 use cosmian_kmip::kmip::{
@@ -9,19 +10,20 @@ use cosmian_kmip::kmip::{
     kmip_types::{Attributes, StateEnumeration},
 };
 use cosmian_kms_client::access::ObjectOperationType;
-use serde::Serialize;
+use log::trace;
 use serde_json::Value;
 use sqlx::{mysql::MySqlRow, postgres::PgRow, sqlite::SqliteRow, Row};
 
 use super::{state_from_string, DBObject};
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, KMS},
+    core::{extra_database_params::ExtraDatabaseParams, wrapping::unwrap_key, KMS},
+    database::cached_database::{CachedUnwrappedObject, UnwrappedCache},
     error::KmsError,
     result::{KResult, KResultHelper},
 };
 
 /// An object with its metadata such as permissions and state
-#[derive(Clone, Serialize)]
+#[derive(Clone)]
 pub(crate) struct ObjectWithMetadata {
     id: String,
     // this is the object as registered in the DN. For a key, it may be wrapped or unwrapped
@@ -30,13 +32,9 @@ pub(crate) struct ObjectWithMetadata {
     state: StateEnumeration,
     permissions: HashSet<ObjectOperationType>,
     attributes: Attributes,
-    // If the key is wrapped, this will be the unwrapped object.
-    // A key is usually retrieved to perform some operation.
-    // When retrieved, if the key is wrapped an automatic attempt to unwrap it will be performed
-    // This will allow having the unwrapped version in cache and avoir the expensive unwrapping
-    // operation to be run again.
-    // This filed is lazily loaded, so unwrapped() should be called first on the structure
-    unwrapped: Option<Object>,
+    /// This is a reference the cache - if any -  holding the unwrapped version of the objects,
+    /// if the object is unwrappable;
+    unwrapped_cache: Option<Arc<UnwrappedCache>>,
 }
 
 impl ObjectWithMetadata {
@@ -55,7 +53,7 @@ impl ObjectWithMetadata {
             state,
             permissions,
             attributes,
-            unwrapped: None,
+            unwrapped_cache: None,
         }
     }
 
@@ -69,9 +67,9 @@ impl ObjectWithMetadata {
 
     /// Set a new object, clearing the cached unwrapped version
     /// if any
-    pub(crate) fn set_object(&mut self, object: Object) {
+    pub(crate) async fn set_object(&mut self, object: Object) {
         self.object = object;
-        self.unwrapped = None;
+        self.clear_unwrapped().await;
     }
 
     /// Return a mutable borrow to the Object
@@ -110,53 +108,92 @@ impl ObjectWithMetadata {
     /// and cache the unwrapped version in the structure.
     /// This call will return None for non-wrappable objects such as Certificates
     pub(crate) async fn unwrapped(
-        &mut self,
+        &self,
         kms: &KMS,
         user: &str,
         params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<Option<&Object>> {
-        if self.unwrapped.is_some() {
-            return Ok(self.unwrapped.as_ref())
+    ) -> KResult<Object> {
+        // Is this an unwrapped key?
+        if self
+            .object
+            .key_block()
+            .context("Cannot unwrap non key object")?
+            .key_wrapping_data
+            .is_none()
+        {
+            // already an unwrapped key
+            trace!("Already an unwrapped key");
+            return Ok(self.object.clone());
         }
-        if let Ok(key_block) = self.object.key_block() {
-            if key_block.key_wrapping_data.is_some() {
-                // attempt unwrapping
-                let mut unwrapped_object = self.object.clone();
-                let key_block = unwrapped_object.key_block_mut()?;
-                crate::core::wrapping::unwrap_key(key_block, kms, user, params).await?;
-                self.unwrapped = Some(unwrapped_object.clone());
-                Ok(self.unwrapped.as_ref())
-            } else {
-                // the object is unwrapped
-                // TODO: this duplicates it and is maybe not worth the memory
-                // TODO: it will speed up the next retrieve though
-                self.unwrapped = Some(self.object.clone());
-                Ok(self.unwrapped.as_ref())
+
+        // check is we have it in cache
+        if let Some(unwrapped_cache) = &self.unwrapped_cache {
+            if let Some(unwrapped) = unwrapped_cache.read().await.peek(&self.id) {
+                trace!("Unwrapped cache hit");
+                return unwrapped
+                    .as_ref()
+                    .map(|u| u.unwrapped_object().to_owned())
+                    .map_err(|e| e.clone());
             }
-        } else {
-            // not a wrappable object
-            Ok(None)
         }
+
+        // local async future unwrap the object
+        let unwrap_local = async {
+            let key_signature = self.object.key_signature()?;
+            let mut unwrapped_object = self.object.clone();
+            let key_block = unwrapped_object.key_block_mut()?;
+            unwrap_key(key_block, kms, user, params).await?;
+            Ok(CachedUnwrappedObject::new(key_signature, unwrapped_object))
+        };
+
+        // cache miss, try to unwrap
+        trace!("Unwrapped cache miss. Trying to unwrap");
+        let unwrapped_object = unwrap_local.await;
+        //pre-calculating the result avoids a clone on the `CachedUnwrappedObject`
+        let result = unwrapped_object
+            .as_ref()
+            .map(|u| u.unwrapped_object().to_owned())
+            .map_err(KmsError::clone);
+        // update cache is there is one
+        if let Some(unwrapped_cache) = &self.unwrapped_cache {
+            unwrapped_cache
+                .write()
+                .await
+                .put(self.id.clone(), unwrapped_object);
+        }
+        //return the result
+        result
+    }
+
+    /// Get the unwrapped cache
+    /// This is used for testing
+    #[cfg(test)]
+    pub(crate) fn unwrapped_cache(&self) -> Option<Arc<UnwrappedCache>> {
+        self.unwrapped_cache.clone()
+    }
+
+    /// Set the unwrapped cache
+    pub(crate) fn set_unwrapped_cache(&mut self, unwrapped_cache: Arc<UnwrappedCache>) {
+        self.unwrapped_cache = Some(unwrapped_cache);
     }
 
     /// Clear the Unwrapped value if any, forcing unwrapping again on a call to `unwrapped()`
-    pub(crate) fn clear_unwrapped(&mut self) {
-        self.unwrapped = None;
+    pub(crate) async fn clear_unwrapped(&mut self) {
+        if let Some(cache) = &mut self.unwrapped_cache {
+            cache.write().await.pop(&self.id);
+        }
     }
 
     /// Transform this own to its unwrapped version.
     /// Returns false if this fails
-    /// Has not effect on a non wrappable object such as a Certificate
+    /// Has no effect on a non wrappable object such as a Certificate
     pub(crate) async fn make_unwrapped(
         &mut self,
         kms: &KMS,
         user: &str,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<()> {
-        if let Some(object) = self.unwrapped(kms, user, params).await? {
-            self.object = object.clone();
-            // the unwrapped property is already set to the unwrapped object
-        }
+        self.object = self.unwrapped(kms, user, params).await?;
         Ok(())
     }
 }
@@ -192,16 +229,7 @@ impl TryFrom<&PgRow> for ObjectWithMetadata {
                 .context("failed deserializing the permissions")
                 .reason(ErrorReason::Internal_Server_Error)?,
         };
-        Ok(Self {
-            id,
-            object,
-            owner,
-            state,
-            permissions,
-            attributes,
-            // will lazily unwrap if need be
-            unwrapped: None,
-        })
+        Ok(Self::new(id, object, owner, state, permissions, attributes))
     }
 }
 
@@ -219,24 +247,14 @@ impl TryFrom<&SqliteRow> for ObjectWithMetadata {
         let owner = row.get::<String, _>(3);
         let state = state_from_string(&row.get::<String, _>(4))?;
         let raw_permissions = row.get::<Vec<u8>, _>(5);
-        let perms: HashSet<ObjectOperationType> = if raw_permissions.is_empty() {
+        let permissions: HashSet<ObjectOperationType> = if raw_permissions.is_empty() {
             HashSet::new()
         } else {
             serde_json::from_slice(&raw_permissions)
                 .context("failed deserializing the permissions")
                 .reason(ErrorReason::Internal_Server_Error)?
         };
-
-        Ok(Self {
-            id,
-            object,
-            attributes,
-            owner,
-            state,
-            permissions: perms,
-            // will lazily unwrap if need be
-            unwrapped: None,
-        })
+        Ok(Self::new(id, object, owner, state, permissions, attributes))
     }
 }
 
@@ -260,15 +278,6 @@ impl TryFrom<&MySqlRow> for ObjectWithMetadata {
                 .context("failed deserializing the permissions")
                 .reason(ErrorReason::Internal_Server_Error)?,
         };
-        Ok(Self {
-            id,
-            object,
-            owner,
-            state,
-            permissions,
-            attributes,
-            // will lazily unwrap if need be
-            unwrapped: None,
-        })
+        Ok(Self::new(id, object, owner, state, permissions, attributes))
     }
 }

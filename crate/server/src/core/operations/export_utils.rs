@@ -317,7 +317,7 @@ async fn post_process_active_private_key(
         // wrap the key
         wrap_key(key_block, key_wrapping_specification, kms, user, params).await?;
         // reassign the wrapped key
-        object_with_metadata.set_object(object);
+        object_with_metadata.set_object(object).await;
         return Ok(())
     }
 
@@ -353,14 +353,14 @@ async fn post_process_active_private_key(
             *key_format_type,
             attributes.cryptographic_usage_mask,
         )?;
-        object_with_metadata.set_object(object);
+        object_with_metadata.set_object(object).await;
     } else {
         // No format type requested: export the private key to the default format
         let object = openssl_private_key_to_kmip_default_format(
             &openssl_key,
             attributes.cryptographic_usage_mask,
         )?;
-        object_with_metadata.set_object(object);
+        object_with_metadata.set_object(object).await;
     }
     // add the attributes back
     let key_block = object_with_metadata.object_mut().key_block_mut()?;
@@ -447,7 +447,7 @@ async fn process_public_key(
         .await?;
         // reassign the wrapped key
         *object_with_metadata.object_mut() = object;
-        object_with_metadata.clear_unwrapped();
+        object_with_metadata.clear_unwrapped().await;
         return Ok(())
     }
 
@@ -464,7 +464,7 @@ async fn process_public_key(
                     attributes.cryptographic_usage_mask,
                 )?;
                 *object_with_metadata.object_mut() = object;
-                object_with_metadata.clear_unwrapped();
+                object_with_metadata.clear_unwrapped().await;
             }
             _ => kms_bail!("export: unsupported Key Format Type: {:?}", key_format_type),
         }
@@ -474,7 +474,7 @@ async fn process_public_key(
             &openssl_key,
             attributes.cryptographic_usage_mask,
         )?;
-        object_with_metadata.set_object(object);
+        object_with_metadata.set_object(object).await;
     }
 
     // add the attributes back
@@ -736,20 +736,22 @@ async fn build_pkcs12_for_private_key(
         .context("export: unable to build the PKCS12")?;
 
     // add the certificate to the private key
-    private_key_owm.set_object(Object::PrivateKey {
-        key_block: KeyBlock {
-            key_format_type: KeyFormatType::PKCS12,
-            key_compression_type: None,
-            key_value: KeyValue {
-                key_material: KeyMaterial::ByteString(Zeroizing::from(pkcs12.to_der()?)),
-                // attributes are added later
-                attributes: None,
+    private_key_owm
+        .set_object(Object::PrivateKey {
+            key_block: KeyBlock {
+                key_format_type: KeyFormatType::PKCS12,
+                key_compression_type: None,
+                key_value: KeyValue {
+                    key_material: KeyMaterial::ByteString(Zeroizing::from(pkcs12.to_der()?)),
+                    // attributes are added later
+                    attributes: None,
+                },
+                cryptographic_algorithm: None,
+                cryptographic_length: None,
+                key_wrapping_data: None,
             },
-            cryptographic_algorithm: None,
-            cryptographic_length: None,
-            key_wrapping_data: None,
-        },
-    });
+        })
+        .await;
     Ok(())
 }
 
@@ -826,10 +828,12 @@ async fn post_process_pkcs7(
         )?;
 
         // Modify initial owm
-        cert_owm.set_object(Object::Certificate {
-            certificate_type: CertificateType::PKCS7,
-            certificate_value: pkcs7.to_der()?,
-        });
+        cert_owm
+            .set_object(Object::Certificate {
+                certificate_type: CertificateType::PKCS7,
+                certificate_value: pkcs7.to_der()?,
+            })
+            .await;
     }
 
     Ok(cert_owm)

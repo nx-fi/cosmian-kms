@@ -36,10 +36,7 @@ pub(crate) async fn delete_attribute(
         params,
     )
     .await?;
-    trace!(
-        "Delete Attribute: Retrieved object for: {:?}",
-        serde_json::to_string(&owm)
-    );
+    trace!("Delete Attribute: Retrieved object for: {}", owm.object());
 
     let mut attributes = owm.attributes().to_owned();
 

@@ -38,10 +38,7 @@ pub(crate) async fn set_attribute(
             params,
         )
         .await?;
-    trace!(
-        "Set Attribute: Retrieved object for: {:?}",
-        serde_json::to_string(&owm)
-    );
+    trace!("Set Attribute: Retrieved object for: {}", owm.object());
 
     let mut attributes = owm.attributes_mut().clone();
 

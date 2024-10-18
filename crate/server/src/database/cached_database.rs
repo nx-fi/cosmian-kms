@@ -2,6 +2,7 @@ use std::{
     collections::{HashMap, HashSet},
     num::NonZeroUsize,
     path::PathBuf,
+    sync::Arc,
 };
 
 use async_trait::async_trait;
@@ -13,7 +14,6 @@ use cosmian_kms_client::access::{IsWrapped, ObjectOperationType};
 use log::trace;
 use lru::LruCache;
 use tokio::sync::RwLock;
-use tracing::info;
 
 use crate::{
     core::extra_database_params::ExtraDatabaseParams,
@@ -22,56 +22,115 @@ use crate::{
     result::KResult,
 };
 
+// /// This is the object kept in the Main LRU cache
+// ///
+// /// The difference with `ObjectWithMetadata` is that it contains a cache of permissions
+// /// per user.
+// pub(crate) struct CachedObjectWithMetadata {
+//     owm: ObjectWithMetadata,
+//     permissions_cache: RwLock<LruCache<String, HashSet<ObjectOperationType>>>,
+// }
+//
+// impl CachedObjectWithMetadata {
+//     pub(crate) async fn to_object_with_metadata(&self, user: &str) -> Option<ObjectWithMetadata> {
+//         self.permissions_cache.read().await.peek(user).map_or_else(
+//             || None,
+//             |permissions| {
+//                 let mut owm = self.owm.clone();
+//                 owm.permissions_mut().clone_from(permissions);
+//                 Some(owm)
+//             },
+//         )
+//     }
+//
+//     pub(crate) fn from_object_with_metadata(owm: &ObjectWithMetadata, user: &str) -> KResult<Self> {
+//         // set permissions for the user on the cache
+//         let mut permissions_cache = LruCache::new(NonZeroUsize::new(100).ok_or_else(|| {
+//             KmsError::ServerError("Failed instantiating the permissions LRU Cache".to_owned())
+//         })?);
+//         permissions_cache.put(user.to_owned(), owm.permissions().clone());
+//         // remove permissions on the owm
+//         let mut owm = owm.clone();
+//         *owm.permissions_mut() = HashSet::new();
+//         Ok(Self {
+//             owm,
+//             permissions_cache: RwLock::new(permissions_cache),
+//         })
+//     }
+// }
+
 /// This is the object kept in the Main LRU cache
-///
-/// The difference with `ObjectWithMetadata` is that it contains a cache of permissions
-/// per user.
-pub(crate) struct CachedObjectWithMetadata {
-    owm: ObjectWithMetadata,
-    permissions_cache: RwLock<LruCache<String, HashSet<ObjectOperationType>>>,
+/// It contains the unwrapped object and the key signature
+pub(crate) struct CachedUnwrappedObject {
+    key_signature: [u8; 32],
+    unwrapped_object: Object,
 }
 
-impl CachedObjectWithMetadata {
-    pub(crate) async fn to_object_with_metadata(&self, user: &str) -> Option<ObjectWithMetadata> {
-        self.permissions_cache.read().await.peek(user).map_or_else(
-            || None,
-            |permissions| {
-                let mut owm = self.owm.clone();
-                owm.permissions_mut().clone_from(permissions);
-                Some(owm)
-            },
-        )
+impl CachedUnwrappedObject {
+    pub(crate) fn new(key_signature: [u8; 32], unwrapped_object: Object) -> Self {
+        Self {
+            key_signature,
+            unwrapped_object,
+        }
     }
 
-    pub(crate) fn from_object_with_metadata(owm: &ObjectWithMetadata, user: &str) -> KResult<Self> {
-        // set permissions for the user on the cache
-        let mut permissions_cache = LruCache::new(NonZeroUsize::new(100).ok_or_else(|| {
-            KmsError::ServerError("Failed instantiating the permissions LRU Cache".to_owned())
-        })?);
-        permissions_cache.put(user.to_owned(), owm.permissions().clone());
-        // remove permissions on the owm
-        let mut owm = owm.clone();
-        *owm.permissions_mut() = HashSet::new();
-        Ok(Self {
-            owm,
-            permissions_cache: RwLock::new(permissions_cache),
-        })
+    pub(crate) fn key_signature(&self) -> &[u8; 32] {
+        &self.key_signature
+    }
+
+    pub(crate) fn unwrapped_object(&self) -> &Object {
+        &self.unwrapped_object
     }
 }
 
+/// The cache of unwrapped objects
+/// The key is the uid of the object
+/// The value is the unwrapped object
+/// The value is a `Err(KmsError)` if the object cannot be unwrapped
+pub(crate) type UnwrappedCache = RwLock<LruCache<String, KResult<CachedUnwrappedObject>>>;
+
+/// A local cache of the unwrapped value of a key
+/// which may be very expensive to compute, particularly
+/// if the unwrapping key is stored in a remote HSM.
 pub(crate) struct CachedDatabase {
     db: Box<dyn Database + Sync + Send>,
-    cache: RwLock<LruCache<String, CachedObjectWithMetadata>>,
+    // uid -> unwrapped value
+    cache: Arc<UnwrappedCache>,
 }
 
 impl CachedDatabase {
     pub(crate) fn new(db: Box<dyn Database + Sync + Send>) -> KResult<Self> {
         Ok(Self {
             db,
-            cache: RwLock::new(LruCache::new(NonZeroUsize::new(100).ok_or_else(|| {
-                KmsError::ServerError("Failed instantiating the LRU Cache".to_owned())
-            })?)),
+            cache: Arc::new(RwLock::new(LruCache::new(
+                NonZeroUsize::new(100).ok_or_else(|| {
+                    KmsError::ServerError("Failed instantiating the LRU Cache".to_owned())
+                })?,
+            ))),
         })
+    }
+
+    /// Validate the cache for a given object
+    /// If the key signature is different, the cache is invalidated
+    /// and the value is removed.
+    async fn validate_cache(&self, uid: &str, object: &Object) {
+        if let Ok(key_signature) = object.key_signature() {
+            let mut cache = self.cache.write().await;
+            // invalidate the value in cache if the signature is different
+            if let Some(cached_object) = cache.peek(uid) {
+                if let Ok(cached_object) = cached_object {
+                    if *cached_object.key_signature() != key_signature {
+                        trace!("Invalidating the cache for {}", uid);
+                        cache.pop(uid);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Clear a value from the cache
+    pub(crate) async fn clear_cache(&self, uid: &str) {
+        self.cache.write().await.pop(uid);
     }
 }
 
@@ -106,39 +165,14 @@ impl Database for CachedDatabase {
         query_access_grant: ObjectOperationType,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<HashMap<String, ObjectWithMetadata>> {
-        {
-            let main_cache = self.cache.read().await;
-            if let Some(cowm) = main_cache.peek(uid_or_tags) {
-                if let Some(owm) = cowm.to_object_with_metadata(user).await {
-                    if (user == owm.owner()) || owm.permissions().contains(&query_access_grant) {
-                        trace!("LRU Cache hit for object: {uid_or_tags}, for user: {user}");
-                        return Ok(HashMap::from([(uid_or_tags.to_owned(), owm)]));
-                    }
-                }
-            }
-            // main_cache should be dropped
-        }
-        trace!("LRU Cache miss for object: {uid_or_tags}, for user: {user}");
-        let objects = self
+        let mut objects = self
             .db
             .retrieve(uid_or_tags, user, query_access_grant, params)
             .await?;
-        info!("objects: {}", objects.len());
-        if !objects.is_empty() {
-            // update the permissions cache
-            let mut main_cache = self.cache.write().await;
-            info!("main_cache: {}", main_cache.len());
-            for (uid, owm) in &objects {
-                if let Some(cowm) = main_cache.get(user) {
-                    cowm.permissions_cache
-                        .write()
-                        .await
-                        .put(user.to_owned(), owm.permissions().clone());
-                } else {
-                    let cowm = CachedObjectWithMetadata::from_object_with_metadata(owm, user)?;
-                    main_cache.put(uid.to_string(), cowm);
-                }
-            }
+        // check if we need to invalidate the cache wrapped objects
+        for (_, owm) in objects.iter_mut() {
+            self.validate_cache(owm.id(), owm.object()).await;
+            owm.set_unwrapped_cache(self.cache.clone());
         }
         Ok(objects)
     }
@@ -162,7 +196,7 @@ impl Database for CachedDatabase {
         self.db
             .update_object(uid, object, attributes, tags, params)
             .await?;
-        self.cache.write().await.pop(uid);
+        self.validate_cache(uid, object).await;
         Ok(())
     }
 
@@ -173,7 +207,6 @@ impl Database for CachedDatabase {
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<()> {
         self.db.update_state(uid, state, params).await?;
-        self.cache.write().await.pop(uid);
         Ok(())
     }
 
@@ -190,7 +223,7 @@ impl Database for CachedDatabase {
         self.db
             .upsert(uid, user, object, attributes, tags, state, params)
             .await?;
-        self.cache.write().await.pop(uid);
+        self.validate_cache(uid, object).await;
         Ok(())
     }
 
@@ -201,7 +234,7 @@ impl Database for CachedDatabase {
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<()> {
         self.db.delete(uid, user, params).await?;
-        self.cache.write().await.pop(uid);
+        self.clear_cache(uid).await;
         Ok(())
     }
 
@@ -230,12 +263,7 @@ impl Database for CachedDatabase {
     ) -> KResult<()> {
         self.db
             .grant_access(uid, user, operation_types, params)
-            .await?;
-        let mut main_cache = self.cache.write().await;
-        if let Some(cowm) = main_cache.get(uid) {
-            cowm.permissions_cache.write().await.pop(user);
-        }
-        Ok(())
+            .await
     }
 
     async fn remove_access(
@@ -247,12 +275,7 @@ impl Database for CachedDatabase {
     ) -> KResult<()> {
         self.db
             .remove_access(uid, user, operation_types, params)
-            .await?;
-        let mut main_cache = self.cache.write().await;
-        if let Some(cowm) = main_cache.get(uid) {
-            cowm.permissions_cache.write().await.pop(user);
-        }
-        Ok(())
+            .await
     }
 
     async fn is_object_owned_by(
@@ -310,7 +333,8 @@ impl Database for CachedDatabase {
                 | AtomicOperation::UpdateState((id, _))
                 | AtomicOperation::Delete(id) => id,
             };
-            self.cache.write().await.pop(uid);
+            // not great, but hard to do better
+            self.clear_cache(uid).await;
         }
         Ok(())
     }
@@ -334,17 +358,14 @@ mod tests {
     use uuid::Uuid;
 
     use crate::{
-        core::extra_database_params::ExtraDatabaseParams,
-        database::{
-            cached_database::CachedDatabase, object_with_metadata::ObjectWithMetadata,
-            sqlite::SqlitePool, Database,
-        },
+        database::{cached_database::CachedDatabase, sqlite::SqlitePool, Database},
         result::KResult,
     };
 
     #[tokio::test]
     pub(crate) async fn test_lru_cache() -> KResult<()> {
         log_init(option_env!("RUST_LOG"));
+
         let dir = TempDir::new()?;
         let db_file = dir.path().join("test_sqlite.db");
         if db_file.exists() {
@@ -382,85 +403,23 @@ mod tests {
         assert!(db.cache.read().await.peek(&uid).is_none());
 
         // fetch the key
-        let owm = fetch_and_assert(&db, &db_params, owner, &uid).await?;
+        let map = db
+            .retrieve(&uid, owner, ObjectOperationType::Get, db_params.as_ref())
+            .await?;
+        assert_eq!(map.len(), 1);
+        assert!(map.contains_key(&uid));
+        let owm = map
+            .get(&uid)
+            .expect("this cannot happen due to previous assert");
 
-        // update the key
-        db.update_object(
-            &uid,
-            owm.object(),
-            owm.attributes(),
-            None,
-            db_params.as_ref(),
-        )
-        .await?;
-        // the key should not be in cache anymore
-        assert!(db.cache.read().await.peek(&uid).is_none());
-
-        // fetch and assert
-        fetch_and_assert(&db, &db_params, owner, &uid).await?;
-
-        // grant a permission to the user bob
-        db.grant_access(
-            &uid,
-            "bob",
-            HashSet::from([ObjectOperationType::Get]),
-            db_params.as_ref(),
-        )
-        .await?;
-        {
-            // the key should be in the cache but not for Bob
-            let cache = db.cache.read().await;
-            let cowm = cache.peek(&uid).expect("the key should be in the cache");
-            assert!(cowm.permissions_cache.read().await.peek("bob").is_none());
-            assert!(cowm.permissions_cache.read().await.peek(owner).is_some());
-        }
-
-        // fetch the key for bob
-        fetch_and_assert(&db, &db_params, "bob", &uid).await?;
-
-        // add another permission to Bob
-        db.grant_access(
-            &uid,
-            "bob",
-            HashSet::from([ObjectOperationType::Destroy]),
-            db_params.as_ref(),
-        )
-        .await?;
-
-        // the key should be in the cache but not for Bob anymore
         {
             let cache = db.cache.read().await;
-            let cowm = cache.peek(&uid).expect("the key should be in the cache");
-            assert!(cowm.permissions_cache.read().await.peek("bob").is_none());
-            assert!(cowm.permissions_cache.read().await.peek(owner).is_some());
+            // the unwrapped version should not be in the cache
+            assert!(cache.peek(&uid).is_none());
+            // however the object metadata should have the unwrapped_cache set
+            assert!(owm.unwrapped_cache().is_some());
         }
 
         Ok(())
-    }
-
-    async fn fetch_and_assert(
-        db: &CachedDatabase,
-        db_params: &Option<ExtraDatabaseParams>,
-        user: &str,
-        uid: &str,
-    ) -> KResult<ObjectWithMetadata> {
-        let map = db
-            .retrieve(uid, user, ObjectOperationType::Get, db_params.as_ref())
-            .await?;
-        assert_eq!(map.len(), 1);
-        assert!(map.contains_key(uid));
-        let owm = map
-            .get(uid)
-            .expect("this cannot happen due to previous assert");
-
-        // the key should now be in the cache
-        let cache = db.cache.read().await;
-        let cowm = cache.peek(uid);
-        assert!(cowm.is_some());
-        let cowm = cowm.expect("this cannot happen due to previous assert");
-        let owm_ = cowm.to_object_with_metadata(user).await;
-        assert!(owm_.is_some());
-
-        Ok(owm.to_owned())
     }
 }

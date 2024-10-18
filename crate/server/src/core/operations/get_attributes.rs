@@ -52,8 +52,8 @@ pub(crate) async fn get_attributes(
     )
     .await?;
     trace!(
-        "Get Attributes: Retrieved object for get attributes: {:?}",
-        serde_json::to_string(&owm)
+        "Get Attributes: Retrieved object for get attributes: {}",
+        owm.object()
     );
     let object_type = owm.object().object_type();
 
