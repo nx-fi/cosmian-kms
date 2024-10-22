@@ -2,8 +2,9 @@ use std::{ffi::CStr, ptr, sync::Arc};
 
 use libloading::Library;
 use pkcs11_sys::{
-    CKF_OS_LOCKING_OK, CKF_SERIAL_SESSION, CK_C_INITIALIZE_ARGS, CK_FLAGS, CK_INFO, CK_SLOT_ID,
-    CK_VOID_PTR,
+    CKF_OS_LOCKING_OK, CKF_RW_SESSION, CKF_SERIAL_SESSION, CKO_SECRET_KEY, CK_ATTRIBUTE_PTR,
+    CK_BBOOL, CK_C_INITIALIZE_ARGS, CK_FLAGS, CK_INFO, CK_MECHANISM_PTR, CK_OBJECT_HANDLE,
+    CK_SLOT_ID, CK_ULONG, CK_UTF8CHAR_PTR, CK_VOID_PTR,
 };
 
 use crate::{PError, PResult};
@@ -38,8 +39,12 @@ struct HsmLib {
     C_Initialize: pkcs11_sys::CK_C_Initialize,
     C_OpenSession: pkcs11_sys::CK_C_OpenSession,
     C_CloseSession: pkcs11_sys::CK_C_CloseSession,
+    C_GenerateKey: pkcs11_sys::CK_C_GenerateKey,
+    C_GenerateKeyPair: pkcs11_sys::CK_C_GenerateKeyPair,
     C_GenerateRandom: pkcs11_sys::CK_C_GenerateRandom,
     C_GetInfo: pkcs11_sys::CK_C_GetInfo,
+    C_Login: pkcs11_sys::CK_C_Login,
+    C_Logout: pkcs11_sys::CK_C_Logout,
 }
 
 impl HsmLib {
@@ -53,8 +58,12 @@ impl HsmLib {
                 C_Initialize: Some(*library.get(b"C_Initialize")?),
                 C_OpenSession: Some(*library.get(b"C_OpenSession")?),
                 C_CloseSession: Some(*library.get(b"C_CloseSession")?),
+                C_GenerateKey: Some(*library.get(b"C_GenerateKey")?),
+                C_GenerateKeyPair: Some(*library.get(b"C_GenerateKeyPair")?),
                 C_GenerateRandom: Some(*library.get(b"C_GenerateRandom")?),
                 C_GetInfo: Some(*library.get(b"C_GetInfo")?),
+                C_Login: Some(*library.get(b"C_Login")?),
+                C_Logout: Some(*library.get(b"C_Logout")?),
                 library,
             })
         }
@@ -102,9 +111,18 @@ impl HsmManager {
         }
     }
 
-    pub fn open_session(&self) -> PResult<Session> {
-        let slot_id: CK_SLOT_ID = 0x01;
-        let flags: CK_FLAGS = CKF_SERIAL_SESSION;
+    pub fn open_session(
+        &self,
+        slot_id: usize,
+        read_write: bool,
+        login_password: Option<String>,
+    ) -> PResult<Session> {
+        let slot_id: CK_SLOT_ID = slot_id as CK_SLOT_ID;
+        let flags: CK_FLAGS = if read_write {
+            CKF_RW_SESSION | CKF_SERIAL_SESSION
+        } else {
+            CKF_SERIAL_SESSION
+        };
         let mut session_handle: pkcs11_sys::CK_SESSION_HANDLE = 0;
 
         unsafe {
@@ -114,9 +132,24 @@ impl HsmManager {
             if rv != pkcs11_sys::CKR_OK {
                 return Err(PError::Default("Failed opening a session".to_string()));
             }
+            if let Some(password) = &login_password {
+                let mut pwd_bytes = password.as_bytes().to_vec();
+                let rv = self.hsm.C_Login.ok_or_else(|| {
+                    PError::Default("C_Login not available on library".to_string())
+                })?(
+                    session_handle,
+                    pkcs11_sys::CKU_USER,
+                    pwd_bytes.as_mut_ptr() as CK_UTF8CHAR_PTR,
+                    pwd_bytes.len() as CK_ULONG,
+                );
+                if rv != pkcs11_sys::CKR_OK {
+                    return Err(PError::Default("Failed logging in".to_string()));
+                }
+            }
             Ok(Session {
                 hsm: self.hsm.clone(),
                 session_handle,
+                is_logged: login_password.is_some(),
             })
         }
     }
@@ -125,11 +158,20 @@ impl HsmManager {
 pub struct Session {
     hsm: Arc<HsmLib>,
     session_handle: pkcs11_sys::CK_SESSION_HANDLE,
+    is_logged: bool,
 }
 
 impl Session {
     pub fn close(&self) -> PResult<()> {
         unsafe {
+            if self.is_logged {
+                let rv = self.hsm.C_Logout.ok_or_else(|| {
+                    PError::Default("C_Logout not available on library".to_string())
+                })?(self.session_handle);
+                if rv != pkcs11_sys::CKR_OK {
+                    return Err(PError::Default("Failed logging out".to_string()));
+                }
+            }
             let rv = self.hsm.C_CloseSession.ok_or_else(|| {
                 PError::Default("C_CloseSession not available on library".to_string())
             })?(self.session_handle);
@@ -137,6 +179,86 @@ impl Session {
                 return Err(PError::Default("Failed closing a session".to_string()));
             }
             Ok(())
+        }
+    }
+
+    pub fn generate_aes_key(&self, size: usize, label: &str) -> PResult<u64> {
+        unsafe {
+            let ck_fn = self.hsm.C_GenerateKey.ok_or_else(|| {
+                PError::Default("C_GenerateKey not available on library".to_string())
+            })?;
+            let size = size as CK_ULONG;
+            let mut mechanism = pkcs11_sys::CK_MECHANISM {
+                mechanism: pkcs11_sys::CKM_AES_KEY_GEN,
+                pParameter: ptr::null_mut(),
+                ulParameterLen: 0,
+            };
+            let mut template = vec![
+                pkcs11_sys::CK_ATTRIBUTE {
+                    type_: pkcs11_sys::CKA_CLASS,
+                    pValue: &CKO_SECRET_KEY as *const _ as CK_VOID_PTR,
+                    ulValueLen: size_of::<CK_ULONG>() as CK_ULONG,
+                },
+                pkcs11_sys::CK_ATTRIBUTE {
+                    type_: pkcs11_sys::CKA_KEY_TYPE,
+                    pValue: &pkcs11_sys::CKK_AES as *const _ as CK_VOID_PTR,
+                    ulValueLen: size_of::<CK_ULONG>() as CK_ULONG,
+                },
+                pkcs11_sys::CK_ATTRIBUTE {
+                    type_: pkcs11_sys::CKA_TOKEN,
+                    pValue: &pkcs11_sys::CK_TRUE as *const _ as CK_VOID_PTR,
+                    ulValueLen: size_of::<CK_BBOOL>() as CK_ULONG,
+                },
+                pkcs11_sys::CK_ATTRIBUTE {
+                    type_: pkcs11_sys::CKA_VALUE_LEN,
+                    pValue: &size as *const _ as CK_VOID_PTR,
+                    ulValueLen: size_of::<CK_ULONG>() as CK_ULONG,
+                },
+                pkcs11_sys::CK_ATTRIBUTE {
+                    type_: pkcs11_sys::CKA_LABEL,
+                    pValue: label.as_ptr() as CK_VOID_PTR,
+                    ulValueLen: label.len() as CK_ULONG,
+                },
+                pkcs11_sys::CK_ATTRIBUTE {
+                    type_: pkcs11_sys::CKA_PRIVATE,
+                    pValue: &pkcs11_sys::CK_TRUE as *const _ as CK_VOID_PTR,
+                    ulValueLen: size_of::<CK_BBOOL>() as CK_ULONG,
+                },
+                pkcs11_sys::CK_ATTRIBUTE {
+                    type_: pkcs11_sys::CKA_SENSITIVE,
+                    pValue: &pkcs11_sys::CK_TRUE as *const _ as CK_VOID_PTR,
+                    ulValueLen: size_of::<CK_BBOOL>() as CK_ULONG,
+                },
+                pkcs11_sys::CK_ATTRIBUTE {
+                    type_: pkcs11_sys::CKA_EXTRACTABLE,
+                    pValue: &pkcs11_sys::CK_FALSE as *const _ as CK_VOID_PTR,
+                    ulValueLen: size_of::<CK_BBOOL>() as CK_ULONG,
+                },
+                pkcs11_sys::CK_ATTRIBUTE {
+                    type_: pkcs11_sys::CKA_ENCRYPT,
+                    pValue: &pkcs11_sys::CK_TRUE as *const _ as CK_VOID_PTR,
+                    ulValueLen: size_of::<CK_BBOOL>() as CK_ULONG,
+                },
+                pkcs11_sys::CK_ATTRIBUTE {
+                    type_: pkcs11_sys::CKA_DECRYPT,
+                    pValue: &pkcs11_sys::CK_TRUE as *const _ as CK_VOID_PTR,
+                    ulValueLen: size_of::<CK_BBOOL>() as CK_ULONG,
+                },
+            ];
+            let pMechanism: CK_MECHANISM_PTR = &mut mechanism;
+            let pMutTemplate: CK_ATTRIBUTE_PTR = template.as_mut_ptr();
+            let mut aes_key_handle = CK_OBJECT_HANDLE::default();
+            let rv = ck_fn(
+                self.session_handle,
+                pMechanism,
+                pMutTemplate,
+                template.len() as u64,
+                &mut aes_key_handle,
+            );
+            if rv != pkcs11_sys::CKR_OK {
+                return Err(PError::Default("Failed generating key".to_string()));
+            }
+            Ok(aes_key_handle)
         }
     }
 
