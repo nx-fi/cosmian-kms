@@ -53,7 +53,7 @@ fn test_hsm_get_info() -> PResult<()> {
     let manager = hsm.get_manager()?;
     let info = manager.get_info()?;
     info!("Connected to the HSM: {info:#?}");
-    let session = manager.open_session(0x01, false, None)?;
+    let session = manager.open_session(0x04, false, None)?;
     let random = session.generate_random(32)?;
     assert_eq!(random.len(), 32);
     info!("Random bytes: {}", hex::encode(random));
@@ -71,7 +71,7 @@ fn test_hsm_generate_aes_key() -> PResult<()> {
         .to_string();
     let hsm = Hsm::instantiate("/lib/libnethsm.so")?;
     let manager = hsm.get_manager()?;
-    let session = manager.open_session(0x01, true, Some(user_password))?;
+    let session = manager.open_session(0x04, true, Some(user_password))?;
     let key = session.generate_aes_key(32, "label")?;
     info!("Generated AES key: {}", key);
     Ok(())
