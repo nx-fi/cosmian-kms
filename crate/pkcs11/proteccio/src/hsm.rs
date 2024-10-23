@@ -42,12 +42,22 @@ pub(crate) struct HsmLib {
     pub(crate) C_Initialize: CK_C_Initialize,
     pub(crate) C_OpenSession: CK_C_OpenSession,
     pub(crate) C_CloseSession: CK_C_CloseSession,
+    pub(crate) C_Decrypt: CK_C_Decrypt,
+    pub(crate) C_DecryptInit: CK_C_DecryptInit,
+    pub(crate) C_DecryptUpdate: CK_C_DecryptUpdate,
+    pub(crate) C_DecryptFinal: CK_C_DecryptFinal,
+    pub(crate) C_Encrypt: CK_C_Encrypt,
+    pub(crate) C_EncryptInit: CK_C_EncryptInit,
+    pub(crate) C_EncryptUpdate: CK_C_EncryptUpdate,
+    pub(crate) C_EncryptFinal: CK_C_EncryptFinal,
     pub(crate) C_GenerateKey: CK_C_GenerateKey,
     pub(crate) C_GenerateKeyPair: CK_C_GenerateKeyPair,
     pub(crate) C_GenerateRandom: CK_C_GenerateRandom,
     pub(crate) C_GetInfo: CK_C_GetInfo,
     pub(crate) C_Login: CK_C_Login,
     pub(crate) C_Logout: CK_C_Logout,
+    pub(crate) C_WrapKey: CK_C_WrapKey,
+    pub(crate) C_UnwrapKey: CK_C_UnwrapKey,
 }
 
 impl HsmLib {
@@ -61,12 +71,22 @@ impl HsmLib {
                 C_Initialize: Some(*library.get(b"C_Initialize")?),
                 C_OpenSession: Some(*library.get(b"C_OpenSession")?),
                 C_CloseSession: Some(*library.get(b"C_CloseSession")?),
+                C_Encrypt: Some(*library.get(b"C_Encrypt")?),
+                C_EncryptInit: Some(*library.get(b"C_EncryptInit")?),
+                C_EncryptUpdate: Some(*library.get(b"C_EncryptUpdate")?),
+                C_EncryptFinal: Some(*library.get(b"C_EncryptFinal")?),
+                C_Decrypt: Some(*library.get(b"C_Decrypt")?),
+                C_DecryptInit: Some(*library.get(b"C_DecryptInit")?),
+                C_DecryptUpdate: Some(*library.get(b"C_DecryptUpdate")?),
+                C_DecryptFinal: Some(*library.get(b"C_DecryptFinal")?),
                 C_GenerateKey: Some(*library.get(b"C_GenerateKey")?),
                 C_GenerateKeyPair: Some(*library.get(b"C_GenerateKeyPair")?),
                 C_GenerateRandom: Some(*library.get(b"C_GenerateRandom")?),
                 C_GetInfo: Some(*library.get(b"C_GetInfo")?),
                 C_Login: Some(*library.get(b"C_Login")?),
                 C_Logout: Some(*library.get(b"C_Logout")?),
+                C_WrapKey: Some(*library.get(b"C_WrapKey")?),
+                C_UnwrapKey: Some(*library.get(b"C_UnwrapKey")?),
                 // we need to keep the library alive
                 _library: library,
             })
@@ -171,20 +191,18 @@ pub struct Info {
 
 impl From<CK_INFO> for Info {
     fn from(info: CK_INFO) -> Self {
-        unsafe {
-            Info {
-                cryptokiVersion: (info.cryptokiVersion.major, info.cryptokiVersion.minor),
-                manufacturerID: CStr::from_bytes_until_nul(&info.manufacturerID)
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .to_string(),
-                flags: info.flags,
-                libraryDescription: CStr::from_bytes_until_nul(&info.libraryDescription)
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .to_string(),
-                libraryVersion: (info.libraryVersion.major, info.libraryVersion.minor),
-            }
+        Info {
+            cryptokiVersion: (info.cryptokiVersion.major, info.cryptokiVersion.minor),
+            manufacturerID: CStr::from_bytes_until_nul(&info.manufacturerID)
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string(),
+            flags: info.flags,
+            libraryDescription: CStr::from_bytes_until_nul(&info.libraryDescription)
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string(),
+            libraryVersion: (info.libraryVersion.major, info.libraryVersion.minor),
         }
     }
 }

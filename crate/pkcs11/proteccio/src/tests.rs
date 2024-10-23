@@ -3,12 +3,16 @@ use std::{ptr, sync::Once};
 use libloading::Library;
 use pkcs11_sys::{
     CKF_OS_LOCKING_OK, CKR_OK, CK_C_INITIALIZE_ARGS, CK_FUNCTION_LIST_PTR_PTR, CK_INFO, CK_RV,
-    CK_VOID_PTR,
+    CK_ULONG, CK_VOID_PTR,
 };
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
 
-use crate::{hsm::Hsm, PResult};
+use crate::{
+    hsm::Hsm,
+    session::{AesKeySize, RsaKeySize, Session},
+    PError, PResult,
+};
 
 static TRACING_INIT: Once = Once::new();
 pub fn initialize_logging() {
@@ -20,6 +24,27 @@ pub fn initialize_logging() {
         tracing::subscriber::set_global_default(subscriber)
             .expect("Setting default subscriber failed");
     });
+}
+
+fn get_hsm_password() -> PResult<String> {
+    let user_password = option_env!("HSM_USER_PASSWORD")
+        .ok_or_else(|| {
+            PError::Default(
+                "The user password for the HSM is not set. Please set the HSM_USER_PASSWORD \
+                 environment variable"
+                    .to_string(),
+            )
+        })?
+        .to_string();
+    Ok(user_password)
+}
+
+fn open_session() -> PResult<Session> {
+    let user_password = get_hsm_password()?;
+    let hsm = Hsm::instantiate("/lib/libnethsm.so")?;
+    let manager = hsm.get_manager()?;
+    let session = manager.open_session(0x04, true, Some(user_password))?;
+    Ok(session)
 }
 
 #[test]
@@ -53,26 +78,44 @@ fn test_hsm_get_info() -> PResult<()> {
     let manager = hsm.get_manager()?;
     let info = manager.get_info()?;
     info!("Connected to the HSM: {info}");
-    let session = manager.open_session(0x04, false, None)?;
-    let random = session.generate_random(32)?;
-    assert_eq!(random.len(), 32);
-    info!("Random bytes: {}", hex::encode(random));
     Ok(())
 }
 
 #[test]
-fn test_hsm_generate_aes_key() -> PResult<()> {
+fn test_generate_aes_key() -> PResult<()> {
     initialize_logging();
-    let user_password = option_env!("HSM_USER_PASSWORD")
-        .expect(
-            "The user password for the HSM is not set. Please set the HSM_USER_PASSWORD \
-             environment variable",
-        )
-        .to_string();
-    let hsm = Hsm::instantiate("/lib/libnethsm.so")?;
-    let manager = hsm.get_manager()?;
-    let session = manager.open_session(0x04, true, Some(user_password))?;
-    let key = session.generate_aes_key(32, "label")?;
+    let session = open_session()?;
+    let key = session.generate_aes_key(AesKeySize::Aes256, "label")?;
     info!("Generated AES key: {}", key);
+    Ok(())
+}
+
+#[test]
+fn test_rsa_key_wrap() -> PResult<()> {
+    initialize_logging();
+    let session = open_session()?;
+    let symmetric_key = session.generate_aes_key(AesKeySize::Aes256, "label")?;
+    info!("Symmetric key handle: {symmetric_key}");
+    let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label")?;
+    info!("RSA handles sk: {sk}, pl: {pk}");
+    let encrypted_key = session.wrap_aes_key_with_rsa_oaep(pk, symmetric_key)?;
+    assert_eq!(encrypted_key.len(), 2048 / 8);
+    let decrypted_key =
+        session.unwrap_aes_key_with_rsa_oaep(sk, &encrypted_key, "another_label")?;
+    info!("Unwrapped symmetric key handle: {}", decrypted_key);
+    Ok(())
+}
+
+#[test]
+fn test_rsa_encrypt() -> PResult<()> {
+    initialize_logging();
+    let session = open_session()?;
+    let data = b"Hello, World!";
+    let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label")?;
+    info!("RSA handles sk: {sk}, pl: {pk}");
+    let ciphertext = session.encrypt_with_rsa_oaep(pk, data)?;
+    assert_eq!(ciphertext.len(), 2048 / 8);
+    let plaintext = session.decrypt_with_rsa_oaep(sk, &ciphertext)?;
+    assert_eq!(&plaintext, data);
     Ok(())
 }
