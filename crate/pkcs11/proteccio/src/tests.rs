@@ -52,7 +52,7 @@ fn test_hsm_get_info() -> PResult<()> {
     let hsm = Hsm::instantiate("/lib/libnethsm.so")?;
     let manager = hsm.get_manager()?;
     let info = manager.get_info()?;
-    info!("Connected to the HSM: {info:#?}");
+    info!("Connected to the HSM: {info}");
     let session = manager.open_session(0x04, false, None)?;
     let random = session.generate_random(32)?;
     assert_eq!(random.len(), 32);
