@@ -1,10 +1,10 @@
-use std::ptr;
+use std::{pin::Pin, ptr};
 
 use pkcs11_sys::{
     CKA_CLASS, CKA_DECRYPT, CKA_ENCRYPT, CKA_EXTRACTABLE, CKA_KEY_TYPE, CKA_LABEL,
     CKA_MODULUS_BITS, CKA_PRIVATE, CKA_SENSITIVE, CKA_TOKEN, CKA_UNWRAP, CKA_WRAP, CKG_MGF1_SHA256,
-    CKK_AES, CKK_RSA, CKM_RSA_PKCS_KEY_PAIR_GEN, CKM_RSA_PKCS_OAEP, CKM_SHA256, CKO_SECRET_KEY,
-    CKR_OK, CKZ_DATA_SPECIFIED, CK_ATTRIBUTE, CK_BBOOL, CK_KEY_TYPE, CK_MECHANISM,
+    CKK_AES, CKK_RSA, CKM_RSA_PKCS, CKM_RSA_PKCS_KEY_PAIR_GEN, CKM_RSA_PKCS_OAEP, CKM_SHA256,
+    CKO_SECRET_KEY, CKR_OK, CKZ_DATA_SPECIFIED, CK_ATTRIBUTE, CK_BBOOL, CK_KEY_TYPE, CK_MECHANISM,
     CK_MECHANISM_PTR, CK_OBJECT_HANDLE, CK_RSA_PKCS_OAEP_PARAMS, CK_TRUE, CK_ULONG, CK_VOID_PTR,
 };
 
@@ -249,27 +249,33 @@ impl Session {
         public_key_handle: CK_OBJECT_HANDLE,
         data: &[u8],
     ) -> PResult<Vec<u8>> {
+        let mut params = CK_RSA_PKCS_OAEP_PARAMS {
+            hashAlg: CKM_SHA256,
+            mgf: CKG_MGF1_SHA256,
+            source: CKZ_DATA_SPECIFIED,
+            pSourceData: ptr::null_mut(),
+            ulSourceDataLen: 0,
+        };
+        let mut mechanism = CK_MECHANISM {
+            mechanism: CKM_RSA_PKCS_OAEP,
+            pParameter: &mut params as *mut _ as CK_VOID_PTR,
+            ulParameterLen: size_of::<CK_RSA_PKCS_OAEP_PARAMS>() as CK_ULONG,
+        };
+        self.encrypt_with_mechanism(public_key_handle, data, &mut mechanism)
+    }
+
+    fn encrypt_with_mechanism(
+        &self,
+        public_key_handle: CK_OBJECT_HANDLE,
+        data: &[u8],
+        mechanism: &mut CK_MECHANISM,
+    ) -> PResult<Vec<u8>> {
         let mut data = data.to_vec();
         unsafe {
-            // Initialize the RSA-OAEP mechanism
-            let mut oaep_params = CK_RSA_PKCS_OAEP_PARAMS {
-                hashAlg: CKM_SHA256,
-                mgf: CKG_MGF1_SHA256,
-                source: CKZ_DATA_SPECIFIED,
-                pSourceData: ptr::null_mut(),
-                ulSourceDataLen: 0,
-            };
-
-            let mut mechanism = CK_MECHANISM {
-                mechanism: CKM_RSA_PKCS_OAEP,
-                pParameter: &mut oaep_params as *mut _ as CK_VOID_PTR,
-                ulParameterLen: size_of::<CK_RSA_PKCS_OAEP_PARAMS>() as CK_ULONG,
-            };
-
             // Initialize the encryption operation
             let rv = self.hsm.C_EncryptInit.ok_or_else(|| {
                 PError::Default("C_EncryptInit not available on library".to_string())
-            })?(self.session_handle, &mut mechanism, public_key_handle);
+            })?(self.session_handle, mechanism, public_key_handle);
 
             if rv != CKR_OK {
                 return Err(PError::Default(
@@ -324,29 +330,35 @@ impl Session {
     pub fn decrypt_with_rsa_oaep(
         &self,
         private_key_handle: CK_OBJECT_HANDLE,
-        encrypted_data: &[u8],
+        ciphertext: &[u8],
     ) -> PResult<Vec<u8>> {
-        let mut encrypted_data = encrypted_data.to_vec();
+        let mut params = CK_RSA_PKCS_OAEP_PARAMS {
+            hashAlg: CKM_SHA256,
+            mgf: CKG_MGF1_SHA256,
+            source: CKZ_DATA_SPECIFIED,
+            pSourceData: ptr::null_mut(),
+            ulSourceDataLen: 0,
+        };
+        let mut mechanism = CK_MECHANISM {
+            mechanism: CKM_RSA_PKCS_OAEP,
+            pParameter: &mut params as *mut _ as CK_VOID_PTR,
+            ulParameterLen: size_of::<CK_RSA_PKCS_OAEP_PARAMS>() as CK_ULONG,
+        };
+        self.decrypt_with_mechanism(private_key_handle, ciphertext, &mut mechanism)
+    }
+
+    pub fn decrypt_with_mechanism(
+        &self,
+        private_key_handle: CK_OBJECT_HANDLE,
+        ciphertex: &[u8],
+        mechanism: &mut CK_MECHANISM,
+    ) -> PResult<Vec<u8>> {
+        let mut encrypted_data = ciphertex.to_vec();
         unsafe {
-            // Initialize the RSA-OAEP mechanism
-            let mut oaep_params = CK_RSA_PKCS_OAEP_PARAMS {
-                hashAlg: CKM_SHA256,
-                mgf: CKG_MGF1_SHA256,
-                source: CKZ_DATA_SPECIFIED,
-                pSourceData: ptr::null_mut(),
-                ulSourceDataLen: 0,
-            };
-
-            let mut mechanism = CK_MECHANISM {
-                mechanism: CKM_RSA_PKCS_OAEP,
-                pParameter: &mut oaep_params as *mut _ as CK_VOID_PTR,
-                ulParameterLen: size_of::<CK_RSA_PKCS_OAEP_PARAMS>() as CK_ULONG,
-            };
-
             // Initialize the decryption operation
             let rv = self.hsm.C_DecryptInit.ok_or_else(|| {
                 PError::Default("C_DecryptInit not available on library".to_string())
-            })?(self.session_handle, &mut mechanism, private_key_handle);
+            })?(self.session_handle, mechanism, private_key_handle);
 
             if rv != CKR_OK {
                 return Err(PError::Default(
@@ -447,4 +459,46 @@ pub(crate) const fn aes_unwrap_key_template(label: &str) -> [CK_ATTRIBUTE; 9] {
             ulValueLen: size_of::<CK_BBOOL>() as CK_ULONG,
         },
     ]
+}
+
+struct Mechanism {
+    params: Option<CK_RSA_PKCS_OAEP_PARAMS>,
+    mechanism: CK_MECHANISM,
+}
+
+impl Mechanism {
+    pub fn oaep() -> Self {
+        let mut params = CK_RSA_PKCS_OAEP_PARAMS {
+            hashAlg: CKM_SHA256,
+            mgf: CKG_MGF1_SHA256,
+            source: CKZ_DATA_SPECIFIED,
+            pSourceData: ptr::null_mut(),
+            ulSourceDataLen: 0,
+        };
+        let mechanism = CK_MECHANISM {
+            mechanism: CKM_RSA_PKCS_OAEP,
+            pParameter: &mut params as *mut _ as CK_VOID_PTR,
+            ulParameterLen: size_of::<CK_RSA_PKCS_OAEP_PARAMS>() as CK_ULONG,
+        };
+        Self {
+            params: Some(params),
+            mechanism,
+        }
+    }
+
+    pub fn pkcs_v15() -> Self {
+        let mechanism = CK_MECHANISM {
+            mechanism: CKM_RSA_PKCS,
+            pParameter: ptr::null_mut(),
+            ulParameterLen: 0,
+        };
+        Self {
+            params: None,
+            mechanism,
+        }
+    }
+
+    pub fn mechanism(&self) -> CK_MECHANISM {
+        self.mechanism
+    }
 }
