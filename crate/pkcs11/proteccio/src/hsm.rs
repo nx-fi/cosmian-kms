@@ -1,9 +1,10 @@
 use std::{
+    collections::HashMap,
     ffi::CStr,
     fmt,
     fmt::{Display, Formatter},
     ptr,
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 use libloading::Library;
@@ -13,7 +14,8 @@ use tracing::warn;
 use crate::{session::Session, PError, PResult};
 
 pub struct Hsm {
-    hsm: Arc<HsmLib>,
+    hsm_lib: Arc<HsmLib>,
+    slots: Mutex<HashMap<usize, Arc<SlotManager>>>,
 }
 
 impl Hsm {
@@ -21,18 +23,65 @@ impl Hsm {
     where
         P: AsRef<std::ffi::OsStr>,
     {
-        let hsmLib = HsmLib::load_from_path(path)?;
+        let hsm_lib = Arc::new(HsmLib::load_from_path(path)?);
+        Self::initialize(&hsm_lib)?;
         Ok(Hsm {
-            hsm: Arc::new(hsmLib),
+            hsm_lib,
+            slots: Mutex::new(HashMap::new()),
         })
     }
 
-    pub fn get_manager(&self) -> PResult<HsmManager> {
-        let manager = HsmManager {
-            hsm: self.hsm.clone(),
-        };
-        manager.initialize()?;
+    pub fn get_slot(
+        &self,
+        slot_id: usize,
+        login_password: Option<&str>,
+    ) -> PResult<Arc<SlotManager>> {
+        // close any existing slot manager
+        let mut slots = self.slots.lock().expect("failed to lock slots");
+        slots.remove(&slot_id);
+        // instantiate a new slot
+        let manager = Arc::new(SlotManager::instantiate(
+            self.hsm_lib.clone(),
+            slot_id,
+            login_password,
+        )?);
+        slots.insert(slot_id, manager.clone());
         Ok(manager)
+    }
+
+    pub fn get_info(&self) -> PResult<Info> {
+        unsafe {
+            let mut info = CK_INFO::default();
+            let rv =
+                self.hsm_lib.C_GetInfo.ok_or_else(|| {
+                    PError::Default("C_GetInfo not available on library".to_string())
+                })?(&mut info);
+            if rv != CKR_OK {
+                return Err(PError::Default("Failed getting HSM info".to_string()));
+            }
+            Ok(info.into())
+        }
+    }
+
+    fn initialize(hsm_lib: &Arc<HsmLib>) -> PResult<()> {
+        let pInitArgs = CK_C_INITIALIZE_ARGS {
+            CreateMutex: None,
+            DestroyMutex: None,
+            LockMutex: None,
+            UnlockMutex: None,
+            flags: CKF_OS_LOCKING_OK,
+            pReserved: ptr::null_mut(),
+        };
+        unsafe {
+            // let rv = self.hsm.C_Initialize.deref()(&pInitArgs);
+            let rv = hsm_lib.C_Initialize.ok_or_else(|| {
+                PError::Default("C_Initialize not available on library".to_string())
+            })?(&pInitArgs as *const CK_C_INITIALIZE_ARGS as CK_VOID_PTR);
+            if rv != CKR_OK {
+                return Err(PError::Default("Failed initializing the HSM".to_string()));
+            }
+            Ok(())
+        }
     }
 }
 
@@ -93,52 +142,68 @@ impl HsmLib {
     }
 }
 
-pub struct HsmManager {
-    hsm: Arc<HsmLib>,
+pub struct SlotManager {
+    hsm_lib: Arc<HsmLib>,
+    slot_id: usize,
+    _login_session: Option<Session>,
 }
 
-impl HsmManager {
-    pub fn initialize(&self) -> PResult<()> {
-        let pInitArgs = CK_C_INITIALIZE_ARGS {
-            CreateMutex: None,
-            DestroyMutex: None,
-            LockMutex: None,
-            UnlockMutex: None,
-            flags: CKF_OS_LOCKING_OK,
-            pReserved: ptr::null_mut(),
-        };
-        // let pInitArgsPtr = &pInitArgs as *const CK_C_INITIALIZE_ARGS as *mut c_void;
-        unsafe {
-            // let rv = self.hsm.C_Initialize.deref()(&pInitArgs);
-            let rv = self.hsm.C_Initialize.ok_or_else(|| {
-                PError::Default("C_Initialize not available on library".to_string())
-            })?(&pInitArgs as *const CK_C_INITIALIZE_ARGS as CK_VOID_PTR);
-            if rv != CKR_OK {
-                return Err(PError::Default("Failed initializing the HSM".to_string()));
-            }
-            Ok(())
+impl SlotManager {
+    pub fn instantiate(
+        hsm_lib: Arc<HsmLib>,
+        slot_id: usize,
+        login_password: Option<&str>,
+    ) -> PResult<Self> {
+        if let Some(password) = login_password {
+            let login_session = Self::open_session_(&hsm_lib, slot_id, false, Some(password))?;
+            Ok(SlotManager {
+                hsm_lib,
+                slot_id,
+                _login_session: Some(login_session),
+            })
+        } else {
+            Ok(SlotManager {
+                hsm_lib,
+                slot_id,
+                _login_session: None,
+            })
         }
     }
 
-    pub fn get_info(&self) -> PResult<Info> {
-        unsafe {
-            let mut info = CK_INFO::default();
-            let rv =
-                self.hsm.C_GetInfo.ok_or_else(|| {
-                    PError::Default("C_GetInfo not available on library".to_string())
-                })?(&mut info);
-            if rv != CKR_OK {
-                return Err(PError::Default("Failed getting HSM info".to_string()));
-            }
-            Ok(info.into())
-        }
+    // pub fn initialize(
+    //     &mut self,
+    //     slot_id: usize,
+    //     read_write: bool,
+    //     login_password: Option<&str>,
+    // ) -> PResult<()> {
+    // let pInitArgs = CK_C_INITIALIZE_ARGS {
+    //     CreateMutex: None,
+    //     DestroyMutex: None,
+    //     LockMutex: None,
+    //     UnlockMutex: None,
+    //     flags: CKF_OS_LOCKING_OK,
+    //     pReserved: ptr::null_mut(),
+    // };
+    // unsafe {
+    //     let rv = self.hsm.C_Initialize.ok_or_else(|| {
+    //         PError::Default("C_Initialize not available on library".to_string())
+    //     })?(&pInitArgs as *const CK_C_INITIALIZE_ARGS as CK_VOID_PTR);
+    //     if rv != CKR_OK {
+    //         return Err(PError::Default("Failed initializing the HSM".to_string()));
+    //     }
+    //     Ok(())
+    // }
+    // }
+
+    pub fn open_session(&self, read_write: bool) -> PResult<Session> {
+        Self::open_session_(&self.hsm_lib, self.slot_id, read_write, None)
     }
 
-    pub fn open_session(
-        &self,
+    fn open_session_(
+        hsm_lib: &Arc<HsmLib>,
         slot_id: usize,
         read_write: bool,
-        login_password: Option<String>,
+        login_password: Option<&str>,
     ) -> PResult<Session> {
         let slot_id: CK_SLOT_ID = slot_id as CK_SLOT_ID;
         let flags: CK_FLAGS = if read_write {
@@ -149,7 +214,7 @@ impl HsmManager {
         let mut session_handle: CK_SESSION_HANDLE = 0;
 
         unsafe {
-            let rv = self.hsm.C_OpenSession.ok_or_else(|| {
+            let rv = hsm_lib.C_OpenSession.ok_or_else(|| {
                 PError::Default("C_OpenSession not available on library".to_string())
             })?(slot_id, flags, ptr::null_mut(), None, &mut session_handle);
             if rv != CKR_OK {
@@ -157,7 +222,7 @@ impl HsmManager {
             }
             if let Some(password) = &login_password {
                 let mut pwd_bytes = password.as_bytes().to_vec();
-                let rv = self.hsm.C_Login.ok_or_else(|| {
+                let rv = hsm_lib.C_Login.ok_or_else(|| {
                     PError::Default("C_Login not available on library".to_string())
                 })?(
                     session_handle,
@@ -172,7 +237,7 @@ impl HsmManager {
                 }
             }
             Ok(Session::new(
-                self.hsm.clone(),
+                hsm_lib.clone(),
                 session_handle,
                 login_password.is_some(),
             ))

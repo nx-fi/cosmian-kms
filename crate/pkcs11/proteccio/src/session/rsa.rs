@@ -1,4 +1,4 @@
-use std::{pin::Pin, ptr};
+use std::ptr;
 
 use pkcs11_sys::{
     CKA_CLASS, CKA_DECRYPT, CKA_ENCRYPT, CKA_EXTRACTABLE, CKA_KEY_TYPE, CKA_LABEL,

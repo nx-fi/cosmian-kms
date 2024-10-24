@@ -13,7 +13,7 @@ use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
 
 use crate::{
-    hsm::Hsm,
+    hsm::{Hsm, SlotManager},
     session::{AesKeySize, RsaKeySize, Session},
     PError, PResult,
 };
@@ -43,12 +43,11 @@ fn get_hsm_password() -> PResult<String> {
     Ok(user_password)
 }
 
-fn open_session() -> PResult<Session> {
+fn get_slot() -> PResult<Arc<SlotManager>> {
     let user_password = get_hsm_password()?;
     let hsm = Hsm::instantiate("/lib/libnethsm.so")?;
-    let manager = hsm.get_manager()?;
-    let session = manager.open_session(0x04, true, Some(user_password))?;
-    Ok(session)
+    let manager = hsm.get_slot(0x04, Some(&user_password))?;
+    Ok(manager)
 }
 
 #[test]
@@ -78,9 +77,9 @@ fn low_level_test() -> PResult<()> {
 #[test]
 fn test_hsm_get_info() -> PResult<()> {
     initialize_logging();
+    let user_password = get_hsm_password()?;
     let hsm = Hsm::instantiate("/lib/libnethsm.so")?;
-    let manager = hsm.get_manager()?;
-    let info = manager.get_info()?;
+    let info = hsm.get_info()?;
     info!("Connected to the HSM: {info}");
     Ok(())
 }
@@ -88,16 +87,18 @@ fn test_hsm_get_info() -> PResult<()> {
 #[test]
 fn test_generate_aes_key() -> PResult<()> {
     initialize_logging();
-    let session = open_session()?;
+    let slot = get_slot()?;
+    let session = slot.open_session(true)?;
     let key = session.generate_aes_key(AesKeySize::Aes256, "label")?;
-    info!("Generated AES key: {}", key);
+    // info!("Generated AES key: {}", key);
     Ok(())
 }
 
 #[test]
 fn test_rsa_key_wrap() -> PResult<()> {
     initialize_logging();
-    let session = open_session()?;
+    let slot = get_slot()?;
+    let session = slot.open_session(true)?;
     let symmetric_key = session.generate_aes_key(AesKeySize::Aes256, "label")?;
     info!("Symmetric key handle: {symmetric_key}");
     let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label")?;
@@ -113,7 +114,8 @@ fn test_rsa_key_wrap() -> PResult<()> {
 #[test]
 fn test_rsa_encrypt() -> PResult<()> {
     initialize_logging();
-    let session = open_session()?;
+    let slot = get_slot()?;
+    let session = slot.open_session(true)?;
     let data = b"Hello, World!";
     let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label")?;
     info!("RSA handles sk: {sk}, pl: {pk}");
@@ -129,14 +131,13 @@ fn multi_threaded_rsa_encrypt_decrypt_test() -> PResult<()> {
     initialize_logging();
 
     // Initialize the HSM once and share it across threads
-    let hsm = Hsm::instantiate("/lib/libnethsm.so")?;
-    let manager = Arc::new(hsm.get_manager()?);
+    let slot = get_slot()?;
 
     let mut handles = vec![];
     for _ in 0..4 {
-        let manager = manager.clone();
+        let slot = slot.clone();
         let handle = thread::spawn(move || {
-            let session = manager.open_session(0x04, true, Some(get_hsm_password()?))?;
+            let session = slot.open_session(true)?;
             let data = b"Hello, World!";
             let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label")?;
             info!("RSA handles sk: {sk}, pk: {pk}");
