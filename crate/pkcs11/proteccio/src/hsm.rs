@@ -28,7 +28,6 @@ impl Hsm {
     }
 
     pub fn get_manager(&self) -> PResult<HsmManager> {
-        let hsmLib = self.hsm.clone();
         let manager = HsmManager {
             hsm: self.hsm.clone(),
         };

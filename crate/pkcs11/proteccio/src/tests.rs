@@ -1,4 +1,8 @@
-use std::{ptr, sync::Once};
+use std::{
+    ptr,
+    sync::{Arc, Once},
+    thread,
+};
 
 use libloading::Library;
 use pkcs11_sys::{
@@ -117,5 +121,37 @@ fn test_rsa_encrypt() -> PResult<()> {
     assert_eq!(ciphertext.len(), 2048 / 8);
     let plaintext = session.decrypt_with_rsa_oaep(sk, &ciphertext)?;
     assert_eq!(&plaintext, data);
+    Ok(())
+}
+
+#[test]
+fn multi_threaded_rsa_encrypt_decrypt_test() -> PResult<()> {
+    initialize_logging();
+
+    // Initialize the HSM once and share it across threads
+    let hsm = Hsm::instantiate("/lib/libnethsm.so")?;
+    let manager = Arc::new(hsm.get_manager()?);
+
+    let mut handles = vec![];
+    for _ in 0..4 {
+        let manager = manager.clone();
+        let handle = thread::spawn(move || {
+            let session = manager.open_session(0x04, true, Some(get_hsm_password()?))?;
+            let data = b"Hello, World!";
+            let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label")?;
+            info!("RSA handles sk: {sk}, pk: {pk}");
+            let ciphertext = session.encrypt_with_rsa_oaep(pk, data)?;
+            assert_eq!(ciphertext.len(), 2048 / 8);
+            let plaintext = session.decrypt_with_rsa_oaep(sk, &ciphertext)?;
+            assert_eq!(&plaintext, data);
+            Ok::<(), PError>(())
+        });
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        handle.join().expect("Thread panicked")?;
+    }
+
     Ok(())
 }
