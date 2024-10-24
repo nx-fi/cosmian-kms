@@ -7,14 +7,14 @@ use std::{
 use libloading::Library;
 use pkcs11_sys::{
     CKF_OS_LOCKING_OK, CKR_OK, CK_C_INITIALIZE_ARGS, CK_FUNCTION_LIST_PTR_PTR, CK_INFO, CK_RV,
-    CK_ULONG, CK_VOID_PTR,
+    CK_VOID_PTR,
 };
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
 
 use crate::{
     hsm::{Hsm, SlotManager},
-    session::{AesKeySize, RsaKeySize, Session},
+    session::{AesKeySize, RsaAlgorithm, RsaKeySize, Session},
     PError, PResult,
 };
 
@@ -90,7 +90,7 @@ fn test_generate_aes_key() -> PResult<()> {
     let slot = get_slot()?;
     let session = slot.open_session(true)?;
     let key = session.generate_aes_key(AesKeySize::Aes256, "label")?;
-    // info!("Generated AES key: {}", key);
+    info!("Generated AES key: {}", key);
     Ok(())
 }
 
@@ -112,16 +112,31 @@ fn test_rsa_key_wrap() -> PResult<()> {
 }
 
 #[test]
-fn test_rsa_encrypt() -> PResult<()> {
+fn test_rsa_pkcs_encrypt() -> PResult<()> {
+    initialize_logging();
+    let slot = get_slot()?;
+    let session = slot.open_session(true)?;
+    let data = b"Hello, World!";
+    let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa4096, "label")?;
+    info!("RSA handles sk: {sk}, pl: {pk}");
+    let ciphertext = session.encrypt(pk, RsaAlgorithm::RsaPkcsV15, data)?;
+    assert_eq!(ciphertext.len(), 4096 / 8);
+    let plaintext = session.decrypt(sk, RsaAlgorithm::RsaPkcsV15, &ciphertext)?;
+    assert_eq!(&plaintext, data);
+    Ok(())
+}
+
+#[test]
+fn test_rsa_oaep_encrypt() -> PResult<()> {
     initialize_logging();
     let slot = get_slot()?;
     let session = slot.open_session(true)?;
     let data = b"Hello, World!";
     let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label")?;
     info!("RSA handles sk: {sk}, pl: {pk}");
-    let ciphertext = session.encrypt_with_rsa_oaep(pk, data)?;
+    let ciphertext = session.encrypt(pk, RsaAlgorithm::RsaOaep, data)?;
     assert_eq!(ciphertext.len(), 2048 / 8);
-    let plaintext = session.decrypt_with_rsa_oaep(sk, &ciphertext)?;
+    let plaintext = session.decrypt(sk, RsaAlgorithm::RsaOaep, &ciphertext)?;
     assert_eq!(&plaintext, data);
     Ok(())
 }
@@ -141,9 +156,9 @@ fn multi_threaded_rsa_encrypt_decrypt_test() -> PResult<()> {
             let data = b"Hello, World!";
             let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label")?;
             info!("RSA handles sk: {sk}, pk: {pk}");
-            let ciphertext = session.encrypt_with_rsa_oaep(pk, data)?;
+            let ciphertext = session.encrypt(pk, RsaAlgorithm::RsaOaep, data)?;
             assert_eq!(ciphertext.len(), 2048 / 8);
-            let plaintext = session.decrypt_with_rsa_oaep(sk, &ciphertext)?;
+            let plaintext = session.decrypt(sk, RsaAlgorithm::RsaOaep, &ciphertext)?;
             assert_eq!(&plaintext, data);
             Ok::<(), PError>(())
         });

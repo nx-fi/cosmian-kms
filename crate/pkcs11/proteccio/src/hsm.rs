@@ -23,8 +23,7 @@ impl Hsm {
     where
         P: AsRef<std::ffi::OsStr>,
     {
-        let hsm_lib = Arc::new(HsmLib::load_from_path(path)?);
-        Self::initialize(&hsm_lib)?;
+        let hsm_lib = Arc::new(HsmLib::instantiate(path)?);
         Ok(Hsm {
             hsm_lib,
             slots: Mutex::new(HashMap::new()),
@@ -62,32 +61,12 @@ impl Hsm {
             Ok(info.into())
         }
     }
-
-    fn initialize(hsm_lib: &Arc<HsmLib>) -> PResult<()> {
-        let pInitArgs = CK_C_INITIALIZE_ARGS {
-            CreateMutex: None,
-            DestroyMutex: None,
-            LockMutex: None,
-            UnlockMutex: None,
-            flags: CKF_OS_LOCKING_OK,
-            pReserved: ptr::null_mut(),
-        };
-        unsafe {
-            // let rv = self.hsm.C_Initialize.deref()(&pInitArgs);
-            let rv = hsm_lib.C_Initialize.ok_or_else(|| {
-                PError::Default("C_Initialize not available on library".to_string())
-            })?(&pInitArgs as *const CK_C_INITIALIZE_ARGS as CK_VOID_PTR);
-            if rv != CKR_OK {
-                return Err(PError::Default("Failed initializing the HSM".to_string()));
-            }
-            Ok(())
-        }
-    }
 }
 
 pub(crate) struct HsmLib {
     _library: Library,
     pub(crate) C_Initialize: CK_C_Initialize,
+    pub(crate) C_Finalize: CK_C_Finalize,
     pub(crate) C_OpenSession: CK_C_OpenSession,
     pub(crate) C_CloseSession: CK_C_CloseSession,
     pub(crate) C_Decrypt: CK_C_Decrypt,
@@ -109,14 +88,15 @@ pub(crate) struct HsmLib {
 }
 
 impl HsmLib {
-    fn load_from_path<P>(path: P) -> PResult<Self>
+    fn instantiate<P>(path: P) -> PResult<Self>
     where
         P: AsRef<std::ffi::OsStr>,
     {
         unsafe {
             let library = Library::new(path)?;
-            Ok(HsmLib {
+            let hsm_lib = HsmLib {
                 C_Initialize: Some(*library.get(b"C_Initialize")?),
+                C_Finalize: Some(*library.get(b"C_Finalize")?),
                 C_OpenSession: Some(*library.get(b"C_OpenSession")?),
                 C_CloseSession: Some(*library.get(b"C_CloseSession")?),
                 C_Encrypt: Some(*library.get(b"C_Encrypt")?),
@@ -137,8 +117,49 @@ impl HsmLib {
                 C_UnwrapKey: Some(*library.get(b"C_UnwrapKey")?),
                 // we need to keep the library alive
                 _library: library,
-            })
+            };
+            Self::initialize(&hsm_lib)?;
+            Ok(hsm_lib)
         }
+    }
+
+    fn initialize(hsm_lib: &HsmLib) -> PResult<()> {
+        let pInitArgs = CK_C_INITIALIZE_ARGS {
+            CreateMutex: None,
+            DestroyMutex: None,
+            LockMutex: None,
+            UnlockMutex: None,
+            flags: CKF_OS_LOCKING_OK,
+            pReserved: ptr::null_mut(),
+        };
+        unsafe {
+            // let rv = self.hsm.C_Initialize.deref()(&pInitArgs);
+            let rv = hsm_lib.C_Initialize.ok_or_else(|| {
+                PError::Default("C_Initialize not available on library".to_string())
+            })?(&pInitArgs as *const CK_C_INITIALIZE_ARGS as CK_VOID_PTR);
+            if rv != CKR_OK {
+                return Err(PError::Default("Failed initializing the HSM".to_string()));
+            }
+            Ok(())
+        }
+    }
+
+    fn finalize(&self) -> PResult<()> {
+        unsafe {
+            let rv = self.C_Finalize.ok_or_else(|| {
+                PError::Default("C_Finalize not available on library".to_string())
+            })?(ptr::null_mut());
+            if rv != CKR_OK {
+                return Err(PError::Default("Failed to finalize the HSM".to_string()));
+            }
+            Ok(())
+        }
+    }
+}
+
+impl Drop for HsmLib {
+    fn drop(&mut self) {
+        let _ = self.finalize();
     }
 }
 
@@ -169,31 +190,6 @@ impl SlotManager {
             })
         }
     }
-
-    // pub fn initialize(
-    //     &mut self,
-    //     slot_id: usize,
-    //     read_write: bool,
-    //     login_password: Option<&str>,
-    // ) -> PResult<()> {
-    // let pInitArgs = CK_C_INITIALIZE_ARGS {
-    //     CreateMutex: None,
-    //     DestroyMutex: None,
-    //     LockMutex: None,
-    //     UnlockMutex: None,
-    //     flags: CKF_OS_LOCKING_OK,
-    //     pReserved: ptr::null_mut(),
-    // };
-    // unsafe {
-    //     let rv = self.hsm.C_Initialize.ok_or_else(|| {
-    //         PError::Default("C_Initialize not available on library".to_string())
-    //     })?(&pInitArgs as *const CK_C_INITIALIZE_ARGS as CK_VOID_PTR);
-    //     if rv != CKR_OK {
-    //         return Err(PError::Default("Failed initializing the HSM".to_string()));
-    //     }
-    //     Ok(())
-    // }
-    // }
 
     pub fn open_session(&self, read_write: bool) -> PResult<Session> {
         Self::open_session_(&self.hsm_lib, self.slot_id, read_write, None)

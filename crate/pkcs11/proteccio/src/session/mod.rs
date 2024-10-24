@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 pub use aes::AesKeySize;
 use pkcs11_sys::*;
-pub use rsa::RsaKeySize;
+pub use rsa::{RsaAlgorithm, RsaKeySize};
 
 use crate::{PError, PResult};
 
