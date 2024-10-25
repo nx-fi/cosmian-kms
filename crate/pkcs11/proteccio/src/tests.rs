@@ -1,3 +1,9 @@
+//! Tests are ignored by default because they reqauire a connection to a working HSM.
+//! To run the tests, cd into the crate directory and run:
+//! ```
+//! HSM_USER_PASSWORD=password cargo test --target x86_64-unknown-linux-gnu -- tests::test_whatever
+//! ```
+
 use std::{
     ptr,
     sync::{Arc, Once},
@@ -5,21 +11,18 @@ use std::{
 };
 
 use libloading::Library;
-use pkcs11_sys::{
-    CKF_OS_LOCKING_OK, CKR_OK, CK_C_INITIALIZE_ARGS, CK_FUNCTION_LIST_PTR_PTR, CK_INFO, CK_RV,
-    CK_VOID_PTR,
-};
+use pkcs11_sys::{CKF_OS_LOCKING_OK, CKR_OK, CK_C_INITIALIZE_ARGS, CK_RV, CK_VOID_PTR};
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
 
 use crate::{
     hsm::{Hsm, SlotManager},
-    session::{AesKeySize, RsaAlgorithm, RsaKeySize, Session},
+    session::{AesKeySize, EncryptionAlgorithm, ObjectType, RsaKeySize},
     PError, PResult,
 };
 
 static TRACING_INIT: Once = Once::new();
-pub fn initialize_logging() {
+fn initialize_logging() {
     TRACING_INIT.call_once(|| {
         let subscriber = FmtSubscriber::builder()
             .with_max_level(Level::INFO) // Adjust the level as needed
@@ -51,14 +54,11 @@ fn get_slot() -> PResult<Arc<SlotManager>> {
 }
 
 #[test]
+#[ignore]
 fn low_level_test() -> PResult<()> {
     let path = "/lib/libnethsm.so";
     let library = unsafe { Library::new(path) }?;
     let init = unsafe { library.get::<fn(pInitArgs: CK_VOID_PTR) -> CK_RV>(b"C_Initialize") }?;
-    let finalize = unsafe { library.get::<fn() -> CK_RV>(b"C_Finalize") }?;
-    let get_info = unsafe { library.get::<fn(*mut CK_INFO) -> CK_RV>(b"C_GetInfo") }?;
-    let get_function_list =
-        unsafe { library.get::<fn(*mut CK_FUNCTION_LIST_PTR_PTR) -> CK_RV>(b"C_GetFunctionList") }?;
 
     let mut pInitArgs = CK_C_INITIALIZE_ARGS {
         CreateMutex: None,
@@ -75,9 +75,9 @@ fn low_level_test() -> PResult<()> {
 }
 
 #[test]
+#[ignore]
 fn test_hsm_get_info() -> PResult<()> {
     initialize_logging();
-    let user_password = get_hsm_password()?;
     let hsm = Hsm::instantiate("/lib/libnethsm.so")?;
     let info = hsm.get_info()?;
     info!("Connected to the HSM: {info}");
@@ -85,6 +85,7 @@ fn test_hsm_get_info() -> PResult<()> {
 }
 
 #[test]
+#[ignore]
 fn test_generate_aes_key() -> PResult<()> {
     initialize_logging();
     let slot = get_slot()?;
@@ -95,6 +96,7 @@ fn test_generate_aes_key() -> PResult<()> {
 }
 
 #[test]
+#[ignore]
 fn test_rsa_key_wrap() -> PResult<()> {
     initialize_logging();
     let slot = get_slot()?;
@@ -112,21 +114,23 @@ fn test_rsa_key_wrap() -> PResult<()> {
 }
 
 #[test]
+#[ignore]
 fn test_rsa_pkcs_encrypt() -> PResult<()> {
     initialize_logging();
     let slot = get_slot()?;
     let session = slot.open_session(true)?;
     let data = b"Hello, World!";
-    let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa4096, "label")?;
+    let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label")?;
     info!("RSA handles sk: {sk}, pl: {pk}");
-    let ciphertext = session.encrypt(pk, RsaAlgorithm::RsaPkcsV15, data)?;
-    assert_eq!(ciphertext.len(), 4096 / 8);
-    let plaintext = session.decrypt(sk, RsaAlgorithm::RsaPkcsV15, &ciphertext)?;
+    let ciphertext = session.encrypt(pk, EncryptionAlgorithm::RsaPkcsv15, data)?;
+    assert_eq!(ciphertext.len(), 2048 / 8);
+    let plaintext = session.decrypt(sk, EncryptionAlgorithm::RsaPkcsv15, &ciphertext)?;
     assert_eq!(&plaintext, data);
     Ok(())
 }
 
 #[test]
+#[ignore]
 fn test_rsa_oaep_encrypt() -> PResult<()> {
     initialize_logging();
     let slot = get_slot()?;
@@ -134,14 +138,31 @@ fn test_rsa_oaep_encrypt() -> PResult<()> {
     let data = b"Hello, World!";
     let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label")?;
     info!("RSA handles sk: {sk}, pl: {pk}");
-    let ciphertext = session.encrypt(pk, RsaAlgorithm::RsaOaep, data)?;
+    let ciphertext = session.encrypt(pk, EncryptionAlgorithm::RsaOaep, data)?;
     assert_eq!(ciphertext.len(), 2048 / 8);
-    let plaintext = session.decrypt(sk, RsaAlgorithm::RsaOaep, &ciphertext)?;
+    let plaintext = session.decrypt(sk, EncryptionAlgorithm::RsaOaep, &ciphertext)?;
     assert_eq!(&plaintext, data);
     Ok(())
 }
 
 #[test]
+#[ignore]
+fn test_aes_gcm_encrypt() -> PResult<()> {
+    initialize_logging();
+    let slot = get_slot()?;
+    let session = slot.open_session(true)?;
+    let data = b"Hello, World!";
+    let sk = session.generate_aes_key(AesKeySize::Aes256, "label")?;
+    info!("AES key handle: {sk}");
+    let ciphertext = session.encrypt(sk, EncryptionAlgorithm::AesGcm, data)?;
+    assert_eq!(ciphertext.len(), data.len() + 12 + 16);
+    let plaintext = session.decrypt(sk, EncryptionAlgorithm::AesGcm, &ciphertext)?;
+    assert_eq!(&plaintext, data);
+    Ok(())
+}
+
+#[test]
+#[ignore]
 fn multi_threaded_rsa_encrypt_decrypt_test() -> PResult<()> {
     initialize_logging();
 
@@ -156,9 +177,9 @@ fn multi_threaded_rsa_encrypt_decrypt_test() -> PResult<()> {
             let data = b"Hello, World!";
             let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label")?;
             info!("RSA handles sk: {sk}, pk: {pk}");
-            let ciphertext = session.encrypt(pk, RsaAlgorithm::RsaOaep, data)?;
+            let ciphertext = session.encrypt(pk, EncryptionAlgorithm::RsaOaep, data)?;
             assert_eq!(ciphertext.len(), 2048 / 8);
-            let plaintext = session.decrypt(sk, RsaAlgorithm::RsaOaep, &ciphertext)?;
+            let plaintext = session.decrypt(sk, EncryptionAlgorithm::RsaOaep, &ciphertext)?;
             assert_eq!(&plaintext, data);
             Ok::<(), PError>(())
         });
@@ -169,5 +190,49 @@ fn multi_threaded_rsa_encrypt_decrypt_test() -> PResult<()> {
         handle.join().expect("Thread panicked")?;
     }
 
+    Ok(())
+}
+
+#[test]
+#[ignore]
+fn test_list_objects() -> PResult<()> {
+    initialize_logging();
+    let slot = get_slot()?;
+    let session = slot.open_session(true)?;
+    let objects = session.list_objects(ObjectType::Any)?;
+    for object in objects.iter() {
+        session.destroy_object(*object)?;
+    }
+    let objects = session.list_objects(ObjectType::Any)?;
+    assert_eq!(objects.len(), 0);
+    let (_sk, _pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label")?;
+    let objects = session.list_objects(ObjectType::Any)?;
+    assert_eq!(objects.len(), 2);
+    let objects = session.list_objects(ObjectType::RsaKey)?;
+    assert_eq!(objects.len(), 2);
+    let objects = session.list_objects(ObjectType::RsaPublicKey)?;
+    assert_eq!(objects.len(), 1);
+    let objects = session.list_objects(ObjectType::RsaPrivateKey)?;
+    assert_eq!(objects.len(), 1);
+    let objects = session.list_objects(ObjectType::AesKey)?;
+    assert_eq!(objects.len(), 0);
+    // add another keypair
+    let (_sk, _pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa3072, "label")?;
+    let objects = session.list_objects(ObjectType::Any)?;
+    assert_eq!(objects.len(), 4);
+    let objects = session.list_objects(ObjectType::RsaKey)?;
+    assert_eq!(objects.len(), 4);
+    let objects = session.list_objects(ObjectType::RsaPublicKey)?;
+    assert_eq!(objects.len(), 2);
+    let objects = session.list_objects(ObjectType::RsaPrivateKey)?;
+    assert_eq!(objects.len(), 2);
+    let objects = session.list_objects(ObjectType::AesKey)?;
+    assert_eq!(objects.len(), 0);
+    // add an AES key
+    let _key = session.generate_aes_key(AesKeySize::Aes256, "label")?;
+    let objects = session.list_objects(ObjectType::Any)?;
+    assert_eq!(objects.len(), 5);
+    let objects = session.list_objects(ObjectType::AesKey)?;
+    assert_eq!(objects.len(), 1);
     Ok(())
 }

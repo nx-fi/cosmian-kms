@@ -63,26 +63,40 @@ impl Hsm {
     }
 }
 
-pub(crate) struct HsmLib {
+#[allow(dead_code)]
+pub struct HsmLib {
     _library: Library,
     pub(crate) C_Initialize: CK_C_Initialize,
     pub(crate) C_Finalize: CK_C_Finalize,
+
     pub(crate) C_OpenSession: CK_C_OpenSession,
     pub(crate) C_CloseSession: CK_C_CloseSession,
+
+    pub(crate) C_DestroyObject: CK_C_DestroyObject,
+
     pub(crate) C_Decrypt: CK_C_Decrypt,
     pub(crate) C_DecryptInit: CK_C_DecryptInit,
     pub(crate) C_DecryptUpdate: CK_C_DecryptUpdate,
     pub(crate) C_DecryptFinal: CK_C_DecryptFinal,
+
     pub(crate) C_Encrypt: CK_C_Encrypt,
     pub(crate) C_EncryptInit: CK_C_EncryptInit,
     pub(crate) C_EncryptUpdate: CK_C_EncryptUpdate,
     pub(crate) C_EncryptFinal: CK_C_EncryptFinal,
+
+    pub(crate) C_FindObjectsInit: CK_C_FindObjectsInit,
+    pub(crate) C_FindObjects: CK_C_FindObjects,
+    pub(crate) C_FindObjectsFinal: CK_C_FindObjectsFinal,
+
     pub(crate) C_GenerateKey: CK_C_GenerateKey,
     pub(crate) C_GenerateKeyPair: CK_C_GenerateKeyPair,
     pub(crate) C_GenerateRandom: CK_C_GenerateRandom,
+
     pub(crate) C_GetInfo: CK_C_GetInfo,
+
     pub(crate) C_Login: CK_C_Login,
     pub(crate) C_Logout: CK_C_Logout,
+
     pub(crate) C_WrapKey: CK_C_WrapKey,
     pub(crate) C_UnwrapKey: CK_C_UnwrapKey,
 }
@@ -107,6 +121,10 @@ impl HsmLib {
                 C_DecryptInit: Some(*library.get(b"C_DecryptInit")?),
                 C_DecryptUpdate: Some(*library.get(b"C_DecryptUpdate")?),
                 C_DecryptFinal: Some(*library.get(b"C_DecryptFinal")?),
+                C_DestroyObject: Some(*library.get(b"C_DestroyObject")?),
+                C_FindObjectsInit: Some(*library.get(b"C_FindObjectsInit")?),
+                C_FindObjects: Some(*library.get(b"C_FindObjects")?),
+                C_FindObjectsFinal: Some(*library.get(b"C_FindObjectsFinal")?),
                 C_GenerateKey: Some(*library.get(b"C_GenerateKey")?),
                 C_GenerateKeyPair: Some(*library.get(b"C_GenerateKeyPair")?),
                 C_GenerateRandom: Some(*library.get(b"C_GenerateRandom")?),

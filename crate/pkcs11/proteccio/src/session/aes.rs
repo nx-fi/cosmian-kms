@@ -2,9 +2,9 @@ use std::ptr;
 
 use pkcs11_sys::{
     CKA_CLASS, CKA_DECRYPT, CKA_ENCRYPT, CKA_EXTRACTABLE, CKA_KEY_TYPE, CKA_LABEL, CKA_PRIVATE,
-    CKA_SENSITIVE, CKA_TOKEN, CKA_VALUE_LEN, CKK_AES, CKM_AES_GCM, CKM_AES_KEY_GEN, CKO_SECRET_KEY,
-    CKR_OK, CK_ATTRIBUTE, CK_ATTRIBUTE_PTR, CK_BBOOL, CK_MECHANISM, CK_MECHANISM_PTR,
-    CK_OBJECT_HANDLE, CK_TRUE, CK_ULONG, CK_VOID_PTR,
+    CKA_SENSITIVE, CKA_TOKEN, CKA_VALUE_LEN, CKK_AES, CKM_AES_KEY_GEN, CKO_SECRET_KEY, CKR_OK,
+    CK_ATTRIBUTE, CK_ATTRIBUTE_PTR, CK_BBOOL, CK_MECHANISM, CK_MECHANISM_PTR, CK_OBJECT_HANDLE,
+    CK_TRUE, CK_ULONG, CK_VOID_PTR,
 };
 
 use crate::{session::Session, PError, PResult};
@@ -101,64 +101,124 @@ impl Session {
             Ok(aes_key_handle)
         }
     }
-
-    pub fn encrypt_with_aes_key(
-        &self,
-        key_handle: CK_OBJECT_HANDLE,
-        data: &[u8],
-    ) -> PResult<Vec<u8>> {
-        let mut data = data.to_vec();
-        unsafe {
-            let ck_fn = self.hsm.C_EncryptInit.ok_or_else(|| {
-                PError::Default("C_EncryptInit not available on library".to_string())
-            })?;
-
-            let mut mechanism = CK_MECHANISM {
-                mechanism: CKM_AES_GCM,
-                pParameter: ptr::null_mut(),
-                ulParameterLen: 0,
-            };
-
-            let rv = ck_fn(self.session_handle, &mut mechanism, key_handle);
-            if rv != CKR_OK {
-                return Err(PError::Default(
-                    "Failed to initialize encryption".to_string(),
-                ));
-            }
-
-            let ck_fn = self
-                .hsm
-                .C_Encrypt
-                .ok_or_else(|| PError::Default("C_Encrypt not available on library".to_string()))?;
-
-            let mut encrypted_data_len: CK_ULONG = 0;
-            let rv = ck_fn(
-                self.session_handle,
-                data.as_mut_ptr(),
-                data.len() as CK_ULONG,
-                ptr::null_mut(),
-                &mut encrypted_data_len,
-            );
-            if rv != CKR_OK {
-                return Err(PError::Default(
-                    "Failed to get encrypted data length".to_string(),
-                ));
-            }
-
-            let mut encrypted_data = vec![0u8; encrypted_data_len as usize];
-            let rv = ck_fn(
-                self.session_handle,
-                data.as_mut_ptr(),
-                data.len() as CK_ULONG,
-                encrypted_data.as_mut_ptr(),
-                &mut encrypted_data_len,
-            );
-            if rv != CKR_OK {
-                return Err(PError::Default("Failed to encrypt data".to_string()));
-            }
-
-            encrypted_data.truncate(encrypted_data_len as usize);
-            Ok(encrypted_data)
-        }
-    }
+    //
+    // pub(crate) fn encrypt_with_aes_gcm(
+    //     &self,
+    //     key_handle: CK_OBJECT_HANDLE,
+    //     data: &[u8],
+    // ) -> PResult<Vec<u8>> {
+    //     let mut data = data.to_vec();
+    //     unsafe {
+    //         let ck_fn = self.hsm.C_EncryptInit.ok_or_else(|| {
+    //             PError::Default("C_EncryptInit not available on library".to_string())
+    //         })?;
+    //
+    //         let mut mechanism = CK_MECHANISM {
+    //             mechanism: CKM_AES_GCM,
+    //             pParameter: ptr::null_mut(),
+    //             ulParameterLen: 0,
+    //         };
+    //
+    //         let rv = ck_fn(self.session_handle, &mut mechanism, key_handle);
+    //         if rv != CKR_OK {
+    //             return Err(PError::Default(
+    //                 "Failed to initialize encryption".to_string(),
+    //             ));
+    //         }
+    //
+    //         let ck_fn = self
+    //             .hsm
+    //             .C_Encrypt
+    //             .ok_or_else(|| PError::Default("C_Encrypt not available on library".to_string()))?;
+    //
+    //         let mut encrypted_data_len: CK_ULONG = 0;
+    //         let rv = ck_fn(
+    //             self.session_handle,
+    //             data.as_mut_ptr(),
+    //             data.len() as CK_ULONG,
+    //             ptr::null_mut(),
+    //             &mut encrypted_data_len,
+    //         );
+    //         if rv != CKR_OK {
+    //             return Err(PError::Default(
+    //                 "Failed to get encrypted data length".to_string(),
+    //             ));
+    //         }
+    //
+    //         let mut encrypted_data = vec![0u8; encrypted_data_len as usize];
+    //         let rv = ck_fn(
+    //             self.session_handle,
+    //             data.as_mut_ptr(),
+    //             data.len() as CK_ULONG,
+    //             encrypted_data.as_mut_ptr(),
+    //             &mut encrypted_data_len,
+    //         );
+    //         if rv != CKR_OK {
+    //             return Err(PError::Default("Failed to encrypt data".to_string()));
+    //         }
+    //
+    //         encrypted_data.truncate(encrypted_data_len as usize);
+    //         Ok(encrypted_data)
+    //     }
+    // }
+    //
+    // pub fn decrypt_with_aes_key(
+    //     &self,
+    //     key_handle: CK_OBJECT_HANDLE,
+    //     encrypted_data: &[u8],
+    // ) -> PResult<Vec<u8>> {
+    //     let mut encrypted_data = encrypted_data.to_vec();
+    //     unsafe {
+    //         let ck_fn = self.hsm.C_DecryptInit.ok_or_else(|| {
+    //             PError::Default("C_DecryptInit not available on library".to_string())
+    //         })?;
+    //
+    //         let mut mechanism = CK_MECHANISM {
+    //             mechanism: CKM_AES_GCM,
+    //             pParameter: ptr::null_mut(),
+    //             ulParameterLen: 0,
+    //         };
+    //
+    //         let rv = ck_fn(self.session_handle, &mut mechanism, key_handle);
+    //         if rv != CKR_OK {
+    //             return Err(PError::Default(
+    //                 "Failed to initialize decryption".to_string(),
+    //             ));
+    //         }
+    //
+    //         let ck_fn = self
+    //             .hsm
+    //             .C_Decrypt
+    //             .ok_or_else(|| PError::Default("C_Decrypt not available on library".to_string()))?;
+    //
+    //         let mut decrypted_data_len: CK_ULONG = 0;
+    //         let rv = ck_fn(
+    //             self.session_handle,
+    //             encrypted_data.as_mut_ptr(),
+    //             encrypted_data.len() as CK_ULONG,
+    //             ptr::null_mut(),
+    //             &mut decrypted_data_len,
+    //         );
+    //         if rv != CKR_OK {
+    //             return Err(PError::Default(
+    //                 "Failed to get decrypted data length".to_string(),
+    //             ));
+    //         }
+    //
+    //         let mut decrypted_data = vec![0u8; decrypted_data_len as usize];
+    //         let rv = ck_fn(
+    //             self.session_handle,
+    //             encrypted_data.as_mut_ptr(),
+    //             encrypted_data.len() as CK_ULONG,
+    //             decrypted_data.as_mut_ptr(),
+    //             &mut decrypted_data_len,
+    //         );
+    //         if rv != CKR_OK {
+    //             return Err(PError::Default("Failed to decrypt data".to_string()));
+    //         }
+    //
+    //         decrypted_data.truncate(decrypted_data_len as usize);
+    //         Ok(decrypted_data)
+    //     }
+    // }
 }
