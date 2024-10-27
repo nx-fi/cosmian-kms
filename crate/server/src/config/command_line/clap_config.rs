@@ -21,6 +21,8 @@ impl Default for ClapConfig {
             ms_dke_service_url: None,
             telemetry: TelemetryConfig::default(),
             info: false,
+            proteccio_slot: None,
+            proteccio_password: None,
         }
     }
 }
@@ -73,6 +75,14 @@ pub struct ClapConfig {
     /// Print the server configuration information and exit
     #[clap(long, default_value = "false")]
     pub info: bool,
+
+    /// Proteccio HSM slot number
+    #[clap(long, default_value = "false")]
+    pub proteccio_slot: Option<usize>,
+
+    /// Password for the user logging in to the Proteccio HSM Slot
+    #[clap(long, default_value = "false", requires = "proteccio_slot")]
+    pub proteccio_password: Option<String>,
 }
 
 impl fmt::Debug for ClapConfig {

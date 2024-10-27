@@ -30,14 +30,19 @@ impl Hsm {
         })
     }
 
+    /// Get a slot
+    /// If a slot has already been opened, returns the opened slot.
+    /// To close a slot before re-opening it with another password, call `close_slot()`
     pub fn get_slot(
         &self,
         slot_id: usize,
-        login_password: Option<&str>,
+        login_password: Option<String>,
     ) -> PResult<Arc<SlotManager>> {
         // close any existing slot manager
         let mut slots = self.slots.lock().expect("failed to lock slots");
-        slots.remove(&slot_id);
+        if let Some(slot) = slots.get(&slot_id) {
+            return Ok(slot.clone());
+        }
         // instantiate a new slot
         let manager = Arc::new(SlotManager::instantiate(
             self.hsm_lib.clone(),
@@ -46,6 +51,12 @@ impl Hsm {
         )?);
         slots.insert(slot_id, manager.clone());
         Ok(manager)
+    }
+
+    pub fn close_slot(&self, slot_id: usize) -> PResult<()> {
+        let mut slots = self.slots.lock().expect("failed to lock slots");
+        slots.remove(&slot_id);
+        Ok(())
     }
 
     pub fn get_info(&self) -> PResult<Info> {
@@ -191,7 +202,7 @@ impl SlotManager {
     pub fn instantiate(
         hsm_lib: Arc<HsmLib>,
         slot_id: usize,
-        login_password: Option<&str>,
+        login_password: Option<String>,
     ) -> PResult<Self> {
         if let Some(password) = login_password {
             let login_session = Self::open_session_(&hsm_lib, slot_id, false, Some(password))?;
@@ -217,7 +228,7 @@ impl SlotManager {
         hsm_lib: &Arc<HsmLib>,
         slot_id: usize,
         read_write: bool,
-        login_password: Option<&str>,
+        login_password: Option<String>,
     ) -> PResult<Session> {
         let slot_id: CK_SLOT_ID = slot_id as CK_SLOT_ID;
         let flags: CK_FLAGS = if read_write {
@@ -234,7 +245,7 @@ impl SlotManager {
             if rv != CKR_OK {
                 return Err(PError::Default("Failed opening a session".to_string()));
             }
-            if let Some(password) = &login_password {
+            if let Some(password) = login_password.as_ref() {
                 let mut pwd_bytes = password.as_bytes().to_vec();
                 let rv = hsm_lib.C_Login.ok_or_else(|| {
                     PError::Default("C_Login not available on library".to_string())

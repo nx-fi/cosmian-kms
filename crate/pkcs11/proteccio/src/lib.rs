@@ -7,7 +7,7 @@ extern crate core;
 mod error;
 
 pub use error::{PError, PResult};
-pub use hsm::Hsm;
+pub use hsm::{Hsm, SlotManager};
 use rand::{rngs::OsRng, TryRngCore};
 pub use session::{AesKeySize, EncryptionAlgorithm, RsaKeySize, Session};
 

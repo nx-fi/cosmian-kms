@@ -30,7 +30,8 @@ impl actix_web::error::ResponseError for KmsError {
             | Self::Redis(_)
             | Self::Findex(_)
             | Self::Certificate(_)
-            | Self::ServerError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            | Self::ServerError(_)
+            | Self::ProteccioError(_) => StatusCode::INTERNAL_SERVER_ERROR,
 
             Self::KmipError(..)
             | Self::NotSupported(_)

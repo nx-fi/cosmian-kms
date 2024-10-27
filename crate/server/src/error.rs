@@ -7,6 +7,7 @@ use cosmian_kmip::{
     kmip::{kmip_operations::ErrorReason, ttlv::error::TtlvError},
     KmipError,
 };
+use proteccio_pkcs11_loader::PError;
 use redis::ErrorKind;
 use thiserror::Error;
 use x509_parser::prelude::{PEMError, X509Error};
@@ -82,6 +83,9 @@ pub enum KmsError {
 
     #[error("Invalid URL: {0}")]
     UrlError(String),
+
+    #[error("Proteccio HSM error: {0}")]
+    ProteccioError(String),
 }
 
 impl KmsError {
@@ -248,6 +252,12 @@ impl From<base64::DecodeError> for KmsError {
 impl From<tracing::dispatcher::SetGlobalDefaultError> for KmsError {
     fn from(e: tracing::dispatcher::SetGlobalDefaultError) -> Self {
         Self::ServerError(e.to_string())
+    }
+}
+
+impl From<PError> for KmsError {
+    fn from(value: PError) -> Self {
+        Self::ProteccioError(value.to_string())
     }
 }
 

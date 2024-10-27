@@ -57,6 +57,14 @@ pub struct ServerParams {
     ///
     /// The URL should be something like <https://cse.my_domain.com/ms_dke>
     pub ms_dke_service_url: Option<String>,
+
+    /// Proteccio slot number
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    pub proteccio_slot: Option<usize>,
+
+    /// Password for the user logging in to the Proteccio HSM Slot
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    pub proteccio_password: Option<String>,
 }
 
 /// Represents the server parameters.
@@ -106,6 +114,10 @@ impl ServerParams {
             api_token_id: conf.http.api_token_id,
             google_cse_kacls_url: conf.google_cse_kacls_url,
             ms_dke_service_url: conf.ms_dke_service_url,
+            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+            proteccio_slot: conf.proteccio_slot,
+            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+            proteccio_password: conf.proteccio_password,
         })
     }
 
@@ -182,7 +194,7 @@ impl fmt::Debug for ServerParams {
 }
 
 /// Creates a partial clone of the `ServerParams`
-/// the `DbParams` and PKCS#12 information is not copied
+/// the `DbParams`, PKCS#12 information and Proteccio password are not copied
 /// since it may contain sensitive material
 impl Clone for ServerParams {
     fn clone(&self) -> Self {
@@ -199,6 +211,10 @@ impl Clone for ServerParams {
             api_token_id: self.api_token_id.clone(),
             google_cse_kacls_url: self.google_cse_kacls_url.clone(),
             ms_dke_service_url: self.ms_dke_service_url.clone(),
+            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+            proteccio_slot: self.proteccio_slot.clone(),
+            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+            proteccio_password: None,
         }
     }
 }

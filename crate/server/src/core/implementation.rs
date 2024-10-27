@@ -12,7 +12,11 @@ use cosmian_kmip::{
         kmip_types::{Attributes, CryptographicAlgorithm, KeyFormatType},
     },
 };
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+use log::info;
 use openssl::rand::rand_bytes;
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+use proteccio_pkcs11_loader::Hsm;
 use tracing::trace;
 use zeroize::Zeroizing;
 
@@ -36,27 +40,27 @@ use crate::{
 };
 
 impl KMS {
-    pub(crate) async fn instantiate(mut shared_config: ServerParams) -> KResult<Self> {
+    pub(crate) async fn instantiate(mut server_params: ServerParams) -> KResult<Self> {
         let db: Box<dyn Database + Sync + Send> = if let Some(mut db_params) =
-            shared_config.db_params.as_mut()
+            server_params.db_params.as_mut()
         {
             match &mut db_params {
                 DbParams::SqliteEnc(db_path) => Box::new(CachedSqlCipher::instantiate(
                     db_path,
-                    shared_config.clear_db_on_start,
+                    server_params.clear_db_on_start,
                 )?),
                 DbParams::Sqlite(db_path) => Box::new(
                     SqlitePool::instantiate(
                         &db_path.join("kms.db"),
-                        shared_config.clear_db_on_start,
+                        server_params.clear_db_on_start,
                     )
                     .await?,
                 ),
                 DbParams::Postgres(url) => Box::new(
-                    PgPool::instantiate(url.as_str(), shared_config.clear_db_on_start).await?,
+                    PgPool::instantiate(url.as_str(), server_params.clear_db_on_start).await?,
                 ),
                 DbParams::Mysql(url) => Box::new(
-                    MySqlPool::instantiate(url.as_str(), shared_config.clear_db_on_start).await?,
+                    MySqlPool::instantiate(url.as_str(), server_params.clear_db_on_start).await?,
                 ),
                 DbParams::RedisFindex(url, master_key, label) => {
                     // There is no reason to keep a copy of the key in the shared config
@@ -80,9 +84,24 @@ impl KMS {
         // Use cache
         let db = Box::new(CachedDatabase::new(db)?);
 
+        // Check if we have Proteccio HSM
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+        let hsm = if let Some(slot_id) = &server_params.proteccio_slot {
+            let hsm = Hsm::instantiate("/lib/libnethsm.so")?;
+            // immediately attempt to access the slot to detect any issues
+            // this will also cache it
+            hsm.get_slot(*slot_id, server_params.proteccio_password.clone())?;
+            info!("Successfully connected to Proteccio HSM slot {}", slot_id);
+            Some(hsm)
+        } else {
+            None
+        };
+
         Ok(Self {
-            params: shared_config,
+            params: server_params,
             db,
+            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+            hsm,
         })
     }
 

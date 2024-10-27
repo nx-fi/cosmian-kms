@@ -69,6 +69,7 @@ opentelemetry = "0.23.0"
 opentelemetry-otlp = { version = "0.16.0", features = ["tonic"] }
 opentelemetry-semantic-conventions = { version = "0.15.0" }
 opentelemetry_sdk = { version = "0.23.0", features = ["rt-tokio"] }
+proteccio_pkcs11_loader = { path = "../pkcs11/proteccio" }
 rawsql = "0.1"
 redis = { version = "0.23", features = [
     "aio",
