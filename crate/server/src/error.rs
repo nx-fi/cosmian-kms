@@ -3,6 +3,7 @@ use std::{array::TryFromSliceError, sync::mpsc::SendError};
 use actix_web::{dev::ServerHandle, error::QueryPayloadError};
 use cloudproof::reexport::crypto_core::CryptoCoreError;
 use cloudproof_findex::implementations::redis::FindexRedisError;
+use cosmian_hsm_traits::HsmError;
 use cosmian_kmip::{
     kmip::{kmip_operations::ErrorReason, ttlv::error::TtlvError},
     KmipError,
@@ -84,8 +85,8 @@ pub enum KmsError {
     #[error("Invalid URL: {0}")]
     UrlError(String),
 
-    #[error("Proteccio HSM error: {0}")]
-    ProteccioError(String),
+    #[error("HSM error: {0}")]
+    Hsm(String),
 }
 
 impl KmsError {
@@ -257,7 +258,13 @@ impl From<tracing::dispatcher::SetGlobalDefaultError> for KmsError {
 
 impl From<PError> for KmsError {
     fn from(value: PError) -> Self {
-        Self::ProteccioError(value.to_string())
+        Self::Hsm(value.to_string())
+    }
+}
+
+impl From<HsmError> for KmsError {
+    fn from(value: HsmError) -> Self {
+        Self::Hsm(value.to_string())
     }
 }
 

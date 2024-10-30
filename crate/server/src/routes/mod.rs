@@ -31,7 +31,7 @@ impl actix_web::error::ResponseError for KmsError {
             | Self::Findex(_)
             | Self::Certificate(_)
             | Self::ServerError(_)
-            | Self::ProteccioError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            | Self::Hsm(_) => StatusCode::INTERNAL_SERVER_ERROR,
 
             Self::KmipError(..)
             | Self::NotSupported(_)

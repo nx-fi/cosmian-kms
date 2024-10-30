@@ -21,7 +21,7 @@ pub(crate) trait Database {
     /// Migrate the database to the latest version
     async fn migrate(&self, params: Option<&ExtraDatabaseParams>) -> KResult<()>;
 
-    /// Insert the given Object in the database.
+    /// Create the given Object in the database.
     ///
     /// A new UUID will be created if none is supplier.
     /// This method will fail if a `uid` is supplied

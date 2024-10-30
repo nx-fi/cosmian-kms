@@ -12,6 +12,8 @@ description = "Proteccio HSM PKCS#11 loader"
 doctest = false
 
 [dependencies]
+async-trait = "0.1"
+cosmian_hsm_traits = { path = "../hsm" }
 hex = "0.4.3"
 libloading = "0.8.5"
 pkcs11_sys = { path = "../sys" }

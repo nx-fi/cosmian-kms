@@ -1,4 +1,4 @@
-use std::{fmt, path::PathBuf};
+use std::{collections::HashMap, fmt, path::PathBuf};
 
 use openssl::x509::X509;
 
@@ -58,13 +58,9 @@ pub struct ServerParams {
     /// The URL should be something like <https://cse.my_domain.com/ms_dke>
     pub ms_dke_service_url: Option<String>,
 
-    /// Proteccio slot number
+    /// HSM slot passwords number
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-    pub proteccio_slot: Option<usize>,
-
-    /// Password for the user logging in to the Proteccio HSM Slot
-    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-    pub proteccio_password: Option<String>,
+    pub slot_passwords: HashMap<usize, Option<String>>,
 }
 
 /// Represents the server parameters.
@@ -101,6 +97,18 @@ impl ServerParams {
             })
             .transpose()?;
 
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+        let slot_passwords = conf
+            .hsm_slot
+            .iter()
+            .zip(&conf.hsm_password)
+            .into_iter()
+            .map(|(s, p)| {
+                let password = if p == "" { None } else { Some(p.to_string()) };
+                (*s, password)
+            })
+            .collect();
+
         Ok(Self {
             identity_provider_configurations: conf.auth.extract_idp_configs()?,
             db_params: conf.db.init(&conf.workspace.init()?)?,
@@ -115,9 +123,7 @@ impl ServerParams {
             google_cse_kacls_url: conf.google_cse_kacls_url,
             ms_dke_service_url: conf.ms_dke_service_url,
             #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-            proteccio_slot: conf.proteccio_slot,
-            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-            proteccio_password: conf.proteccio_password,
+            slot_passwords,
         })
     }
 
@@ -189,6 +195,18 @@ impl fmt::Debug for ServerParams {
         };
         let x = x.field("ms_dke_service_url", &self.ms_dke_service_url);
         let x = x.field("api_token_id", &self.api_token_id);
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+        let x = x.field(
+            "slot_passwords",
+            &self
+                .slot_passwords
+                .iter()
+                .map(|(s, p)| {
+                    let p = if p.is_some() { "********" } else { "" };
+                    format!("{s} -> {p}")
+                })
+                .collect::<Vec<String>>(),
+        );
         x.finish()
     }
 }
@@ -212,9 +230,12 @@ impl Clone for ServerParams {
             google_cse_kacls_url: self.google_cse_kacls_url.clone(),
             ms_dke_service_url: self.ms_dke_service_url.clone(),
             #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-            proteccio_slot: self.proteccio_slot.clone(),
-            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-            proteccio_password: None,
+            slot_passwords: self
+                .slot_passwords
+                .clone()
+                .into_iter()
+                .map(|(s, _p)| (s, None))
+                .collect(),
         }
     }
 }

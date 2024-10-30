@@ -70,7 +70,7 @@ pub(crate) const fn aes_key_template(label: &str, size: CK_ULONG) -> [CK_ATTRIBU
 }
 
 impl Session {
-    pub fn generate_aes_key(&self, size: AesKeySize, label: &str) -> PResult<u64> {
+    pub fn generate_aes_key(&self, size: AesKeySize, label: &str) -> PResult<usize> {
         unsafe {
             let ck_fn = self.hsm.C_GenerateKey.ok_or_else(|| {
                 PError::Default("C_GenerateKey not available on library".to_string())
@@ -98,7 +98,7 @@ impl Session {
             if rv != CKR_OK {
                 return Err(PError::Default("Failed generating key".to_string()));
             }
-            Ok(aes_key_handle)
+            Ok(aes_key_handle as usize)
         }
     }
     //

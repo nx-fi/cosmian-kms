@@ -21,8 +21,10 @@ impl Default for ClapConfig {
             ms_dke_service_url: None,
             telemetry: TelemetryConfig::default(),
             info: false,
-            proteccio_slot: None,
-            proteccio_password: None,
+            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+            hsm_slot: vec![],
+            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+            hsm_password: vec![],
         }
     }
 }
@@ -76,13 +78,24 @@ pub struct ClapConfig {
     #[clap(long, default_value = "false")]
     pub info: bool,
 
-    /// Proteccio HSM slot number
-    #[clap(long, default_value = "false")]
-    pub proteccio_slot: Option<usize>,
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    /// HSM slot number (only Proteccio HSM is supported)
+    /// Repeat this option to specify multiple slots
+    /// while specifying a password for each slot (or an empty string for no password)
+    /// e.g.
+    /// ```sh
+    ///   --hsm_slot 1 --hsm_password password1 \
+    ///   --hsm_slot 2 --hsm_password password2
+    ///```
+    #[clap(verbatim_doc_comment, long)]
+    pub hsm_slot: Vec<usize>,
 
-    /// Password for the user logging in to the Proteccio HSM Slot
-    #[clap(long, default_value = "false", requires = "proteccio_slot")]
-    pub proteccio_password: Option<String>,
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    /// Password for the user logging in to the HSM Slot specified with `--hsm_slot`
+    /// Provide an empty string for no password
+    /// see `--hsm_slot` for more information
+    #[clap(verbatim_doc_comment, long, requires = "hsm_slot")]
+    pub hsm_password: Vec<String>,
 }
 
 impl fmt::Debug for ClapConfig {
@@ -108,6 +121,17 @@ impl fmt::Debug for ClapConfig {
         );
         let x = x.field("telemetry", &self.telemetry);
         let x = x.field("info", &self.info);
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+        let x = x.field("hsm_slots", &self.hsm_slot);
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+        let x = x.field(
+            "hsm_passwords",
+            &self
+                .hsm_password
+                .iter()
+                .map(|_| "********")
+                .collect::<Vec<&str>>(),
+        );
         x.finish()
     }
 }

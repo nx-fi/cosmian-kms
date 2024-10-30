@@ -16,7 +16,7 @@ use cosmian_kmip::{
 use log::info;
 use openssl::rand::rand_bytes;
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-use proteccio_pkcs11_loader::Hsm;
+use proteccio_pkcs11_loader::Proteccio;
 use tracing::trace;
 use zeroize::Zeroizing;
 
@@ -86,12 +86,10 @@ impl KMS {
 
         // Check if we have Proteccio HSM
         #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-        let hsm = if let Some(slot_id) = &server_params.proteccio_slot {
-            let hsm = Hsm::instantiate("/lib/libnethsm.so")?;
-            // immediately attempt to access the slot to detect any issues
-            // this will also cache it
-            hsm.get_slot(*slot_id, server_params.proteccio_password.clone())?;
-            info!("Successfully connected to Proteccio HSM slot {}", slot_id);
+        let hsm = if !server_params.slot_passwords.is_empty() {
+            let hsm =
+                Proteccio::instantiate("/lib/libnethsm.so", server_params.slot_passwords.clone())?;
+            info!("Successfully loaded Proteccio HSM library");
             Some(hsm)
         } else {
             None

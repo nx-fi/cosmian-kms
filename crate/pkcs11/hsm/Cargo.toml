@@ -1,0 +1,19 @@
+[package]
+name = "cosmian_hsm_traits"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Traits to implement to integrate HSMs to the KMS"
+
+[lib]
+doctest = false
+
+[dependencies]
+async-trait = "0.1"
+cosmian_kmip = { path = "../../kmip" }
+thiserror = "1.0.61"
+
+[dev-dependencies]

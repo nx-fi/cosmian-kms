@@ -5,6 +5,7 @@
 //! ```
 
 use std::{
+    collections::HashMap,
     ptr,
     sync::{Arc, Once},
     thread,
@@ -16,7 +17,7 @@ use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
 
 use crate::{
-    hsm::{Hsm, SlotManager},
+    proteccio::{Proteccio, SlotManager},
     session::{AesKeySize, EncryptionAlgorithm, ObjectType, RsaKeySize},
     PError, PResult,
 };
@@ -48,8 +49,9 @@ fn get_hsm_password() -> PResult<String> {
 
 fn get_slot() -> PResult<Arc<SlotManager>> {
     let user_password = get_hsm_password()?;
-    let hsm = Hsm::instantiate("/lib/libnethsm.so")?;
-    let manager = hsm.get_slot(0x04, Some(&user_password))?;
+    let passwords = HashMap::from([(0x04, Some(user_password.clone()))]);
+    let hsm = Proteccio::instantiate("/lib/libnethsm.so", passwords)?;
+    let manager = hsm.get_slot(0x04)?;
     Ok(manager)
 }
 
@@ -78,7 +80,7 @@ fn low_level_test() -> PResult<()> {
 #[ignore]
 fn test_hsm_get_info() -> PResult<()> {
     initialize_logging();
-    let hsm = Hsm::instantiate("/lib/libnethsm.so")?;
+    let hsm = Proteccio::instantiate("/lib/libnethsm.so", HashMap::new())?;
     let info = hsm.get_info()?;
     info!("Connected to the HSM: {info}");
     Ok(())

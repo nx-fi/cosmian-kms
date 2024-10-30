@@ -1276,6 +1276,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cosmian_hsm_traits"
+version = "4.19.1"
+dependencies = [
+ "async-trait",
+ "cosmian_kmip",
+ "thiserror",
+]
+
+[[package]]
 name = "cosmian_kmip"
 version = "4.19.1"
 dependencies = [
@@ -1399,6 +1408,7 @@ dependencies = [
  "clap",
  "cloudproof",
  "cloudproof_findex 5.0.4",
+ "cosmian_hsm_traits",
  "cosmian_kmip",
  "cosmian_kms_client",
  "cosmian_logger",
@@ -3440,6 +3450,8 @@ dependencies = [
 name = "proteccio_pkcs11_loader"
 version = "4.19.1"
 dependencies = [
+ "async-trait",
+ "cosmian_hsm_traits",
  "hex",
  "libloading",
  "pkcs11_sys",

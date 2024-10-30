@@ -13,44 +13,60 @@ use tracing::warn;
 
 use crate::{session::Session, PError, PResult};
 
-pub struct Hsm {
-    hsm_lib: Arc<HsmLib>,
-    slots: Mutex<HashMap<usize, Arc<SlotManager>>>,
+struct SlotState {
+    password: Option<String>,
+    slot: Option<Arc<SlotManager>>,
 }
 
-impl Hsm {
-    pub fn instantiate<P>(path: P) -> PResult<Self>
+pub struct Proteccio {
+    hsm_lib: Arc<HsmLib>,
+    slots: Mutex<HashMap<usize, SlotState>>,
+}
+
+impl Proteccio {
+    pub fn instantiate<P>(path: P, passwords: HashMap<usize, Option<String>>) -> PResult<Self>
     where
         P: AsRef<std::ffi::OsStr>,
     {
         let hsm_lib = Arc::new(HsmLib::instantiate(path)?);
-        Ok(Hsm {
+        let mut slots = HashMap::with_capacity(passwords.len());
+        for (k, v) in passwords.iter() {
+            slots.insert(
+                *k,
+                SlotState {
+                    password: v.clone(),
+                    slot: None,
+                },
+            );
+        }
+        Ok(Proteccio {
             hsm_lib,
-            slots: Mutex::new(HashMap::new()),
+            slots: Mutex::new(slots),
         })
     }
 
     /// Get a slot
     /// If a slot has already been opened, returns the opened slot.
-    /// To close a slot before re-opening it with another password, call `close_slot()`
-    pub fn get_slot(
-        &self,
-        slot_id: usize,
-        login_password: Option<String>,
-    ) -> PResult<Arc<SlotManager>> {
-        // close any existing slot manager
+    /// To close a slot before re-opening it with another password, call `close_slot()` first
+    pub fn get_slot(&self, slot_id: usize) -> PResult<Arc<SlotManager>> {
         let mut slots = self.slots.lock().expect("failed to lock slots");
-        if let Some(slot) = slots.get(&slot_id) {
-            return Ok(slot.clone());
+        // check if we are supposed to use that slot
+        if let Some(slot_state) = slots.get_mut(&slot_id) {
+            if let Some(s) = &slot_state.slot {
+                Ok(s.clone())
+            } else {
+                // instantiate a new slot
+                let manager = Arc::new(SlotManager::instantiate(
+                    self.hsm_lib.clone(),
+                    slot_id,
+                    slot_state.password.clone(),
+                )?);
+                slot_state.slot = Some(manager.clone());
+                Ok(manager)
+            }
+        } else {
+            Err(PError::Default(format!("slot {slot_id} is not accessible")))
         }
-        // instantiate a new slot
-        let manager = Arc::new(SlotManager::instantiate(
-            self.hsm_lib.clone(),
-            slot_id,
-            login_password,
-        )?);
-        slots.insert(slot_id, manager.clone());
-        Ok(manager)
     }
 
     pub fn close_slot(&self, slot_id: usize) -> PResult<()> {

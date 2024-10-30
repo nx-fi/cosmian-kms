@@ -24,14 +24,14 @@ pub enum EncryptionAlgorithm {
 }
 
 pub struct Session {
-    hsm: Arc<crate::hsm::HsmLib>,
+    hsm: Arc<crate::proteccio::HsmLib>,
     session_handle: CK_SESSION_HANDLE,
     is_logged_in: bool,
 }
 
 impl Session {
     pub fn new(
-        hsm: Arc<crate::hsm::HsmLib>,
+        hsm: Arc<crate::proteccio::HsmLib>,
         session_handle: CK_SESSION_HANDLE,
         is_logged_in: bool,
     ) -> Self {
