@@ -4,18 +4,11 @@ mod rsa;
 use std::{ptr, sync::Arc};
 
 pub use aes::AesKeySize;
+use cosmian_hsm_traits::{HsmObject, HsmObjectFilter, HsmObjectType};
 use pkcs11_sys::*;
 pub use rsa::RsaKeySize;
 
 use crate::{aes_mechanism, generate_random_nonce, rsa_mechanism, PError, PResult};
-
-pub enum ObjectType {
-    Any,
-    AesKey,
-    RsaKey,
-    RsaPrivateKey,
-    RsaPublicKey,
-}
 
 pub enum EncryptionAlgorithm {
     AesGcm,
@@ -76,12 +69,12 @@ impl Session {
         }
     }
 
-    pub fn list_objects(&self, object_type: ObjectType) -> PResult<Vec<u64>> {
+    pub fn list_objects(&self, object_filter: HsmObjectFilter) -> PResult<Vec<u64>> {
         let mut object_handles: Vec<u64> = Vec::new();
         let mut template: Vec<CK_ATTRIBUTE> = Vec::new();
-        match object_type {
-            ObjectType::Any => {}
-            ObjectType::AesKey => {
+        match object_filter {
+            HsmObjectFilter::Any => {}
+            HsmObjectFilter::AesKey => {
                 template.extend([
                     CK_ATTRIBUTE {
                         type_: CKA_CLASS,
@@ -95,12 +88,12 @@ impl Session {
                     },
                 ]);
             }
-            ObjectType::RsaKey => template.extend([CK_ATTRIBUTE {
+            HsmObjectFilter::RsaKey => template.extend([CK_ATTRIBUTE {
                 type_: CKA_KEY_TYPE,
                 pValue: &CKK_RSA as *const _ as *mut _,
                 ulValueLen: size_of::<CK_KEY_TYPE>() as CK_ULONG,
             }]),
-            ObjectType::RsaPrivateKey => template.extend([
+            HsmObjectFilter::RsaPrivateKey => template.extend([
                 CK_ATTRIBUTE {
                     type_: CKA_CLASS,
                     pValue: &CKO_PRIVATE_KEY as *const _ as *mut _,
@@ -112,7 +105,7 @@ impl Session {
                     ulValueLen: size_of::<CK_KEY_TYPE>() as CK_ULONG,
                 },
             ]),
-            ObjectType::RsaPublicKey => template.extend([
+            HsmObjectFilter::RsaPublicKey => template.extend([
                 CK_ATTRIBUTE {
                     type_: CKA_CLASS,
                     pValue: &CKO_PUBLIC_KEY as *const _ as *mut _,
@@ -339,6 +332,119 @@ impl Session {
             decrypted_data.truncate(decrypted_data_len as usize);
             Ok(decrypted_data)
         }
+    }
+
+    pub fn export_key(&self, key_handle: CK_OBJECT_HANDLE) -> PResult<HsmObject> {
+        let template = [
+            CK_ATTRIBUTE {
+                type_: CKA_VALUE,
+                pValue: ptr::null_mut(),
+                ulValueLen: 0,
+            },
+            CK_ATTRIBUTE {
+                type_: CKA_LABEL,
+                pValue: ptr::null_mut(),
+                ulValueLen: 0,
+            },
+        ];
+
+        unsafe {
+            // Get the length of the key value
+            let rv = self.hsm.C_GetAttributeValue.ok_or_else(|| {
+                PError::Default("C_GetAttributeValue not available on library".to_string())
+            })?(
+                self.session_handle,
+                key_handle,
+                template.as_ptr() as *mut CK_ATTRIBUTE,
+                template.len() as CK_ULONG,
+            );
+            if rv == CKR_ATTRIBUTE_SENSITIVE {
+                return Err(PError::Default(
+                    "This key is cannot be exported".to_string(),
+                ));
+            }
+            if rv != CKR_OK {
+                return Err(PError::Default(
+                    "Failed to get key value and label length".to_string(),
+                ));
+            }
+        }
+
+        let key_value_len = template[0].ulValueLen;
+        let mut key_value: Vec<u8> = vec![0_u8; key_value_len as usize];
+        let label_len = template[1].ulValueLen;
+        let mut label_bytes: Vec<u8> = vec![0_u8; label_len as usize];
+        let mut key_type: CK_KEY_TYPE = CKK_VENDOR_DEFINED;
+        let mut private: CK_BBOOL = CK_FALSE;
+        let mut size: CK_ULONG = 0;
+
+        // Get the key value
+        let template = [
+            CK_ATTRIBUTE {
+                type_: CKA_VALUE,
+                pValue: key_value.as_mut_ptr() as CK_VOID_PTR,
+                ulValueLen: key_value_len,
+            },
+            CK_ATTRIBUTE {
+                type_: CKA_KEY_TYPE,
+                pValue: &mut key_type as *mut _ as CK_VOID_PTR,
+                ulValueLen: size_of::<CK_ULONG>() as CK_ULONG,
+            },
+            CK_ATTRIBUTE {
+                type_: CKA_LABEL,
+                pValue: label_bytes.as_mut_ptr() as CK_VOID_PTR,
+                ulValueLen: label_len,
+            },
+            CK_ATTRIBUTE {
+                type_: CKA_PRIVATE,
+                pValue: &mut private as *mut _ as CK_VOID_PTR,
+                ulValueLen: size_of::<CK_BBOOL>() as CK_ULONG,
+            },
+            CK_ATTRIBUTE {
+                type_: CKA_VALUE_LEN,
+                pValue: &mut size as *mut _ as CK_VOID_PTR,
+                ulValueLen: size_of::<CK_ULONG>() as CK_ULONG,
+            },
+        ];
+
+        unsafe {
+            let rv = self.hsm.C_GetAttributeValue.ok_or_else(|| {
+                PError::Default("C_GetAttributeValue not available on library".to_string())
+            })?(
+                self.session_handle,
+                key_handle,
+                template.as_ptr() as *mut CK_ATTRIBUTE,
+                template.len() as CK_ULONG,
+            );
+            if rv != CKR_OK {
+                return Err(PError::Default("Failed to get key attributes".to_string()));
+            }
+        }
+
+        let label = String::from_utf8(label_bytes)
+            .map_err(|e| PError::Default(format!("Failed to convert label to string: {}", e)))?;
+        let object_type = match key_type {
+            CKK_AES => HsmObjectType::Aes,
+            CKK_RSA => {
+                if private == CK_TRUE {
+                    HsmObjectType::RsaPrivate
+                } else {
+                    HsmObjectType::RsaPublic
+                }
+            }
+            x => {
+                return Err(PError::Default(format!(
+                    "Export: unsupported key type: {x}"
+                )));
+            }
+        };
+
+        Ok(HsmObject::new(
+            object_type,
+            &key_value,
+            (size as usize) * 8,
+            label,
+        ))
     }
 }
 

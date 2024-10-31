@@ -13,7 +13,7 @@ doctest = false
 
 [dependencies]
 async-trait = "0.1"
-cosmian_kmip = { path = "../../kmip" }
 thiserror = "1.0.61"
+zeroize = "1.8"
 
 [dev-dependencies]

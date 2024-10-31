@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use cosmian_hsm_traits::{
-    reexports::kmip::Object, Hsm, HsmError, HsmKeyAlgorithm, HsmKeypairAlgorithm, HsmObject,
-    HsmResult,
+    Hsm, HsmError, HsmKeyAlgorithm, HsmKeypairAlgorithm, HsmObject, HsmObjectFilter, HsmResult,
 };
 
 use crate::{AesKeySize, Proteccio, RsaKeySize};
@@ -13,6 +12,7 @@ impl Hsm for Proteccio {
         slot_id: usize,
         algorithm: HsmKeyAlgorithm,
         key_length_in_bits: usize,
+        sensitive: bool,
         label: &str,
     ) -> HsmResult<usize> {
         let slot = self.get_slot(slot_id)?;
@@ -29,8 +29,8 @@ impl Hsm for Proteccio {
                         )))
                     }
                 };
-                let id = session.generate_aes_key(key_size, label)?;
-                Ok(id)
+                let id = session.generate_aes_key(key_size, label, sensitive)?;
+                Ok(id as usize)
             } // _ => Err(HsmError::Default(
               //     "Only AES or RSA keys can be created on the Proteccio HSM".to_string(),
               // )),
@@ -70,7 +70,7 @@ impl Hsm for Proteccio {
         }
     }
 
-    async fn retrieve(&self, _slot_id: usize, _object_id: usize) -> HsmResult<Object> {
+    async fn retrieve(&self, _slot_id: usize, _object_id: usize) -> HsmResult<HsmObject> {
         todo!()
     }
 
@@ -78,7 +78,7 @@ impl Hsm for Proteccio {
         todo!()
     }
 
-    async fn find(&self, _slot_id: usize, _object_type: HsmObject) -> HsmResult<Vec<String>> {
+    async fn find(&self, _slot_id: usize, _object_type: HsmObjectFilter) -> HsmResult<Vec<String>> {
         todo!()
     }
 }

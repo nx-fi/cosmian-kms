@@ -11,6 +11,7 @@ use std::{
     thread,
 };
 
+use cosmian_hsm_traits::{HsmObjectFilter, HsmObjectType};
 use libloading::Library;
 use pkcs11_sys::{CKF_OS_LOCKING_OK, CKR_OK, CK_C_INITIALIZE_ARGS, CK_RV, CK_VOID_PTR};
 use tracing::{info, Level};
@@ -18,7 +19,7 @@ use tracing_subscriber::FmtSubscriber;
 
 use crate::{
     proteccio::{Proteccio, SlotManager},
-    session::{AesKeySize, EncryptionAlgorithm, ObjectType, RsaKeySize},
+    session::{AesKeySize, EncryptionAlgorithm, RsaKeySize},
     PError, PResult,
 };
 
@@ -92,8 +93,19 @@ fn test_generate_aes_key() -> PResult<()> {
     initialize_logging();
     let slot = get_slot()?;
     let session = slot.open_session(true)?;
-    let key = session.generate_aes_key(AesKeySize::Aes256, "label")?;
-    info!("Generated AES key: {}", key);
+    let key_handle = session.generate_aes_key(AesKeySize::Aes256, "label", false)?;
+    info!("Generated exportable AES key: {}", key_handle);
+    // re-export the key
+    let key = session.export_key(key_handle)?;
+    assert_eq!(key.key_len_in_bits(), 256);
+    assert_eq!(key.object_type(), HsmObjectType::Aes);
+    assert_eq!(key.label(), "label");
+    assert_eq!(key.value().len(), 32);
+    // Generate a sensitive AES key
+    let key_handle = session.generate_aes_key(AesKeySize::Aes256, "label", true)?;
+    info!("Generated non-exportable AES key: {}", key_handle);
+    // it should not be exportable
+    assert!(session.export_key(key_handle).is_err());
     Ok(())
 }
 
@@ -103,7 +115,7 @@ fn test_rsa_key_wrap() -> PResult<()> {
     initialize_logging();
     let slot = get_slot()?;
     let session = slot.open_session(true)?;
-    let symmetric_key = session.generate_aes_key(AesKeySize::Aes256, "label")?;
+    let symmetric_key = session.generate_aes_key(AesKeySize::Aes256, "label", true)?;
     info!("Symmetric key handle: {symmetric_key}");
     let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label")?;
     info!("RSA handles sk: {sk}, pl: {pk}");
@@ -154,7 +166,7 @@ fn test_aes_gcm_encrypt() -> PResult<()> {
     let slot = get_slot()?;
     let session = slot.open_session(true)?;
     let data = b"Hello, World!";
-    let sk = session.generate_aes_key(AesKeySize::Aes256, "label")?;
+    let sk = session.generate_aes_key(AesKeySize::Aes256, "label", true)?;
     info!("AES key handle: {sk}");
     let ciphertext = session.encrypt(sk, EncryptionAlgorithm::AesGcm, data)?;
     assert_eq!(ciphertext.len(), data.len() + 12 + 16);
@@ -201,40 +213,40 @@ fn test_list_objects() -> PResult<()> {
     initialize_logging();
     let slot = get_slot()?;
     let session = slot.open_session(true)?;
-    let objects = session.list_objects(ObjectType::Any)?;
+    let objects = session.list_objects(HsmObjectFilter::Any)?;
     for object in objects.iter() {
         session.destroy_object(*object)?;
     }
-    let objects = session.list_objects(ObjectType::Any)?;
+    let objects = session.list_objects(HsmObjectFilter::Any)?;
     assert_eq!(objects.len(), 0);
     let (_sk, _pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label")?;
-    let objects = session.list_objects(ObjectType::Any)?;
+    let objects = session.list_objects(HsmObjectFilter::Any)?;
     assert_eq!(objects.len(), 2);
-    let objects = session.list_objects(ObjectType::RsaKey)?;
+    let objects = session.list_objects(HsmObjectFilter::RsaKey)?;
     assert_eq!(objects.len(), 2);
-    let objects = session.list_objects(ObjectType::RsaPublicKey)?;
+    let objects = session.list_objects(HsmObjectFilter::RsaPublicKey)?;
     assert_eq!(objects.len(), 1);
-    let objects = session.list_objects(ObjectType::RsaPrivateKey)?;
+    let objects = session.list_objects(HsmObjectFilter::RsaPrivateKey)?;
     assert_eq!(objects.len(), 1);
-    let objects = session.list_objects(ObjectType::AesKey)?;
+    let objects = session.list_objects(HsmObjectFilter::AesKey)?;
     assert_eq!(objects.len(), 0);
     // add another keypair
     let (_sk, _pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa3072, "label")?;
-    let objects = session.list_objects(ObjectType::Any)?;
+    let objects = session.list_objects(HsmObjectFilter::Any)?;
     assert_eq!(objects.len(), 4);
-    let objects = session.list_objects(ObjectType::RsaKey)?;
+    let objects = session.list_objects(HsmObjectFilter::RsaKey)?;
     assert_eq!(objects.len(), 4);
-    let objects = session.list_objects(ObjectType::RsaPublicKey)?;
+    let objects = session.list_objects(HsmObjectFilter::RsaPublicKey)?;
     assert_eq!(objects.len(), 2);
-    let objects = session.list_objects(ObjectType::RsaPrivateKey)?;
+    let objects = session.list_objects(HsmObjectFilter::RsaPrivateKey)?;
     assert_eq!(objects.len(), 2);
-    let objects = session.list_objects(ObjectType::AesKey)?;
+    let objects = session.list_objects(HsmObjectFilter::AesKey)?;
     assert_eq!(objects.len(), 0);
     // add an AES key
-    let _key = session.generate_aes_key(AesKeySize::Aes256, "label")?;
-    let objects = session.list_objects(ObjectType::Any)?;
+    let _key = session.generate_aes_key(AesKeySize::Aes256, "label", true)?;
+    let objects = session.list_objects(HsmObjectFilter::Any)?;
     assert_eq!(objects.len(), 5);
-    let objects = session.list_objects(ObjectType::AesKey)?;
+    let objects = session.list_objects(HsmObjectFilter::AesKey)?;
     assert_eq!(objects.len(), 1);
     Ok(())
 }

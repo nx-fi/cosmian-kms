@@ -1280,8 +1280,8 @@ name = "cosmian_hsm_traits"
 version = "4.19.1"
 dependencies = [
  "async-trait",
- "cosmian_kmip",
  "thiserror",
+ "zeroize",
 ]
 
 [[package]]

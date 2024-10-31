@@ -3,8 +3,8 @@ use std::ptr;
 use pkcs11_sys::{
     CKA_CLASS, CKA_DECRYPT, CKA_ENCRYPT, CKA_EXTRACTABLE, CKA_KEY_TYPE, CKA_LABEL, CKA_PRIVATE,
     CKA_SENSITIVE, CKA_TOKEN, CKA_VALUE_LEN, CKK_AES, CKM_AES_KEY_GEN, CKO_SECRET_KEY, CKR_OK,
-    CK_ATTRIBUTE, CK_ATTRIBUTE_PTR, CK_BBOOL, CK_MECHANISM, CK_MECHANISM_PTR, CK_OBJECT_HANDLE,
-    CK_TRUE, CK_ULONG, CK_VOID_PTR,
+    CK_ATTRIBUTE, CK_ATTRIBUTE_PTR, CK_BBOOL, CK_FALSE, CK_MECHANISM, CK_MECHANISM_PTR,
+    CK_OBJECT_HANDLE, CK_TRUE, CK_ULONG, CK_VOID_PTR,
 };
 
 use crate::{session::Session, PError, PResult};
@@ -14,7 +14,14 @@ pub enum AesKeySize {
     Aes256,
 }
 
-pub(crate) const fn aes_key_template(label: &str, size: CK_ULONG) -> [CK_ATTRIBUTE; 10] {
+/// AES key template
+/// If sensitive is true, the key is not exportable
+pub(crate) const fn aes_key_template(
+    label: &str,
+    size: CK_ULONG,
+    sensitive: bool,
+) -> [CK_ATTRIBUTE; 10] {
+    let sensitive: CK_BBOOL = if sensitive { CK_TRUE } else { CK_FALSE };
     [
         CK_ATTRIBUTE {
             type_: CKA_CLASS,
@@ -48,7 +55,7 @@ pub(crate) const fn aes_key_template(label: &str, size: CK_ULONG) -> [CK_ATTRIBU
         },
         CK_ATTRIBUTE {
             type_: CKA_SENSITIVE,
-            pValue: &CK_TRUE as *const _ as CK_VOID_PTR,
+            pValue: &sensitive as *const _ as CK_VOID_PTR,
             ulValueLen: size_of::<CK_BBOOL>() as CK_ULONG,
         },
         CK_ATTRIBUTE {
@@ -70,7 +77,14 @@ pub(crate) const fn aes_key_template(label: &str, size: CK_ULONG) -> [CK_ATTRIBU
 }
 
 impl Session {
-    pub fn generate_aes_key(&self, size: AesKeySize, label: &str) -> PResult<usize> {
+    /// Generate an AES key
+    /// If sensitive is true, the key is not exportable
+    pub fn generate_aes_key(
+        &self,
+        size: AesKeySize,
+        label: &str,
+        sensitive: bool,
+    ) -> PResult<CK_OBJECT_HANDLE> {
         unsafe {
             let ck_fn = self.hsm.C_GenerateKey.ok_or_else(|| {
                 PError::Default("C_GenerateKey not available on library".to_string())
@@ -84,7 +98,7 @@ impl Session {
                 pParameter: ptr::null_mut(),
                 ulParameterLen: 0,
             };
-            let mut template = aes_key_template(label, size);
+            let mut template = aes_key_template(label, size, sensitive);
             let pMechanism: CK_MECHANISM_PTR = &mut mechanism;
             let pMutTemplate: CK_ATTRIBUTE_PTR = template.as_mut_ptr();
             let mut aes_key_handle = CK_OBJECT_HANDLE::default();
@@ -98,7 +112,7 @@ impl Session {
             if rv != CKR_OK {
                 return Err(PError::Default("Failed generating key".to_string()));
             }
-            Ok(aes_key_handle as usize)
+            Ok(aes_key_handle)
         }
     }
 }

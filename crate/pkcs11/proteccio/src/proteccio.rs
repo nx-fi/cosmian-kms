@@ -119,6 +119,8 @@ pub struct HsmLib {
     pub(crate) C_GenerateKeyPair: CK_C_GenerateKeyPair,
     pub(crate) C_GenerateRandom: CK_C_GenerateRandom,
 
+    pub(crate) C_GetAttributeValue: CK_C_GetAttributeValue,
+
     pub(crate) C_GetInfo: CK_C_GetInfo,
 
     pub(crate) C_Login: CK_C_Login,
@@ -155,6 +157,7 @@ impl HsmLib {
                 C_GenerateKey: Some(*library.get(b"C_GenerateKey")?),
                 C_GenerateKeyPair: Some(*library.get(b"C_GenerateKeyPair")?),
                 C_GenerateRandom: Some(*library.get(b"C_GenerateRandom")?),
+                C_GetAttributeValue: Some(*library.get(b"C_GetAttributeValue")?),
                 C_GetInfo: Some(*library.get(b"C_GetInfo")?),
                 C_Login: Some(*library.get(b"C_Login")?),
                 C_Logout: Some(*library.get(b"C_Logout")?),
