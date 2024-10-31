@@ -1,5 +1,5 @@
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-use cosmian_hsm_traits::{Hsm, HsmAlgorithm};
+use cosmian_hsm_traits::{Hsm, HsmKeyAlgorithm};
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 use cosmian_kmip::kmip::kmip_types::{Attributes, CryptographicAlgorithm};
 use cosmian_kmip::kmip::{
@@ -39,6 +39,11 @@ pub(crate) async fn create(
     {
         if uid.starts_with("hsm::") {
             return if let Some(hsm) = &kms.hsm {
+                if owner != kms.params.super_admin_username {
+                    return Err(KmsError::InvalidRequest(
+                        "Only the Super Admin can create HSM objects".to_owned(),
+                    ));
+                }
                 create_hsm_key(&request, hsm, &uid).await
             } else {
                 Err(KmsError::NotSupported(
@@ -136,9 +141,9 @@ async fn create_hsm_key(request: &Create, hsm: &Proteccio, uid: &str) -> KResult
                 serde_json::to_string(&tags)?
             };
             let id = hsm
-                .create(
+                .create_key(
                     slot_id,
-                    HsmAlgorithm::AES,
+                    HsmKeyAlgorithm::AES,
                     *key_length as usize,
                     label.as_str(),
                 )

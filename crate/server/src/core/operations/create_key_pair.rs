@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 
 use cloudproof::reexport::cover_crypt::Covercrypt;
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+use cosmian_hsm_traits::{Hsm, HsmKeypairAlgorithm};
 #[cfg(not(feature = "fips"))]
 use cosmian_kmip::crypto::elliptic_curves::operation::{
     create_x25519_key_pair, create_x448_key_pair,
@@ -19,6 +21,8 @@ use cosmian_kmip::{
         kmip_types::{Attributes, CryptographicAlgorithm, RecommendedCurve, UniqueIdentifier},
     },
 };
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+use proteccio_pkcs11_loader::Proteccio;
 #[cfg(not(feature = "fips"))]
 use tracing::warn;
 use tracing::{debug, trace};
@@ -39,6 +43,108 @@ pub(crate) async fn create_key_pair(
     params: Option<&ExtraDatabaseParams>,
 ) -> KResult<CreateKeyPairResponse> {
     trace!("Create key pair: {}", serde_json::to_string(&request)?);
+
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    // An HSM CreateKeyPair request will have a uid in the form of "ham::<slot_id>"
+    if let Some(uid) = request
+        .private_key_attributes
+        .as_ref()
+        .and_then(|attrs| attrs.unique_identifier.as_ref())
+        .or_else(|| {
+            request
+                .common_attributes
+                .as_ref()
+                .and_then(|attrs| attrs.unique_identifier.as_ref())
+        })
+        .map(|x| x.to_string())
+    {
+        if uid.starts_with("hsm::") {
+            return if let Some(hsm) = &kms.hsm {
+                if owner != kms.params.super_admin_username {
+                    return Err(KmsError::InvalidRequest(
+                        "Only the Super Admin can create HSM objects".to_owned(),
+                    ));
+                }
+                create_hsm_keypair(&request, hsm, &uid).await
+            } else {
+                Err(KmsError::NotSupported(
+                    "This server does not support HSM operations".to_owned(),
+                ))
+            }
+        }
+    }
+
+    create_kms_keypair(kms, request, owner, params).await
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+async fn create_hsm_keypair(
+    request: &CreateKeyPair,
+    hsm: &Proteccio,
+    uid: &str,
+) -> KResult<CreateKeyPairResponse> {
+    // try converting the rest of the uid into a slot_id
+    let slot_id = uid
+        .trim_start_matches("hsm::")
+        .parse::<usize>()
+        .map_err(|e| {
+            KmsError::InvalidRequest(format!(
+                "An HSM create request must have a uid in the form of 'hsm::<slot_id>': {e}"
+            ))
+        })?;
+    let attributes = request
+        .private_key_attributes
+        .as_ref()
+        .or_else(|| request.common_attributes.as_ref())
+        .ok_or_else(|| {
+            KmsError::InvalidRequest(
+                "Attributes must be provided in a CreateKeyPair request".to_owned(),
+            )
+        })?;
+    let algorithm = attributes.cryptographic_algorithm.as_ref().ok_or_else(|| {
+        KmsError::InvalidRequest(
+            "Symmetric key must have a cryptographic algorithm specified".to_owned(),
+        )
+    })?;
+    if *algorithm != CryptographicAlgorithm::RSA {
+        return Err(KmsError::InvalidRequest(
+            "Only RSA keypairs can be created on the HSM in this server".to_owned(),
+        ));
+    }
+    let key_length = attributes.cryptographic_length.as_ref().ok_or_else(|| {
+        KmsError::InvalidRequest("RSA keys must have a cryptographic length specified".to_owned())
+    })?;
+    // recover tags
+    let tags = attributes.get_tags();
+    Attributes::check_user_tags(&tags)?;
+    let label = if tags.is_empty() {
+        String::new()
+    } else {
+        serde_json::to_string(&tags)?
+    };
+    let (sk, pk) = hsm
+        .create_keypair(
+            slot_id,
+            HsmKeypairAlgorithm::RSA,
+            *key_length as usize,
+            label.as_str(),
+        )
+        .await?;
+    let sk = format!("hsm::{slot_id}::{sk}");
+    let pk = format!("hsm::{slot_id}::{pk}");
+    debug!("Created HSM {algorithm} Key of type with sk: {sk} and pk: {pk}",);
+    Ok(CreateKeyPairResponse {
+        private_key_unique_identifier: UniqueIdentifier::TextString(sk),
+        public_key_unique_identifier: UniqueIdentifier::TextString(pk),
+    })
+}
+
+async fn create_kms_keypair(
+    kms: &KMS,
+    request: CreateKeyPair,
+    owner: &str,
+    params: Option<&ExtraDatabaseParams>,
+) -> KResult<CreateKeyPairResponse> {
     if request.common_protection_storage_masks.is_some()
         || request.private_protection_storage_masks.is_some()
         || request.public_protection_storage_masks.is_some()

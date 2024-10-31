@@ -17,7 +17,7 @@ use log::info;
 use openssl::rand::rand_bytes;
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 use proteccio_pkcs11_loader::Proteccio;
-use tracing::trace;
+use tracing::{debug, trace};
 use zeroize::Zeroizing;
 
 use super::{
@@ -86,12 +86,16 @@ impl KMS {
 
         // Check if we have Proteccio HSM
         #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-        let hsm = if !server_params.slot_passwords.is_empty() {
+        let hsm = if let Some(hsm_model) = &server_params.hsm_model {
+            if hsm_model != "proteccio" {
+                kms_bail!("Fatal: unsupported HSM model: {}", hsm_model);
+            }
             let hsm =
                 Proteccio::instantiate("/lib/libnethsm.so", server_params.slot_passwords.clone())?;
-            info!("Successfully loaded Proteccio HSM library");
+            info!("Successfully loaded the Proteccio PKCS#11 HSM library");
             Some(hsm)
         } else {
+            debug!("Not using an HSM");
             None
         };
 

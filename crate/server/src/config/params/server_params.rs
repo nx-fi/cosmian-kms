@@ -23,6 +23,9 @@ pub struct ServerParams {
     /// but always use the default username instead of the one provided by the authentication method
     pub force_default_username: bool,
 
+    /// Super admin username
+    pub super_admin_username: String,
+
     /// The DB parameters may be supplied on the command line
     pub db_params: Option<DbParams>,
 
@@ -57,6 +60,10 @@ pub struct ServerParams {
     ///
     /// The URL should be something like <https://cse.my_domain.com/ms_dke>
     pub ms_dke_service_url: Option<String>,
+
+    /// The HSM model if any
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    pub hsm_model: Option<String>,
 
     /// HSM slot passwords number
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
@@ -98,7 +105,7 @@ impl ServerParams {
             .transpose()?;
 
         #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-        let slot_passwords = conf
+        let slot_passwords: HashMap<usize, Option<String>> = conf
             .hsm_slot
             .iter()
             .zip(&conf.hsm_password)
@@ -118,10 +125,17 @@ impl ServerParams {
             http_params,
             default_username: conf.default_username,
             force_default_username: conf.force_default_username,
+            super_admin_username: conf.super_admin_username,
             authority_cert_file,
             api_token_id: conf.http.api_token_id,
             google_cse_kacls_url: conf.google_cse_kacls_url,
             ms_dke_service_url: conf.ms_dke_service_url,
+            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+            hsm_model: if slot_passwords.is_empty() {
+                None
+            } else {
+                Some(conf.hsm_model.clone())
+            },
             #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
             slot_passwords,
         })
@@ -186,7 +200,8 @@ impl fmt::Debug for ServerParams {
         };
         let x = x
             .field("default_username", &self.default_username)
-            .field("force_default_username", &self.force_default_username);
+            .field("force_default_username", &self.force_default_username)
+            .field("super_admin_username", &self.super_admin_username);
         let x = x.field("http_params", &self.http_params);
         let x = if let Some(google_cse_kacls_url) = &self.google_cse_kacls_url {
             x.field("google_cse_kacls_url", &google_cse_kacls_url)
@@ -195,6 +210,16 @@ impl fmt::Debug for ServerParams {
         };
         let x = x.field("ms_dke_service_url", &self.ms_dke_service_url);
         let x = x.field("api_token_id", &self.api_token_id);
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+        let x = x.field(
+            "hsm_model",
+            if self.slot_passwords.is_empty() {
+                &"NO HSM"
+            } else {
+                &self.hsm_model
+            },
+        );
         #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
         let x = x.field(
             "slot_passwords",
@@ -220,6 +245,7 @@ impl Clone for ServerParams {
             identity_provider_configurations: self.identity_provider_configurations.clone(),
             default_username: self.default_username.clone(),
             force_default_username: self.force_default_username,
+            super_admin_username: self.super_admin_username.clone(),
             db_params: None,
             clear_db_on_start: self.clear_db_on_start,
             hostname: self.hostname.clone(),
@@ -229,6 +255,8 @@ impl Clone for ServerParams {
             api_token_id: self.api_token_id.clone(),
             google_cse_kacls_url: self.google_cse_kacls_url.clone(),
             ms_dke_service_url: self.ms_dke_service_url.clone(),
+            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+            hsm_model: self.hsm_model.clone(),
             #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
             slot_passwords: self
                 .slot_passwords

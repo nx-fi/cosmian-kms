@@ -7,6 +7,7 @@ use super::{DBConfig, HttpConfig, JwtAuthConfig, WorkspaceConfig};
 use crate::telemetry::TelemetryConfig;
 
 const DEFAULT_USERNAME: &str = "admin";
+const SUPER_ADMIN_USERNAME: &str = "admin";
 
 impl Default for ClapConfig {
     fn default() -> Self {
@@ -16,11 +17,14 @@ impl Default for ClapConfig {
             auth: JwtAuthConfig::default(),
             workspace: WorkspaceConfig::default(),
             default_username: DEFAULT_USERNAME.to_owned(),
+            super_admin_username: SUPER_ADMIN_USERNAME.to_owned(),
             force_default_username: false,
             google_cse_kacls_url: None,
             ms_dke_service_url: None,
             telemetry: TelemetryConfig::default(),
             info: false,
+            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+            hsm_model: "proteccio".to_owned(),
             #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
             hsm_slot: vec![],
             #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
@@ -54,6 +58,11 @@ pub struct ClapConfig {
     #[clap(long, env = "KMS_FORCE_DEFAULT_USERNAME")]
     pub force_default_username: bool,
 
+    /// The super-admin username. The super admin can perform all operations on the KMS server.
+    /// Make it some dummy value to deactivate it.
+    #[clap(long, env = "KMS_SUPER_ADMIN_USERNAME", default_value = SUPER_ADMIN_USERNAME)]
+    pub super_admin_username: String,
+
     /// This setting enables the Google Workspace Client Side Encryption feature of this KMS server.
     ///
     /// It should contain the external URL of this server as configured in Google Workspace client side encryption settings
@@ -79,7 +88,13 @@ pub struct ClapConfig {
     pub info: bool,
 
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-    /// HSM slot number (only Proteccio HSM is supported)
+    /// The HSM model.
+    /// Only `proteccio' is supported for now.
+    #[clap(verbatim_doc_comment, long,value_parser(["proteccio"]), default_value = "proteccio")]
+    pub hsm_model: String,
+
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    /// HSM slot number. The slots used must be listed.
     /// Repeat this option to specify multiple slots
     /// while specifying a password for each slot (or an empty string for no password)
     /// e.g.
@@ -111,6 +126,7 @@ impl fmt::Debug for ClapConfig {
         let x = x.field("workspace", &self.workspace);
         let x = x.field("default username", &self.default_username);
         let x = x.field("force default username", &self.force_default_username);
+        let x = x.field("super admin username", &self.super_admin_username);
         let x = x.field(
             "Google Workspace CSE, KACLS Url",
             &self.google_cse_kacls_url,
@@ -121,6 +137,15 @@ impl fmt::Debug for ClapConfig {
         );
         let x = x.field("telemetry", &self.telemetry);
         let x = x.field("info", &self.info);
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+        let x = x.field(
+            "hsm_model",
+            if self.hsm_slot.is_empty() {
+                &"NO HSM"
+            } else {
+                &self.hsm_model
+            },
+        );
         #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
         let x = x.field("hsm_slots", &self.hsm_slot);
         #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
