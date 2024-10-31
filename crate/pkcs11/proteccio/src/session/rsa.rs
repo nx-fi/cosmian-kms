@@ -5,7 +5,7 @@ use pkcs11_sys::{
     CKA_MODULUS_BITS, CKA_PRIVATE, CKA_PUBLIC_EXPONENT, CKA_SENSITIVE, CKA_SIGN, CKA_TOKEN,
     CKA_UNWRAP, CKA_VERIFY, CKA_WRAP, CKG_MGF1_SHA256, CKK_AES, CKK_RSA, CKM_RSA_PKCS_KEY_PAIR_GEN,
     CKM_RSA_PKCS_OAEP, CKM_SHA256, CKO_SECRET_KEY, CKR_OK, CKZ_DATA_SPECIFIED, CK_ATTRIBUTE,
-    CK_BBOOL, CK_KEY_TYPE, CK_MECHANISM, CK_MECHANISM_PTR, CK_OBJECT_HANDLE,
+    CK_BBOOL, CK_FALSE, CK_KEY_TYPE, CK_MECHANISM, CK_MECHANISM_PTR, CK_OBJECT_HANDLE,
     CK_RSA_PKCS_OAEP_PARAMS, CK_TRUE, CK_ULONG, CK_VOID_PTR,
 };
 
@@ -20,10 +20,15 @@ pub enum RsaKeySize {
 
 impl Session {
     /// Generate RSA key pair and return the private and public key handles
+    /// in this order
+    ///
+    /// If the `sensitive` flag is set to true, the private key will not
+    /// be exportable
     pub fn generate_rsa_key_pair(
         &self,
         key_size: RsaKeySize,
         label: &str,
+        sensitive: bool,
     ) -> PResult<(CK_OBJECT_HANDLE, CK_OBJECT_HANDLE)> {
         let key_size = match key_size {
             RsaKeySize::Rsa1024 => 1024,
@@ -32,6 +37,7 @@ impl Session {
             RsaKeySize::Rsa4096 => 4096,
         };
         let public_exponent: [u8; 3] = [0x01, 0x00, 0x01];
+        let sensitive = if sensitive { CK_TRUE } else { CK_FALSE };
         unsafe {
             let mut pub_key_template = vec![
                 CK_ATTRIBUTE {
@@ -109,6 +115,16 @@ impl Session {
                 },
                 CK_ATTRIBUTE {
                     type_: CKA_SIGN,
+                    pValue: &CK_TRUE as *const _ as CK_VOID_PTR,
+                    ulValueLen: size_of::<CK_BBOOL>() as CK_ULONG,
+                },
+                CK_ATTRIBUTE {
+                    type_: CKA_SENSITIVE,
+                    pValue: &sensitive as *const _ as CK_VOID_PTR,
+                    ulValueLen: size_of::<CK_BBOOL>() as CK_ULONG,
+                },
+                CK_ATTRIBUTE {
+                    type_: CKA_EXTRACTABLE,
                     pValue: &CK_TRUE as *const _ as CK_VOID_PTR,
                     ulValueLen: size_of::<CK_BBOOL>() as CK_ULONG,
                 },

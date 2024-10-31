@@ -4,9 +4,10 @@ mod rsa;
 use std::{ptr, sync::Arc};
 
 pub use aes::AesKeySize;
-use cosmian_hsm_traits::{HsmObject, HsmObjectFilter, HsmObjectType};
+use cosmian_hsm_traits::{HsmObject, HsmObjectFilter, HsmObjectType, KeyValue, RsaPrivateKeyValue};
 use pkcs11_sys::*;
 pub use rsa::RsaKeySize;
+use zeroize::Zeroizing;
 
 use crate::{aes_mechanism, generate_random_nonce, rsa_mechanism, PError, PResult};
 
@@ -335,55 +336,13 @@ impl Session {
     }
 
     pub fn export_key(&self, key_handle: CK_OBJECT_HANDLE) -> PResult<HsmObject> {
-        let template = [
-            CK_ATTRIBUTE {
-                type_: CKA_VALUE,
-                pValue: ptr::null_mut(),
-                ulValueLen: 0,
-            },
+        let mut key_type: CK_KEY_TYPE = CKK_VENDOR_DEFINED;
+        let mut private: CK_BBOOL = CK_FALSE;
+        let mut template = [
             CK_ATTRIBUTE {
                 type_: CKA_LABEL,
                 pValue: ptr::null_mut(),
                 ulValueLen: 0,
-            },
-        ];
-
-        unsafe {
-            // Get the length of the key value
-            let rv = self.hsm.C_GetAttributeValue.ok_or_else(|| {
-                PError::Default("C_GetAttributeValue not available on library".to_string())
-            })?(
-                self.session_handle,
-                key_handle,
-                template.as_ptr() as *mut CK_ATTRIBUTE,
-                template.len() as CK_ULONG,
-            );
-            if rv == CKR_ATTRIBUTE_SENSITIVE {
-                return Err(PError::Default(
-                    "This key is cannot be exported".to_string(),
-                ));
-            }
-            if rv != CKR_OK {
-                return Err(PError::Default(
-                    "Failed to get key value and label length".to_string(),
-                ));
-            }
-        }
-
-        let key_value_len = template[0].ulValueLen;
-        let mut key_value: Vec<u8> = vec![0_u8; key_value_len as usize];
-        let label_len = template[1].ulValueLen;
-        let mut label_bytes: Vec<u8> = vec![0_u8; label_len as usize];
-        let mut key_type: CK_KEY_TYPE = CKK_VENDOR_DEFINED;
-        let mut private: CK_BBOOL = CK_FALSE;
-        let mut size: CK_ULONG = 0;
-
-        // Get the key value
-        let template = [
-            CK_ATTRIBUTE {
-                type_: CKA_VALUE,
-                pValue: key_value.as_mut_ptr() as CK_VOID_PTR,
-                ulValueLen: key_value_len,
             },
             CK_ATTRIBUTE {
                 type_: CKA_KEY_TYPE,
@@ -391,38 +350,15 @@ impl Session {
                 ulValueLen: size_of::<CK_ULONG>() as CK_ULONG,
             },
             CK_ATTRIBUTE {
-                type_: CKA_LABEL,
-                pValue: label_bytes.as_mut_ptr() as CK_VOID_PTR,
-                ulValueLen: label_len,
-            },
-            CK_ATTRIBUTE {
                 type_: CKA_PRIVATE,
                 pValue: &mut private as *mut _ as CK_VOID_PTR,
                 ulValueLen: size_of::<CK_BBOOL>() as CK_ULONG,
             },
-            CK_ATTRIBUTE {
-                type_: CKA_VALUE_LEN,
-                pValue: &mut size as *mut _ as CK_VOID_PTR,
-                ulValueLen: size_of::<CK_ULONG>() as CK_ULONG,
-            },
         ];
 
-        unsafe {
-            let rv = self.hsm.C_GetAttributeValue.ok_or_else(|| {
-                PError::Default("C_GetAttributeValue not available on library".to_string())
-            })?(
-                self.session_handle,
-                key_handle,
-                template.as_ptr() as *mut CK_ATTRIBUTE,
-                template.len() as CK_ULONG,
-            );
-            if rv != CKR_OK {
-                return Err(PError::Default("Failed to get key attributes".to_string()));
-            }
-        }
-
-        let label = String::from_utf8(label_bytes)
-            .map_err(|e| PError::Default(format!("Failed to convert label to string: {}", e)))?;
+        self.call_get_attributes(key_handle, &mut template)?;
+        let label_len = template[0].ulValueLen;
+        let mut label_bytes: Vec<u8> = vec![0_u8; label_len as usize];
         let object_type = match key_type {
             CKK_AES => HsmObjectType::Aes,
             CKK_RSA => {
@@ -439,12 +375,210 @@ impl Session {
             }
         };
 
-        Ok(HsmObject::new(
-            object_type,
-            &key_value,
-            (size as usize) * 8,
-            label,
-        ))
+        match object_type {
+            HsmObjectType::Aes => {
+                // Get the key size
+                let mut template = [
+                    CK_ATTRIBUTE {
+                        type_: CKA_VALUE,
+                        pValue: ptr::null_mut(),
+                        ulValueLen: 0,
+                    },
+                    CK_ATTRIBUTE {
+                        type_: CKA_VALUE_LEN,
+                        pValue: ptr::null_mut(),
+                        ulValueLen: 0,
+                    },
+                ];
+                self.call_get_attributes(key_handle, &mut template)?;
+                // Export the value
+                let key_value_len = template[0].ulValueLen;
+                let key_len_in_bits = template[1].ulValueLen as usize * 8;
+                let mut key_value: Vec<u8> = vec![0_u8; key_value_len as usize];
+                let mut template = [
+                    CK_ATTRIBUTE {
+                        type_: CKA_VALUE,
+                        pValue: key_value.as_mut_ptr() as CK_VOID_PTR,
+                        ulValueLen: key_value_len,
+                    },
+                    CK_ATTRIBUTE {
+                        type_: CKA_LABEL,
+                        pValue: label_bytes.as_mut_ptr() as CK_VOID_PTR,
+                        ulValueLen: label_len,
+                    },
+                ];
+                self.call_get_attributes(key_handle, &mut template)?;
+                let label = String::from_utf8(label_bytes).map_err(|e| {
+                    PError::Default(format!("Failed to convert label to string: {}", e))
+                })?;
+                Ok(HsmObject::new(
+                    object_type,
+                    KeyValue::AesKey(Zeroizing::new(key_value)),
+                    key_len_in_bits,
+                    label,
+                ))
+            }
+            HsmObjectType::RsaPrivate => {
+                // Get the key size
+                let mut template = [
+                    CK_ATTRIBUTE {
+                        type_: CKA_PUBLIC_EXPONENT,
+                        pValue: ptr::null_mut(),
+                        ulValueLen: 0,
+                    },
+                    CK_ATTRIBUTE {
+                        type_: CKA_PRIVATE_EXPONENT,
+                        pValue: ptr::null_mut(),
+                        ulValueLen: 0,
+                    },
+                    CK_ATTRIBUTE {
+                        type_: CKA_PRIME_1,
+                        pValue: ptr::null_mut(),
+                        ulValueLen: 0,
+                    },
+                    CK_ATTRIBUTE {
+                        type_: CKA_PRIME_2,
+                        pValue: ptr::null_mut(),
+                        ulValueLen: 0,
+                    },
+                    CK_ATTRIBUTE {
+                        type_: CKA_EXPONENT_1,
+                        pValue: ptr::null_mut(),
+                        ulValueLen: 0,
+                    },
+                    CK_ATTRIBUTE {
+                        type_: CKA_EXPONENT_2,
+                        pValue: ptr::null_mut(),
+                        ulValueLen: 0,
+                    },
+                    CK_ATTRIBUTE {
+                        type_: CKA_COEFFICIENT,
+                        pValue: ptr::null_mut(),
+                        ulValueLen: 0,
+                    },
+                    CK_ATTRIBUTE {
+                        type_: CKA_MODULUS,
+                        pValue: ptr::null_mut(),
+                        ulValueLen: 0,
+                    },
+                ];
+                self.call_get_attributes(key_handle, &mut template)?;
+                let public_exponent_len = template[0].ulValueLen;
+                let private_exponent_len = template[1].ulValueLen;
+                let prime_1_len = template[2].ulValueLen;
+                let prime_2_len = template[3].ulValueLen;
+                let exponent_1_len = template[4].ulValueLen;
+                let exponent_2_len = template[5].ulValueLen;
+                let coefficient_len = template[6].ulValueLen;
+                let modulus_len = template[7].ulValueLen;
+                let mut public_exponent: Vec<u8> = vec![0_u8; public_exponent_len as usize];
+                let mut private_exponent: Vec<u8> = vec![0_u8; private_exponent_len as usize];
+                let mut prime_1: Vec<u8> = vec![0_u8; prime_1_len as usize];
+                let mut prime_2: Vec<u8> = vec![0_u8; prime_2_len as usize];
+                let mut exponent_1: Vec<u8> = vec![0_u8; exponent_1_len as usize];
+                let mut exponent_2: Vec<u8> = vec![0_u8; exponent_2_len as usize];
+                let mut coefficient: Vec<u8> = vec![0_u8; coefficient_len as usize];
+                let mut modulus: Vec<u8> = vec![0_u8; modulus_len as usize];
+                let mut template = [
+                    CK_ATTRIBUTE {
+                        type_: CKA_PUBLIC_EXPONENT,
+                        pValue: public_exponent.as_mut_ptr() as CK_VOID_PTR,
+                        ulValueLen: public_exponent_len,
+                    },
+                    CK_ATTRIBUTE {
+                        type_: CKA_PRIVATE_EXPONENT,
+                        pValue: private_exponent.as_mut_ptr() as CK_VOID_PTR,
+                        ulValueLen: private_exponent_len,
+                    },
+                    CK_ATTRIBUTE {
+                        type_: CKA_PRIME_1,
+                        pValue: prime_1.as_mut_ptr() as CK_VOID_PTR,
+                        ulValueLen: prime_1_len,
+                    },
+                    CK_ATTRIBUTE {
+                        type_: CKA_PRIME_2,
+                        pValue: prime_2.as_mut_ptr() as CK_VOID_PTR,
+                        ulValueLen: prime_2_len,
+                    },
+                    CK_ATTRIBUTE {
+                        type_: CKA_EXPONENT_1,
+                        pValue: exponent_1.as_mut_ptr() as CK_VOID_PTR,
+                        ulValueLen: exponent_1_len,
+                    },
+                    CK_ATTRIBUTE {
+                        type_: CKA_EXPONENT_2,
+                        pValue: exponent_2.as_mut_ptr() as CK_VOID_PTR,
+                        ulValueLen: exponent_2_len,
+                    },
+                    CK_ATTRIBUTE {
+                        type_: CKA_COEFFICIENT,
+                        pValue: coefficient.as_mut_ptr() as CK_VOID_PTR,
+                        ulValueLen: coefficient_len,
+                    },
+                    CK_ATTRIBUTE {
+                        type_: CKA_LABEL,
+                        pValue: label_bytes.as_mut_ptr() as CK_VOID_PTR,
+                        ulValueLen: label_len,
+                    },
+                    CK_ATTRIBUTE {
+                        type_: CKA_MODULUS,
+                        pValue: modulus.as_mut_ptr() as CK_VOID_PTR,
+                        ulValueLen: modulus_len,
+                    },
+                ];
+                self.call_get_attributes(key_handle, &mut template)?;
+                let label = String::from_utf8(label_bytes).map_err(|e| {
+                    PError::Default(format!("Failed to convert label to string: {}", e))
+                })?;
+                let size = modulus.len() * 8;
+                Ok(HsmObject::new(
+                    object_type,
+                    KeyValue::RsaPrivateKey(RsaPrivateKeyValue {
+                        modulus,
+                        public_exponent,
+                        private_exponent: Zeroizing::new(private_exponent),
+                        prime_1: Zeroizing::new(prime_1),
+                        prime_2: Zeroizing::new(prime_2),
+                        exponent_1: Zeroizing::new(exponent_1),
+                        exponent_2: Zeroizing::new(exponent_2),
+                        coefficient: Zeroizing::new(coefficient),
+                    }),
+                    size,
+                    label,
+                ))
+            }
+            HsmObjectType::RsaPublic => {
+                todo!(
+                    "Exporting RSA public key is not supported yet. key_handle: {}",
+                    key_handle
+                )
+            }
+        }
+    }
+
+    fn call_get_attributes(
+        &self,
+        key_handle: CK_OBJECT_HANDLE,
+        template: &mut [CK_ATTRIBUTE],
+    ) -> PResult<()> {
+        unsafe {
+            // Get the length of the key value
+            let rv = self.hsm.C_GetAttributeValue.ok_or_else(|| {
+                PError::Default("C_GetAttributeValue not available on library".to_string())
+            })?(
+                self.session_handle,
+                key_handle,
+                template.as_ptr() as *mut CK_ATTRIBUTE,
+                template.len() as CK_ULONG,
+            );
+            if rv == CKR_ATTRIBUTE_SENSITIVE {
+                return Err(PError::Default("This key cannot be exported".to_string()));
+            }
+            if rv != CKR_OK {
+                return Err(PError::Default("Failed to get the attributes".to_string()));
+            }
+            Ok(())
+        }
     }
 }
 
