@@ -42,11 +42,19 @@ pub struct RsaPrivateKeyValue {
     pub coefficient: Zeroizing<Vec<u8>>,
 }
 
+/// RSA public key value representation
+/// All values are in big-endian format
+#[derive(Debug)]
+pub struct RsaPublicKeyValue {
+    pub modulus: Vec<u8>,
+    pub public_exponent: Vec<u8>,
+}
+
 #[derive(Debug)]
 pub enum KeyValue {
     AesKey(Zeroizing<Vec<u8>>),
     RsaPrivateKey(RsaPrivateKeyValue),
-    RsaPublicKey(Vec<u8>),
+    RsaPublicKey(RsaPublicKeyValue),
 }
 
 #[derive(Debug)]

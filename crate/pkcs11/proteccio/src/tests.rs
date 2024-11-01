@@ -127,7 +127,6 @@ fn test_generate_rsa_keypair() -> PResult<()> {
     info!("Generated exportable RSA key: sk: {sk}, pk: {pk}");
     // export the private key
     let key = session.export_key(sk)?;
-    info!("KEY: {key:?}");
     assert_eq!(key.key_len_in_bits(), 2048);
     assert_eq!(key.object_type(), HsmObjectType::RsaPrivate);
     assert_eq!(key.label(), "label");
@@ -139,11 +138,26 @@ fn test_generate_rsa_keypair() -> PResult<()> {
             panic!("Expected an RSA private key");
         }
     }
+    // export the public key
+    let key = session.export_key(pk)?;
+    assert_eq!(key.key_len_in_bits(), 2048);
+    assert_eq!(key.object_type(), HsmObjectType::RsaPublic);
+    assert_eq!(key.label(), "label");
+    match key.value() {
+        KeyValue::RsaPublicKey(v) => {
+            assert_eq!(v.modulus.len() * 8, 2048);
+        }
+        KeyValue::RsaPrivateKey(_) | KeyValue::AesKey(_) => {
+            panic!("Expected an RSA public key");
+        }
+    }
     // Generate a sensitive AES key
     let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label", true)?;
     info!("Generated exportable RSA key: sk: {sk}, pk: {pk}");
-    // it should not be exportable
+    // the private key should not be exportable
     assert!(session.export_key(sk).is_err());
+    // the public key should be exportable
+    let _key = session.export_key(pk)?;
     Ok(())
 }
 
