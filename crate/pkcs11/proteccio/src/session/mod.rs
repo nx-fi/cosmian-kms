@@ -5,7 +5,8 @@ use std::{ptr, sync::Arc};
 
 pub use aes::AesKeySize;
 use cosmian_hsm_traits::{
-    HsmObject, HsmObjectFilter, HsmObjectType, KeyValue, RsaPrivateKeyValue, RsaPublicKeyValue,
+    HsmObject, HsmObjectFilter, HsmObjectType, KeyMaterial, RsaPrivateKeyMaterial,
+    RsaPublicKeyMaterial,
 };
 use pkcs11_sys::*;
 pub use rsa::RsaKeySize;
@@ -498,10 +499,8 @@ impl Session {
         self.call_get_attributes(key_handle, &mut template)?;
         let label = String::from_utf8(label_bytes)
             .map_err(|e| PError::Default(format!("Failed to convert label to string: {}", e)))?;
-        let size = modulus.len() * 8;
         Ok(Ok(HsmObject::new(
-            HsmObjectType::RsaPrivate,
-            KeyValue::RsaPrivateKey(RsaPrivateKeyValue {
+            KeyMaterial::RsaPrivateKey(RsaPrivateKeyMaterial {
                 modulus,
                 public_exponent,
                 private_exponent: Zeroizing::new(private_exponent),
@@ -511,7 +510,6 @@ impl Session {
                 exponent_2: Zeroizing::new(exponent_2),
                 coefficient: Zeroizing::new(coefficient),
             }),
-            size,
             label,
         )))
     }
@@ -545,7 +543,6 @@ impl Session {
         let mut public_exponent: Vec<u8> = vec![0_u8; public_exponent_len as usize];
         let mut label_bytes: Vec<u8> = vec![0_u8; label_len as usize];
         let mut modulus: Vec<u8> = vec![0_u8; modulus_len as usize];
-        let mut modulus_bits: CK_ULONG = 0;
         let mut template = [
             CK_ATTRIBUTE {
                 type_: CKA_PUBLIC_EXPONENT,
@@ -562,22 +559,15 @@ impl Session {
                 pValue: modulus.as_mut_ptr() as CK_VOID_PTR,
                 ulValueLen: modulus_len,
             },
-            CK_ATTRIBUTE {
-                type_: CKA_MODULUS_BITS,
-                pValue: &mut modulus_bits as *mut _ as CK_VOID_PTR,
-                ulValueLen: size_of::<CK_ULONG>() as CK_ULONG,
-            },
         ];
         self.call_get_attributes(key_handle, &mut template)?;
         let label = String::from_utf8(label_bytes)
             .map_err(|e| PError::Default(format!("Failed to convert label to string: {}", e)))?;
         Ok(Ok(HsmObject::new(
-            HsmObjectType::RsaPublic,
-            KeyValue::RsaPublicKey(RsaPublicKeyValue {
+            KeyMaterial::RsaPublicKey(RsaPublicKeyMaterial {
                 modulus,
                 public_exponent,
             }),
-            modulus_bits as usize,
             label,
         )))
     }
@@ -627,9 +617,7 @@ impl Session {
         let label = String::from_utf8(label_bytes)
             .map_err(|e| PError::Default(format!("Failed to convert label to string: {}", e)))?;
         Ok(Ok(HsmObject::new(
-            HsmObjectType::Aes,
-            KeyValue::AesKey(Zeroizing::new(key_value)),
-            key_size as usize * 8,
+            KeyMaterial::AesKey(Zeroizing::new(key_value)),
             label,
         )))
     }

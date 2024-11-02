@@ -31,7 +31,7 @@ pub enum HsmObjectType {
 /// RSA private key value representation
 /// All values are in big-endian format
 #[derive(Debug)]
-pub struct RsaPrivateKeyValue {
+pub struct RsaPrivateKeyMaterial {
     pub modulus: Vec<u8>,
     pub public_exponent: Vec<u8>,
     pub private_exponent: Zeroizing<Vec<u8>>,
@@ -45,51 +45,34 @@ pub struct RsaPrivateKeyValue {
 /// RSA public key value representation
 /// All values are in big-endian format
 #[derive(Debug)]
-pub struct RsaPublicKeyValue {
+pub struct RsaPublicKeyMaterial {
     pub modulus: Vec<u8>,
     pub public_exponent: Vec<u8>,
 }
 
 #[derive(Debug)]
-pub enum KeyValue {
+pub enum KeyMaterial {
     AesKey(Zeroizing<Vec<u8>>),
-    RsaPrivateKey(RsaPrivateKeyValue),
-    RsaPublicKey(RsaPublicKeyValue),
+    RsaPrivateKey(RsaPrivateKeyMaterial),
+    RsaPublicKey(RsaPublicKeyMaterial),
 }
 
 #[derive(Debug)]
 pub struct HsmObject {
-    object_type: HsmObjectType,
-    value: KeyValue,
-    key_len_in_bits: usize,
+    key_material: KeyMaterial,
     label: String,
 }
 
 impl HsmObject {
-    pub fn new(
-        object_type: HsmObjectType,
-        value: KeyValue,
-        key_len_in_bits: usize,
-        label: String,
-    ) -> Self {
+    pub fn new(key_material: KeyMaterial, label: String) -> Self {
         HsmObject {
-            object_type,
-            value,
-            key_len_in_bits,
+            key_material,
             label,
         }
     }
 
-    pub fn object_type(&self) -> HsmObjectType {
-        self.object_type
-    }
-
-    pub fn value(&self) -> &KeyValue {
-        &self.value
-    }
-
-    pub fn key_len_in_bits(&self) -> usize {
-        self.key_len_in_bits
+    pub fn key_material(&self) -> &KeyMaterial {
+        &self.key_material
     }
 
     pub fn label(&self) -> &str {

@@ -123,7 +123,7 @@ impl KeyBlock {
         let key = self.key_bytes().map_err(|e| {
             KmipError::InvalidKmipValue(ErrorReason::Invalid_Data_Type, e.to_string())
         })?;
-        Ok((key, self.key_value.attributes.as_deref()))
+        Ok((key, self.key_value.attributes.as_ref()))
     }
 
     /// Returns the `Attributes` of that key block if any, an error otherwise
@@ -233,7 +233,7 @@ impl KeyBlock {
 pub struct KeyValue {
     pub key_material: KeyMaterial,
     #[serde(skip_serializing_if = "attributes_is_default_or_none")]
-    pub attributes: Option<Box<Attributes>>,
+    pub attributes: Option<Attributes>,
 }
 
 impl Display for KeyValue {
@@ -253,7 +253,7 @@ fn attributes_is_default_or_none<T: Default + PartialEq + Serialize>(val: &Optio
 
 impl KeyValue {
     pub fn attributes(&self) -> Result<&Attributes, KmipError> {
-        self.attributes.as_deref().ok_or_else(|| {
+        self.attributes.as_ref().ok_or_else(|| {
             KmipError::InvalidKmipValue(
                 ErrorReason::Invalid_Attribute_Value,
                 "key is missing its attributes".to_owned(),
@@ -262,7 +262,7 @@ impl KeyValue {
     }
 
     pub fn attributes_mut(&mut self) -> Result<&mut Attributes, KmipError> {
-        self.attributes.as_deref_mut().ok_or_else(|| {
+        self.attributes.as_mut().ok_or_else(|| {
             KmipError::InvalidKmipValue(
                 ErrorReason::Invalid_Attribute_Value,
                 "key is missing its mutable attributes".to_owned(),
