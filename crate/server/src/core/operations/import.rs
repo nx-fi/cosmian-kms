@@ -111,7 +111,7 @@ pub(crate) async fn process_symmetric_key(
         unwrap_key(object_key_block, kms, owner, params).await?;
     }
     // Replace attributes in object structure.
-    object_key_block.key_value.attributes = Some(Box::new(attributes.clone()));
+    object_key_block.key_value.attributes = Some(attributes.clone());
 
     let uid = match request.unique_identifier.to_string() {
         uid if uid.is_empty() => Uuid::new_v4().to_string(),
@@ -251,7 +251,7 @@ async fn process_public_key(
             .key_block_mut()?
             .key_value
             .attributes
-            .get_or_insert(Box::default()),
+            .get_or_insert(Attributes::default()),
         &attributes,
     );
 
@@ -315,7 +315,7 @@ async fn process_private_key(
             object_key_block
                 .key_value
                 .attributes
-                .get_or_insert(Box::default()),
+                .get_or_insert(Attributes::default()),
         );
 
         let uid = match request.unique_identifier.to_string() {
@@ -400,7 +400,7 @@ fn private_key_from_openssl(
         sk_key_block
             .key_value
             .attributes
-            .get_or_insert(Box::default()),
+            .get_or_insert(Attributes::default()),
     );
 
     let sk_tags = user_tags.map(|mut tags| {
@@ -541,7 +541,7 @@ fn process_pkcs12(
         .key_block_mut()?
         .key_value
         .attributes
-        .get_or_insert(Box::default())
+        .get_or_insert(Attributes::default())
         .set_link(
             //Note: it is unclear what link type should be used here according to KMIP
             // CertificateLink seems to be for public key only and there is not description

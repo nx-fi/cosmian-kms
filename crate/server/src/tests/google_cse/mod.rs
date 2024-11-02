@@ -40,6 +40,7 @@ use zeroize::Zeroizing;
 
 use crate::{
     config::ServerParams,
+    core::KMS,
     result::{KResult, KResultHelper},
     routes::google_cse::operations::{
         DigestRequest, DigestResponse, PrivateKeyDecryptRequest, PrivateKeyDecryptResponse,
@@ -52,7 +53,6 @@ use crate::{
         google_cse::utils::generate_google_jwt,
         test_utils::{self, https_clap_config},
     },
-    KMSServer,
 };
 
 pub(crate) mod utils;
@@ -277,7 +277,7 @@ pub(crate) fn build_private_key_from_der_bytes(
             key_compression_type: None,
             key_value: KeyValue {
                 key_material: KeyMaterial::ByteString(bytes),
-                attributes: Some(Box::default()),
+                attributes: Some(Attributes::default()),
             },
             // According to the KMIP spec, the cryptographic algorithm is not required
             // as long as it can be recovered from the Key Format Type or the Key Value.
@@ -295,7 +295,7 @@ async fn test_create_pair_encrypt_decrypt() -> KResult<()> {
     log_init(None);
 
     let clap_config = https_clap_config();
-    let kms = Arc::new(KMSServer::instantiate(ServerParams::try_from(clap_config)?).await?);
+    let kms = Arc::new(KMS::instantiate(ServerParams::try_from(clap_config)?).await?);
     let owner = "eyJhbGciOiJSUzI1Ni";
 
     // Create google_cse key

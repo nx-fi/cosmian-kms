@@ -127,7 +127,7 @@ pub fn build_import_decryption_private_key_request<T: IntoIterator<Item = impl A
                 key_compression_type: None,
                 key_value: KeyValue {
                     key_material: KeyMaterial::ByteString(key),
-                    attributes: Some(Box::new(attributes)),
+                    attributes: Some(attributes),
                 },
                 cryptographic_length,
                 key_wrapping_data: if is_wrapped {
@@ -202,7 +202,7 @@ pub fn build_import_private_key_request<T: IntoIterator<Item = impl AsRef<str>>>
                 key_compression_type: None,
                 key_value: KeyValue {
                     key_material: KeyMaterial::ByteString(key),
-                    attributes: Some(Box::new(attributes)),
+                    attributes: Some(attributes),
                 },
                 cryptographic_length,
                 key_wrapping_data: if is_wrapped {
@@ -258,7 +258,7 @@ pub fn build_import_public_key_request<T: IntoIterator<Item = impl AsRef<str>>>(
                 key_compression_type: None,
                 key_value: KeyValue {
                     key_material: KeyMaterial::ByteString(Zeroizing::from(public_key.to_vec())),
-                    attributes: Some(Box::new(attributes)),
+                    attributes: Some(attributes),
                 },
                 cryptographic_length,
                 key_wrapping_data: None,

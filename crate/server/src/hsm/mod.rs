@@ -1,12 +1,20 @@
-use std::collections::HashSet;
-use num_bigint_dig::BigUint;
+use std::{collections::HashSet, default::Default};
+
 use cosmian_hsm_traits::KeyMaterial;
-use cosmian_kmip::kmip::{
-    kmip_data_structures::{KeyBlock, KeyFormatType, KeyMaterial as KmipKeyMaterial, KeyValue},
-    kmip_objects::{Object, ObjectType},
-    kmip_types::{Attributes, CryptographicAlgorithm, CryptographicUsageMask, StateEnumeration},
+use cosmian_kmip::{
+    crypto::secret::SafeBigUint,
+    kmip::{
+        kmip_data_structures::{KeyBlock, KeyMaterial as KmipKeyMaterial, KeyValue},
+        kmip_objects::{Object, ObjectType},
+        kmip_types::{
+            Attributes, CryptographicAlgorithm, CryptographicUsageMask, KeyFormatType,
+            StateEnumeration,
+        },
+    },
 };
 use cosmian_kms_client::access::ObjectOperationType;
+use num_bigint_dig::BigUint;
+use KmipKeyMaterial::TransparentRSAPublicKey;
 
 use crate::{
     core::{object_with_metadata::ObjectWithMetadata, KMS},
@@ -52,20 +60,23 @@ pub(crate) async fn get_hsm_object(
     // Convert the HSM object into an ObjectWithMetadata
     let owm = match hsm_object.key_material() {
         KeyMaterial::AesKey(bytes) => {
-            let mut attributes = Attributes::default();
-            attributes.cryptographic_algorithm = Some(CryptographicAlgorithm::AES);
-            attributes.cryptographic_length = Some(bytes.len() as i32 * 8);
-            attributes.object_type = Some(ObjectType::SymmetricKey);
-            // TODO: query these flags from the HSM
-            attributes.cryptographic_usage_mask = Some(
-                CryptographicUsageMask::Encrypt
-                    | CryptographicUsageMask::Decrypt
-                    | CryptographicUsageMask::WrapKey
-                    | CryptographicUsageMask::UnwrapKey,
-            );
+            let length: i32 = i32::try_from(bytes.len())? * 8;
+            let mut attributes = Attributes {
+                cryptographic_algorithm: Some(CryptographicAlgorithm::AES),
+                cryptographic_length: Some(length),
+                object_type: Some(ObjectType::SymmetricKey),
+                // TODO: query these flags from the HSM
+                cryptographic_usage_mask: Some(
+                    CryptographicUsageMask::Encrypt
+                        | CryptographicUsageMask::Decrypt
+                        | CryptographicUsageMask::WrapKey
+                        | CryptographicUsageMask::UnwrapKey,
+                ),
+                ..Attributes::default()
+            };
             let mut tags: HashSet<String> =
                 serde_json::from_str(hsm_object.label()).unwrap_or_else(|_| HashSet::new());
-            tags.insert("_kk".to_string());
+            tags.insert("_kk".to_owned());
             attributes.set_tags(tags)?;
             let kmip_key_material = KmipKeyMaterial::TransparentSymmetricKey { key: bytes.clone() };
             let object = Object::SymmetricKey {
@@ -77,59 +88,122 @@ pub(crate) async fn get_hsm_object(
                         attributes: Some(attributes.clone()),
                     },
                     cryptographic_algorithm: Some(CryptographicAlgorithm::AES),
-                    cryptographic_length: Some(bytes.len() as i32 * 8),
+                    cryptographic_length: Some(i32::try_from(bytes.len())? * 8),
                     key_wrapping_data: None,
                 },
             };
             ObjectWithMetadata::new(
                 uid.to_owned(),
                 object,
-                kms.params.hsm_admin.to_owned(),
+                kms.params.hsm_admin.clone(),
                 StateEnumeration::Active,
                 HashSet::from([ObjectOperationType::Get]),
                 attributes,
             )
         }
         KeyMaterial::RsaPrivateKey(km) => {
-            let mut attributes = Attributes::default();
-            attributes.cryptographic_algorithm = Some(CryptographicAlgorithm::RSA);
-            attributes.cryptographic_length = Some(km.modulus.len() as i32 * 8);
-            attributes.object_type = Some(ObjectType::PrivateKey);
-            // TODO: query these flags from the HSM
-            attributes.cryptographic_usage_mask = Some(
-                CryptographicUsageMask::Decrypt
-                    | CryptographicUsageMask::UnwrapKey
-                    | CryptographicUsageMask::Sign,
-            );
+            let mut attributes = Attributes {
+                cryptographic_algorithm: Some(CryptographicAlgorithm::RSA),
+                cryptographic_length: Some(i32::try_from(km.modulus.len())? * 8),
+                object_type: Some(ObjectType::PrivateKey),
+                // TODO: query these flags from the HSM
+                cryptographic_usage_mask: Some(
+                    CryptographicUsageMask::Decrypt
+                        | CryptographicUsageMask::UnwrapKey
+                        | CryptographicUsageMask::Sign,
+                ),
+                ..Attributes::default()
+            };
             let mut tags: HashSet<String> =
                 serde_json::from_str(hsm_object.label()).unwrap_or_else(|_| HashSet::new());
-            tags.insert("_sk".to_string());
+            tags.insert("_sk".to_owned());
             attributes.set_tags(tags)?;
             let kmip_key_material = KmipKeyMaterial::TransparentRSAPrivateKey {
                 modulus: Box::new(BigUint::from_bytes_be(km.modulus.as_slice())),
-                private_exponent: None,
-                public_exponent: None,
-                p: None,
-                q: None,
-                prime_exponent_p: None,
-                prime_exponent_q: None,
-                crt_coefficient: None,
-            }
+                private_exponent: Some(Box::new(SafeBigUint::from_bytes_be(
+                    km.private_exponent.as_slice(),
+                ))),
+                public_exponent: Some(Box::new(BigUint::from_bytes_be(
+                    km.public_exponent.as_slice(),
+                ))),
+                p: Some(Box::new(SafeBigUint::from_bytes_be(km.prime_1.as_slice()))),
+                q: Some(Box::new(SafeBigUint::from_bytes_be(km.prime_2.as_slice()))),
+                prime_exponent_p: Some(Box::new(SafeBigUint::from_bytes_be(
+                    km.exponent_1.as_slice(),
+                ))),
+                prime_exponent_q: Some(Box::new(SafeBigUint::from_bytes_be(
+                    km.exponent_2.as_slice(),
+                ))),
+                crt_coefficient: Some(Box::new(SafeBigUint::from_bytes_be(
+                    km.coefficient.as_slice(),
+                ))),
+            };
+            let object = Object::PrivateKey {
+                key_block: KeyBlock {
+                    key_format_type: KeyFormatType::TransparentRSAPrivateKey,
+                    key_compression_type: None,
+                    key_value: KeyValue {
+                        key_material: kmip_key_material,
+                        attributes: Some(attributes.clone()),
+                    },
+                    cryptographic_algorithm: Some(CryptographicAlgorithm::RSA),
+                    cryptographic_length: Some(i32::try_from(km.modulus.len())? * 8),
+                    key_wrapping_data: None,
+                },
+            };
             ObjectWithMetadata::new(
                 uid.to_owned(),
                 object,
-                kms.params.hsm_admin.to_owned(),
+                kms.params.hsm_admin.clone(),
                 StateEnumeration::Active,
                 HashSet::from([ObjectOperationType::Get]),
                 attributes,
             )
         }
-        KeyMaterial::RsaPublicKey(_) => {}
+        KeyMaterial::RsaPublicKey(km) => {
+            let mut attributes = Attributes {
+                cryptographic_algorithm: Some(CryptographicAlgorithm::RSA),
+                cryptographic_length: Some(i32::try_from(km.modulus.len())? * 8),
+                object_type: Some(ObjectType::PrivateKey),
+                // TODO: query these flags from the HSM
+                cryptographic_usage_mask: Some(
+                    CryptographicUsageMask::Encrypt
+                        | CryptographicUsageMask::WrapKey
+                        | CryptographicUsageMask::Verify,
+                ),
+                ..Attributes::default()
+            };
+            let mut tags: HashSet<String> =
+                serde_json::from_str(hsm_object.label()).unwrap_or_else(|_| HashSet::new());
+            tags.insert("_sk".to_owned());
+            attributes.set_tags(tags)?;
+            let kmip_key_material = TransparentRSAPublicKey {
+                modulus: Box::new(BigUint::from_bytes_be(km.modulus.as_slice())),
+                public_exponent: Box::new(BigUint::from_bytes_be(km.public_exponent.as_slice())),
+            };
+            let object = Object::PublicKey {
+                key_block: KeyBlock {
+                    key_format_type: KeyFormatType::TransparentRSAPublicKey,
+                    key_compression_type: None,
+                    key_value: KeyValue {
+                        key_material: kmip_key_material,
+                        attributes: Some(attributes.clone()),
+                    },
+                    cryptographic_algorithm: Some(CryptographicAlgorithm::RSA),
+                    cryptographic_length: Some(i32::try_from(km.modulus.len())? * 8),
+                    key_wrapping_data: None,
+                },
+            };
+            ObjectWithMetadata::new(
+                uid.to_owned(),
+                object,
+                kms.params.hsm_admin.clone(),
+                StateEnumeration::Active,
+                HashSet::from([ObjectOperationType::Get]),
+                attributes,
+            )
+        }
     };
 
     Ok(owm)
-}
-
-fn label_to_tags(label: &str) -> HashSet<String> {
-    serde_json::from_str(&label).unwrap_or_else(|_| HashSet::new())
 }

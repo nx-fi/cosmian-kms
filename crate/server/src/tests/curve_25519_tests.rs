@@ -24,17 +24,17 @@ use cosmian_kmip::{
 
 use crate::{
     config::ServerParams,
+    core::KMS,
     error::KmsError,
     result::{KResult, KResultHelper},
     tests::test_utils::https_clap_config,
-    KMSServer,
 };
 
 #[tokio::test]
 async fn test_curve_25519_key_pair() -> KResult<()> {
     let clap_config = https_clap_config();
 
-    let kms = Arc::new(KMSServer::instantiate(ServerParams::try_from(clap_config)?).await?);
+    let kms = Arc::new(KMS::instantiate(ServerParams::try_from(clap_config)?).await?);
     let owner = "eyJhbGciOiJSUzI1Ni";
 
     // request key pair creation
@@ -201,7 +201,7 @@ async fn test_curve_25519_key_pair() -> KResult<()> {
 async fn test_curve_25519_multiple() -> KResult<()> {
     let clap_config = https_clap_config();
 
-    let kms = Arc::new(KMSServer::instantiate(ServerParams::try_from(clap_config)?).await?);
+    let kms = Arc::new(KMS::instantiate(ServerParams::try_from(clap_config)?).await?);
     let owner = "eyJhbGciOiJSUzI1Ni";
 
     let request = Message {

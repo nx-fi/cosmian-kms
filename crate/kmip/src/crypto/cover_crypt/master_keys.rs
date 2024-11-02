@@ -120,7 +120,7 @@ fn create_master_private_key_object(
             key_compression_type: None,
             key_value: KeyValue {
                 key_material: KeyMaterial::ByteString(Zeroizing::from(key.to_vec())),
-                attributes: Some(Box::new(attributes)),
+                attributes: Some(attributes),
             },
             cryptographic_length,
             key_wrapping_data: None,
@@ -160,7 +160,7 @@ fn create_master_public_key_object(
             key_compression_type: None,
             key_value: KeyValue {
                 key_material: KeyMaterial::ByteString(Zeroizing::from(key.to_vec())),
-                attributes: Some(Box::new(attributes)),
+                attributes: Some(attributes),
             },
             cryptographic_length,
             key_wrapping_data: None,

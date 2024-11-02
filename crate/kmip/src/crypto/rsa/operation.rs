@@ -91,7 +91,7 @@ pub fn to_rsa_public_key(
                     modulus: Box::new(BigUint::from_bytes_be(&private_key.n().to_vec())),
                     public_exponent: Box::new(BigUint::from_bytes_be(&private_key.e().to_vec())),
                 },
-                attributes: Some(Box::new(Attributes {
+                attributes: Some(Attributes {
                     object_type: Some(ObjectType::PublicKey),
                     cryptographic_algorithm: Some(CryptographicAlgorithm::RSA),
                     cryptographic_length: Some(cryptographic_length_in_bits),
@@ -110,7 +110,7 @@ pub fn to_rsa_public_key(
                         ),
                     }]),
                     ..Attributes::default()
-                })),
+                }),
             },
             cryptographic_length: Some(cryptographic_length_in_bits),
             key_wrapping_data: None,
@@ -165,7 +165,7 @@ pub fn to_rsa_private_key(
                         Box::new(SafeBigUint::from_bytes_be(&Zeroizing::from(iqmp.to_vec())))
                     }),
                 },
-                attributes: Some(Box::new(Attributes {
+                attributes: Some(Attributes {
                     object_type: Some(ObjectType::PrivateKey),
                     cryptographic_algorithm: Some(CryptographicAlgorithm::RSA),
                     cryptographic_length: Some(cryptographic_length_in_bits),
@@ -184,7 +184,7 @@ pub fn to_rsa_private_key(
                         ),
                     }]),
                     ..Attributes::default()
-                })),
+                }),
             },
             cryptographic_length: Some(cryptographic_length_in_bits),
             key_wrapping_data: None,

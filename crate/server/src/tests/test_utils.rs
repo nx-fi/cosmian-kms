@@ -18,9 +18,10 @@ use uuid::Uuid;
 use super::google_cse::utils::google_cse_auth;
 use crate::{
     config::{ClapConfig, DBConfig, HttpConfig, ServerParams},
+    core::KMS,
     kms_bail,
     result::KResult,
-    routes, KMSServer,
+    routes,
 };
 
 #[allow(dead_code)]
@@ -62,7 +63,7 @@ pub(crate) async fn test_app(
     let server_params = ServerParams::try_from(clap_config).unwrap();
 
     let kms_server = Arc::new(
-        KMSServer::instantiate(server_params)
+        KMS::instantiate(server_params)
             .await
             .expect("cannot instantiate KMS server"),
     );
