@@ -3,8 +3,11 @@ use cosmian_kms_client::access::ObjectOperationType;
 use tracing::trace;
 
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, KMS},
-    database::{object_with_metadata::ObjectWithMetadata, retrieve_object_for_operation},
+    core::{
+        extra_database_params::ExtraDatabaseParams,
+        retrieve_object_utils::retrieve_object_for_operation, KMS,
+    },
+    database::object_with_metadata::ObjectWithMetadata,
     error::KmsError,
     kms_bail,
     result::{KResult, KResultHelper},

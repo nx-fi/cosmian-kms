@@ -46,11 +46,10 @@ use crate::{
             },
             create_key_pair::generate_key_pair_and_tags,
         },
+        retrieve_object_utils::retrieve_object_for_operation,
         KMS,
     },
-    database::{
-        object_with_metadata::ObjectWithMetadata, retrieve_object_for_operation, AtomicOperation,
-    },
+    database::{object_with_metadata::ObjectWithMetadata, AtomicOperation},
     error::KmsError,
     kms_bail,
     result::{KResult, KResultHelper},

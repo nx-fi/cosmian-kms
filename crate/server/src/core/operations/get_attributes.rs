@@ -20,9 +20,9 @@ use crate::{
         operations::export_utils::{
             openssl_private_key_to_kmip_default_format, openssl_public_key_to_kmip_default_format,
         },
+        retrieve_object_utils::retrieve_object_for_operation,
         KMS,
     },
-    database::retrieve_object_for_operation,
     error::KmsError,
     result::{KResult, KResultHelper},
 };

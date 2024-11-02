@@ -57,11 +57,9 @@ pub(crate) use database_trait::{AtomicOperation, Database};
 pub(crate) mod cached_database;
 mod locate_query;
 mod migrate;
-mod retrieve_object_utils;
 pub(crate) use locate_query::{
     query_from_attributes, MySqlPlaceholder, PgSqlPlaceholder, SqlitePlaceholder,
 };
-pub(crate) use retrieve_object_utils::retrieve_object_for_operation;
 
 const KMS_VERSION_BEFORE_MIGRATION_SUPPORT: &str = "4.12.0";
 const PGSQL_FILE_QUERIES: &str = include_str!("query.sql");
