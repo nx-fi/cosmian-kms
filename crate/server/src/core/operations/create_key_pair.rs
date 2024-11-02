@@ -1,8 +1,7 @@
 use std::collections::HashSet;
 
 use cloudproof::reexport::cover_crypt::Covercrypt;
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-use cosmian_hsm_traits::{Hsm, HsmKeypairAlgorithm};
+use cosmian_hsm_traits::{HsmKeypairAlgorithm, HSM};
 #[cfg(not(feature = "fips"))]
 use cosmian_kmip::crypto::elliptic_curves::operation::{
     create_x25519_key_pair, create_x448_key_pair,
@@ -21,8 +20,6 @@ use cosmian_kmip::{
         kmip_types::{Attributes, CryptographicAlgorithm, RecommendedCurve, UniqueIdentifier},
     },
 };
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-use proteccio_pkcs11_loader::Proteccio;
 #[cfg(not(feature = "fips"))]
 use tracing::warn;
 use tracing::{debug, trace};
@@ -44,7 +41,6 @@ pub(crate) async fn create_key_pair(
 ) -> KResult<CreateKeyPairResponse> {
     trace!("Create key pair: {}", serde_json::to_string(&request)?);
 
-    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     // An HSM CreateKeyPair request will have a uid in the form of "ham::<slot_id>"
     if let Some(uid) = request
         .private_key_attributes
@@ -60,7 +56,7 @@ pub(crate) async fn create_key_pair(
     {
         if uid.starts_with("hsm::") {
             return if let Some(hsm) = &kms.hsm {
-                if owner != kms.params.super_admin_username {
+                if owner != kms.params.hsm_admin {
                     return Err(KmsError::InvalidRequest(
                         "Only the Super Admin can create HSM objects".to_owned(),
                     ));
@@ -77,10 +73,9 @@ pub(crate) async fn create_key_pair(
     create_kms_keypair(kms, request, owner, params).await
 }
 
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 async fn create_hsm_keypair(
     request: &CreateKeyPair,
-    hsm: &Proteccio,
+    hsm: &Box<dyn HSM + Send + Sync>,
     uid: &str,
 ) -> KResult<CreateKeyPairResponse> {
     // try converting the rest of the uid into a slot_id
@@ -127,6 +122,7 @@ async fn create_hsm_keypair(
             slot_id,
             HsmKeypairAlgorithm::RSA,
             *key_length as usize,
+            tags.contains("exportable"),
             label.as_str(),
         )
         .await?;

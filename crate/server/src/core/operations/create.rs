@@ -1,14 +1,9 @@
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-use cosmian_hsm_traits::{Hsm, HsmKeyAlgorithm};
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-use cosmian_kmip::kmip::kmip_types::{Attributes, CryptographicAlgorithm};
+use cosmian_hsm_traits::{HsmKeyAlgorithm, HSM};
 use cosmian_kmip::kmip::{
     kmip_objects::ObjectType,
     kmip_operations::{Create, CreateResponse},
-    kmip_types::UniqueIdentifier,
+    kmip_types::{Attributes, CryptographicAlgorithm, UniqueIdentifier},
 };
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-use proteccio_pkcs11_loader::Proteccio;
 use tracing::{debug, trace};
 
 use crate::{
@@ -29,7 +24,6 @@ pub(crate) async fn create(
         kms_bail!(KmsError::UnsupportedPlaceholder)
     }
 
-    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     // An HSM Create request will have a uid in the form of "ham::<slot_id>"
     if let Some(uid) = request
         .attributes
@@ -39,7 +33,7 @@ pub(crate) async fn create(
     {
         if uid.starts_with("hsm::") {
             return if let Some(hsm) = &kms.hsm {
-                if owner != kms.params.super_admin_username {
+                if owner != kms.params.hsm_admin {
                     return Err(KmsError::InvalidRequest(
                         "Only the Super Admin can create HSM objects".to_owned(),
                     ));
@@ -96,8 +90,11 @@ async fn create_kms_key(
     })
 }
 
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-async fn create_hsm_key(request: &Create, hsm: &Proteccio, uid: &str) -> KResult<CreateResponse> {
+async fn create_hsm_key(
+    request: &Create,
+    hsm: &Box<dyn HSM + Sync + Send>,
+    uid: &str,
+) -> KResult<CreateResponse> {
     // try converting the rest of the uid into a slot_id
     let slot_id = uid
         .trim_start_matches("hsm::")
@@ -145,6 +142,7 @@ async fn create_hsm_key(request: &Create, hsm: &Proteccio, uid: &str) -> KResult
                     slot_id,
                     HsmKeyAlgorithm::AES,
                     *key_length as usize,
+                    tags.contains("exportable"),
                     label.as_str(),
                 )
                 .await?;

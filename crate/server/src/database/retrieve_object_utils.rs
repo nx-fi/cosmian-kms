@@ -46,6 +46,12 @@ async fn _retrieve_object(
         "get_key: key_uid_or_tags: {uid_or_tags:?}, user: {user}, operation_type: \
          {operation_type:?}"
     );
+
+    // // An HSM Create request will have a uid in the form of "ham::<slot_id>"
+    // if uid_or_tags.starts_with("hsm::") {
+    //     return get_hsm_object(uid_or_tags, operation_type, kms, user);
+    // }
+
     let mut owm_s: Vec<ObjectWithMetadata> = kms
         .db
         .retrieve(uid_or_tags, user, operation_type, params)
@@ -68,3 +74,64 @@ async fn _retrieve_object(
     }
     Ok(owm)
 }
+
+// async fn get_hsm_object(
+//     uid: &str,
+//     operation_type: ObjectOperationType,
+//     kms: &KMS,
+//     user: &str,
+// ) -> KResult<ObjectWithMetadata> {
+//     let hsm = if let Some(hsm) = &kms.hsm {
+//         if user != kms.params.hsm_admin {
+//             return Err(KmsError::InvalidRequest(
+//                 "Only the HSM Admin can retrieve HSM objects".to_owned(),
+//             ));
+//         }
+//         hsm
+//     } else {
+//         return Err(KmsError::NotSupported(
+//             "This server does not support HSM operations".to_owned(),
+//         ))
+//     };
+//     // try converting the rest of the uid into a slot_id and key id
+//     let (slot_id, key_id) = uid
+//         .trim_start_matches("hsm::")
+//         .split_once("::")
+//         .ok_or_else(|| {
+//             KmsError::InvalidRequest(
+//                 "An HSM create request must have a uid in the form of 'hsm::<slot_id>::<key_id>'"
+//                     .to_owned(),
+//             )
+//         })?;
+//     let slot_id = slot_id.parse::<usize>().map_err(|_| {
+//         KmsError::InvalidRequest("The slot_id must be a valid unsigned integer".to_owned())
+//     })?;
+//     let key_id = key_id.parse::<usize>().map_err(|_| {
+//         KmsError::InvalidRequest("The key_id must be a valid unsigned integer".to_owned())
+//     })?;
+//     let hsm_object = hsm.export(slot_id, key_id).await?;
+//     // Convert the HSM object into an ObjectWithMetadata
+//     let owm = match hsm_object.object_type() {
+//         HsmObjectType::Aes => {
+//             let object = Object::SymmetricKey {
+//                 key_block: KeyBlock {
+//                     key_format_type: KeyFormatType::Raw,
+//                     key_compression_type: None,
+//                     key_value: KeyValue {},
+//                     cryptographic_algorithm: None,
+//                     cryptographic_length: None,
+//                     key_wrapping_data: None,
+//                 },
+//             };
+//             ObjectWithMetadata::new(object, pwmer, state, permissions, attributes)
+//         }
+//         HsmObjectType::RsaPrivate => {
+//             ObjectWithMetadata::new(object, pwmer, state, permissions, attributes)
+//         }
+//         HsmObjectType::RsaPublic => {
+//             ObjectWithMetadata::new(object, pwmer, state, permissions, attributes)
+//         }
+//     };
+//
+//     Ok(owm)
+// }

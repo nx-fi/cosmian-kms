@@ -133,7 +133,7 @@ impl ObjectWithMetadata {
                 return unwrapped
                     .as_ref()
                     .map(|u| u.unwrapped_object().to_owned())
-                    .map_err(|e| e.clone());
+                    .map_err(Clone::clone);
             }
         }
 

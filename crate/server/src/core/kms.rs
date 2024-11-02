@@ -8,6 +8,7 @@ use base64::{
     engine::general_purpose::{self, STANDARD as b64},
     Engine as _,
 };
+use cosmian_hsm_traits::HSM;
 use cosmian_kmip::{
     crypto::secret::Secret,
     kmip::{
@@ -26,8 +27,6 @@ use cosmian_kmip::{
 use cosmian_kms_client::access::{
     Access, AccessRightsObtainedResponse, ObjectOwnedResponse, UserAccessResponse,
 };
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-use proteccio_pkcs11_loader::Proteccio;
 use tracing::debug;
 use uuid::Uuid;
 
@@ -46,8 +45,7 @@ use crate::{
 pub struct KMS {
     pub(crate) params: ServerParams,
     pub(crate) db: Box<dyn Database + Sync + Send>,
-    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-    pub(crate) hsm: Option<Proteccio>,
+    pub(crate) hsm: Option<Box<dyn HSM + Sync + Send>>,
 }
 
 /// Implement the KMIP Server operations and dispatches the actual actions

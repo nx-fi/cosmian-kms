@@ -22,13 +22,13 @@ impl Session {
     /// Generate RSA key pair and return the private and public key handles
     /// in this order
     ///
-    /// If the `sensitive` flag is set to true, the private key will not
-    /// be exportable
+    /// If exportable is set to `false`, the `sensitive` flag is set to true,
+    /// and the private key will not be exportable.
     pub fn generate_rsa_key_pair(
         &self,
         key_size: RsaKeySize,
         label: &str,
-        sensitive: bool,
+        exportable: bool,
     ) -> PResult<(CK_OBJECT_HANDLE, CK_OBJECT_HANDLE)> {
         let key_size = match key_size {
             RsaKeySize::Rsa1024 => 1024,
@@ -37,7 +37,7 @@ impl Session {
             RsaKeySize::Rsa4096 => 4096,
         };
         let public_exponent: [u8; 3] = [0x01, 0x00, 0x01];
-        let sensitive = if sensitive { CK_TRUE } else { CK_FALSE };
+        let sensitive = if !exportable { CK_TRUE } else { CK_FALSE };
         unsafe {
             let mut pub_key_template = vec![
                 CK_ATTRIBUTE {

@@ -1,18 +1,19 @@
 use async_trait::async_trait;
 use cosmian_hsm_traits::{
-    Hsm, HsmError, HsmKeyAlgorithm, HsmKeypairAlgorithm, HsmObject, HsmObjectFilter, HsmResult,
+    HsmError, HsmKeyAlgorithm, HsmKeypairAlgorithm, HsmObject, HsmObjectFilter, HsmResult, HSM,
 };
+use pkcs11_sys::CK_OBJECT_HANDLE;
 
 use crate::{AesKeySize, Proteccio, RsaKeySize};
 
 #[async_trait(?Send)]
-impl Hsm for Proteccio {
+impl HSM for Proteccio {
     async fn create_key(
         &self,
         slot_id: usize,
         algorithm: HsmKeyAlgorithm,
         key_length_in_bits: usize,
-        sensitive: bool,
+        exportable: bool,
         label: &str,
     ) -> HsmResult<usize> {
         let slot = self.get_slot(slot_id)?;
@@ -29,7 +30,7 @@ impl Hsm for Proteccio {
                         )))
                     }
                 };
-                let id = session.generate_aes_key(key_size, label, sensitive)?;
+                let id = session.generate_aes_key(key_size, label, exportable)?;
                 Ok(id as usize)
             } // _ => Err(HsmError::Default(
               //     "Only AES or RSA keys can be created on the Proteccio HSM".to_string(),
@@ -42,7 +43,7 @@ impl Hsm for Proteccio {
         slot_id: usize,
         algorithm: HsmKeypairAlgorithm,
         key_length_in_bits: usize,
-        sensitive: bool,
+        exportable: bool,
         label: &str,
     ) -> HsmResult<(usize, usize)> {
         let slot = self.get_slot(slot_id)?;
@@ -64,7 +65,7 @@ impl Hsm for Proteccio {
         match algorithm {
             HsmKeypairAlgorithm::RSA => {
                 let (sk, pk) =
-                    session.generate_rsa_key_pair(key_length_in_bits, label, sensitive)?;
+                    session.generate_rsa_key_pair(key_length_in_bits, label, exportable)?;
                 Ok((sk as usize, pk as usize))
             } // _ => Err(HsmError::Default(
               //     "Only AES or RSA keys can be created on the Proteccio HSM".to_string(),
@@ -72,15 +73,24 @@ impl Hsm for Proteccio {
         }
     }
 
-    async fn retrieve(&self, _slot_id: usize, _object_id: usize) -> HsmResult<HsmObject> {
-        todo!()
+    async fn export(&self, slot_id: usize, object_id: usize) -> HsmResult<HsmObject> {
+        let slot = self.get_slot(slot_id)?;
+        let session = slot.open_session(true)?;
+        let object = session.export_key(object_id as CK_OBJECT_HANDLE)?;
+        Ok(object)
     }
 
-    async fn delete(&self, _slot_id: usize, _object_id: usize) -> HsmResult<()> {
-        todo!()
+    async fn delete(&self, slot_id: usize, object_id: usize) -> HsmResult<()> {
+        let slot = self.get_slot(slot_id)?;
+        let session = slot.open_session(true)?;
+        session.destroy_object(object_id as CK_OBJECT_HANDLE)?;
+        Ok(())
     }
 
-    async fn find(&self, _slot_id: usize, _object_type: HsmObjectFilter) -> HsmResult<Vec<String>> {
-        todo!()
+    async fn find(&self, slot_id: usize, object_type: HsmObjectFilter) -> HsmResult<Vec<usize>> {
+        let slot = self.get_slot(slot_id)?;
+        let session = slot.open_session(true)?;
+        let objects = session.list_objects(object_type)?;
+        Ok(objects.into_iter().map(|id| id as usize).collect())
     }
 }
