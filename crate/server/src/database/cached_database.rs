@@ -21,42 +21,6 @@ use crate::{
     error::KmsError,
     result::KResult,
 };
-// /// This is the object kept in the Main LRU cache
-// ///
-// /// The difference with `ObjectWithMetadata` is that it contains a cache of permissions
-// /// per user.
-// pub(crate) struct CachedObjectWithMetadata {
-//     owm: ObjectWithMetadata,
-//     permissions_cache: RwLock<LruCache<String, HashSet<ObjectOperationType>>>,
-// }
-//
-// impl CachedObjectWithMetadata {
-//     pub(crate) async fn to_object_with_metadata(&self, user: &str) -> Option<ObjectWithMetadata> {
-//         self.permissions_cache.read().await.peek(user).map_or_else(
-//             || None,
-//             |permissions| {
-//                 let mut owm = self.owm.clone();
-//                 owm.permissions_mut().clone_from(permissions);
-//                 Some(owm)
-//             },
-//         )
-//     }
-//
-//     pub(crate) fn from_object_with_metadata(owm: &ObjectWithMetadata, user: &str) -> KResult<Self> {
-//         // set permissions for the user on the cache
-//         let mut permissions_cache = LruCache::new(NonZeroUsize::new(100).ok_or_else(|| {
-//             KmsError::ServerError("Failed instantiating the permissions LRU Cache".to_owned())
-//         })?);
-//         permissions_cache.put(user.to_owned(), owm.permissions().clone());
-//         // remove permissions on the owm
-//         let mut owm = owm.clone();
-//         *owm.permissions_mut() = HashSet::new();
-//         Ok(Self {
-//             owm,
-//             permissions_cache: RwLock::new(permissions_cache),
-//         })
-//     }
-// }
 
 /// This is the object kept in the Main LRU cache
 /// It contains the unwrapped object and the key signature

@@ -46,6 +46,30 @@ macro_rules! get_pgsql_query {
     };
 }
 
+impl TryFrom<&PgRow> for ObjectWithMetadata {
+    type Error = KmsError;
+
+    fn try_from(row: &PgRow) -> Result<Self, Self::Error> {
+        let id = row.get::<String, _>(0);
+        let db_object: DBObject = serde_json::from_value(row.get::<Value, _>(1))
+            .context("failed deserializing the object")
+            .reason(ErrorReason::Internal_Server_Error)?;
+        let object = Object::post_fix(db_object.object_type, db_object.object);
+        let attributes: Attributes = serde_json::from_value(row.get::<Value, _>(2))
+            .context("failed deserializing the Attributes")
+            .reason(ErrorReason::Internal_Server_Error)?;
+        let owner = row.get::<String, _>(3);
+        let state = state_from_string(&row.get::<String, _>(4))?;
+        let permissions: HashSet<ObjectOperationType> = match row.try_get::<Value, _>(5) {
+            Err(_) => HashSet::new(),
+            Ok(v) => serde_json::from_value(v)
+                .context("failed deserializing the permissions")
+                .reason(ErrorReason::Internal_Server_Error)?,
+        };
+        Ok(Self::new(id, object, owner, state, permissions, attributes))
+    }
+}
+
 pub(crate) struct PgPool {
     pool: Pool<Postgres>,
 }

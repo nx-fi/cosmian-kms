@@ -27,6 +27,7 @@ use crate::{
         state_from_string, DBObject, Database, SqlitePlaceholder,
         KMS_VERSION_BEFORE_MIGRATION_SUPPORT, SQLITE_QUERIES,
     },
+    error::KmsError,
     kms_bail, kms_error,
     result::{KResult, KResultHelper},
 };
@@ -43,6 +44,31 @@ macro_rules! get_sqlite_query {
             .get($name)
             .ok_or_else(|| kms_error!("{} SQL query can't be found", $name))?
     };
+}
+
+impl TryFrom<&SqliteRow> for ObjectWithMetadata {
+    type Error = KmsError;
+
+    fn try_from(row: &SqliteRow) -> Result<Self, Self::Error> {
+        let id = row.get::<String, _>(0);
+        let db_object: DBObject = serde_json::from_slice(&row.get::<Vec<u8>, _>(1))
+            .context("failed deserializing the object")
+            .reason(ErrorReason::Internal_Server_Error)?;
+        let object = Object::post_fix(db_object.object_type, db_object.object);
+        let raw_attributes = row.get::<Value, _>(2);
+        let attributes = serde_json::from_value(raw_attributes)?;
+        let owner = row.get::<String, _>(3);
+        let state = state_from_string(&row.get::<String, _>(4))?;
+        let raw_permissions = row.get::<Vec<u8>, _>(5);
+        let permissions: HashSet<ObjectOperationType> = if raw_permissions.is_empty() {
+            HashSet::new()
+        } else {
+            serde_json::from_slice(&raw_permissions)
+                .context("failed deserializing the permissions")
+                .reason(ErrorReason::Internal_Server_Error)?
+        };
+        Ok(Self::new(id, object, owner, state, permissions, attributes))
+    }
 }
 
 pub(crate) struct SqlitePool {
