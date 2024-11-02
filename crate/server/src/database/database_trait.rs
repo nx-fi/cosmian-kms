@@ -10,8 +10,10 @@ use cosmian_kmip::kmip::{
 };
 use cosmian_kms_client::access::{IsWrapped, ObjectOperationType};
 
-use super::object_with_metadata::ObjectWithMetadata;
-use crate::{core::extra_database_params::ExtraDatabaseParams, result::KResult};
+use crate::{
+    core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
+    result::KResult,
+};
 
 #[async_trait(?Send)]
 pub(crate) trait Database {

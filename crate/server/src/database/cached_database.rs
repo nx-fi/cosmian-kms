@@ -16,12 +16,11 @@ use lru::LruCache;
 use tokio::sync::RwLock;
 
 use crate::{
-    core::extra_database_params::ExtraDatabaseParams,
-    database::{object_with_metadata::ObjectWithMetadata, AtomicOperation, Database},
+    core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
+    database::{AtomicOperation, Database},
     error::KmsError,
     result::KResult,
 };
-
 // /// This is the object kept in the Main LRU cache
 // ///
 // /// The difference with `ObjectWithMetadata` is that it contains a cache of permissions

@@ -31,7 +31,7 @@ pub(crate) async fn set_attribute(
         .as_str()
         .context("Set Attribute: the unique identifier must be a string")?;
 
-    let mut owm: crate::database::object_with_metadata::ObjectWithMetadata =
+    let mut owm: crate::core::object_with_metadata::ObjectWithMetadata =
         retrieve_object_for_operation(
             uid_or_tags,
             ObjectOperationType::GetAttributes,

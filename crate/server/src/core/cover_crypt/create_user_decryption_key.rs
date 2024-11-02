@@ -17,8 +17,10 @@ use cosmian_kms_client::access::ObjectOperationType;
 
 use super::KMS;
 use crate::{
-    core::extra_database_params::ExtraDatabaseParams,
-    database::object_with_metadata::ObjectWithMetadata, error::KmsError, kms_bail, result::KResult,
+    core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
+    error::KmsError,
+    kms_bail,
+    result::KResult,
 };
 
 /// Create a User Decryption Key in the KMS

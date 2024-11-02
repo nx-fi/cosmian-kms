@@ -49,7 +49,6 @@ pub(crate) mod cached_sqlcipher;
 pub(crate) mod cached_sqlite_struct;
 mod database_trait;
 pub(crate) mod mysql;
-pub(crate) mod object_with_metadata;
 pub(crate) mod pgsql;
 pub(crate) mod redis;
 pub(crate) mod sqlite;

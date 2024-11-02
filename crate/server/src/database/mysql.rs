@@ -21,11 +21,10 @@ use tracing::{debug, trace};
 use uuid::Uuid;
 
 use super::{
-    object_with_metadata::ObjectWithMetadata, query_from_attributes, state_from_string, DBObject,
-    Database, MySqlPlaceholder, MYSQL_QUERIES,
+    query_from_attributes, state_from_string, DBObject, Database, MySqlPlaceholder, MYSQL_QUERIES,
 };
 use crate::{
-    core::extra_database_params::ExtraDatabaseParams,
+    core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
     database::{
         database_trait::AtomicOperation, migrate::do_migration,
         KMS_VERSION_BEFORE_MIGRATION_SUPPORT,

@@ -12,9 +12,9 @@ use tracing::trace;
 
 use crate::{
     core::{
-        cover_crypt::rekey_keypair_cover_crypt, extra_database_params::ExtraDatabaseParams, KMS,
+        cover_crypt::rekey_keypair_cover_crypt, extra_database_params::ExtraDatabaseParams,
+        object_with_metadata::ObjectWithMetadata, KMS,
     },
-    database::object_with_metadata::ObjectWithMetadata,
     error::KmsError,
     kms_bail,
     result::{KResult, KResultHelper},

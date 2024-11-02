@@ -13,9 +13,9 @@ use zeroize::Zeroizing;
 
 use crate::{
     core::{
-        cover_crypt::destroy_user_decryption_keys, extra_database_params::ExtraDatabaseParams, KMS,
+        cover_crypt::destroy_user_decryption_keys, extra_database_params::ExtraDatabaseParams,
+        object_with_metadata::ObjectWithMetadata, KMS,
     },
-    database::object_with_metadata::ObjectWithMetadata,
     error::KmsError,
     kms_bail,
     result::{KResult, KResultHelper},

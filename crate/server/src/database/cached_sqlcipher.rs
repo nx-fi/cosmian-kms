@@ -23,7 +23,6 @@ use tracing::{debug, trace};
 
 use super::{
     cached_sqlite_struct::KMSSqliteCache,
-    object_with_metadata::ObjectWithMetadata,
     sqlite::{
         create_, delete_, find_, insert_access_, is_object_owned_by_, list_accesses_,
         list_user_granted_access_rights_, remove_access_, retrieve_, update_object_, update_state_,
@@ -31,7 +30,7 @@ use super::{
     },
 };
 use crate::{
-    core::extra_database_params::ExtraDatabaseParams,
+    core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
     database::{
         database_trait::AtomicOperation,
         migrate::do_migration,

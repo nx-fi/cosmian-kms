@@ -27,11 +27,8 @@ use super::{
     permissions::PermissionsDB,
 };
 use crate::{
-    core::extra_database_params::ExtraDatabaseParams,
-    database::{
-        database_trait::AtomicOperation, object_with_metadata::ObjectWithMetadata,
-        redis::objects_db::RedisOperation, Database,
-    },
+    core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
+    database::{database_trait::AtomicOperation, redis::objects_db::RedisOperation, Database},
     error::KmsError,
     kms_bail, kms_error,
     result::{KResult, KResultHelper},

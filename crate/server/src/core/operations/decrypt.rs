@@ -30,8 +30,9 @@ use tracing::{debug, trace};
 use zeroize::Zeroizing;
 
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, KMS},
-    database::object_with_metadata::ObjectWithMetadata,
+    core::{
+        extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata, KMS,
+    },
     error::KmsError,
     kms_bail,
     result::{KResult, KResultHelper},

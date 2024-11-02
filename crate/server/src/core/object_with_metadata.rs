@@ -14,10 +14,12 @@ use log::trace;
 use serde_json::Value;
 use sqlx::{mysql::MySqlRow, postgres::PgRow, sqlite::SqliteRow, Row};
 
-use super::{state_from_string, DBObject};
 use crate::{
     core::{extra_database_params::ExtraDatabaseParams, wrapping::unwrap_key, KMS},
-    database::cached_database::{CachedUnwrappedObject, UnwrappedCache},
+    database::{
+        cached_database::{CachedUnwrappedObject, UnwrappedCache},
+        state_from_string, DBObject,
+    },
     error::KmsError,
     result::{KResult, KResultHelper},
 };

@@ -4,10 +4,9 @@ use tracing::trace;
 
 use crate::{
     core::{
-        extra_database_params::ExtraDatabaseParams,
+        extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata,
         retrieve_object_utils::retrieve_object_for_operation, KMS,
     },
-    database::object_with_metadata::ObjectWithMetadata,
     error::KmsError,
     kms_bail,
     result::{KResult, KResultHelper},

@@ -15,10 +15,8 @@ use cosmian_logger::log_utils::log_init;
 use uuid::Uuid;
 
 use crate::{
-    core::extra_database_params::ExtraDatabaseParams,
-    database::{
-        database_trait::AtomicOperation, object_with_metadata::ObjectWithMetadata, Database,
-    },
+    core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
+    database::{database_trait::AtomicOperation, Database},
     error::KmsError,
     kms_bail,
     result::KResult,

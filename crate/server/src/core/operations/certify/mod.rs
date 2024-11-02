@@ -39,6 +39,7 @@ use crate::{
     core::{
         certificate::retrieve_issuer_private_key_and_certificate,
         extra_database_params::ExtraDatabaseParams,
+        object_with_metadata::ObjectWithMetadata,
         operations::{
             certify::{
                 issuer::Issuer,
@@ -49,7 +50,7 @@ use crate::{
         retrieve_object_utils::retrieve_object_for_operation,
         KMS,
     },
-    database::{object_with_metadata::ObjectWithMetadata, AtomicOperation},
+    database::AtomicOperation,
     error::KmsError,
     kms_bail,
     result::{KResult, KResultHelper},

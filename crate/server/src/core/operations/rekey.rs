@@ -8,9 +8,9 @@ use tracing::{debug, trace};
 
 use crate::{
     core::{
-        extra_database_params::ExtraDatabaseParams, operations::import::process_symmetric_key, KMS,
+        extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata,
+        operations::import::process_symmetric_key, KMS,
     },
-    database::object_with_metadata::ObjectWithMetadata,
     error::KmsError,
     kms_bail,
     result::{KResult, KResultHelper},

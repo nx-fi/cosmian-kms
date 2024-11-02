@@ -20,9 +20,8 @@ use sqlx::{
 use tracing::{debug, trace};
 use uuid::Uuid;
 
-use super::object_with_metadata::ObjectWithMetadata;
 use crate::{
-    core::extra_database_params::ExtraDatabaseParams,
+    core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
     database::{
         database_trait::AtomicOperation, migrate::do_migration, query_from_attributes,
         state_from_string, DBObject, Database, SqlitePlaceholder,

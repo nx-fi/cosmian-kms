@@ -15,7 +15,9 @@ use cosmian_kms_client::access::ObjectOperationType;
 use tracing::{debug, error, trace};
 
 use crate::{
-    core::KMS, database::object_with_metadata::ObjectWithMetadata, error::KmsError, result::KResult,
+    core::{object_with_metadata::ObjectWithMetadata, KMS},
+    error::KmsError,
+    result::KResult,
 };
 
 pub(crate) async fn manage_api_token_request<S, B>(
