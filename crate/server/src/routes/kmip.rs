@@ -13,7 +13,6 @@ use tracing::info;
 
 use crate::{
     core::{extra_database_params::ExtraDatabaseParams, operations::dispatch, KMS},
-    database::KMSServer,
     result::KResult,
 };
 
@@ -22,7 +21,7 @@ use crate::{
 pub(crate) async fn kmip(
     req_http: HttpRequest,
     body: String,
-    kms: Data<Arc<KMSServer>>,
+    kms: Data<Arc<KMS>>,
 ) -> KResult<Json<TTLV>> {
     let span = tracing::span!(tracing::Level::INFO, "kmip_2_1");
     let _enter = span.enter();

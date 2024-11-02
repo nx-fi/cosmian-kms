@@ -28,7 +28,6 @@ use crate::{
         google_cse::{self, GoogleCseConfig},
         kmip, ms_dke,
     },
-    KMSServer,
 };
 
 /// Starts the Key Management System (KMS) server based on the provided configuration.
@@ -105,7 +104,7 @@ async fn start_plain_http_kms_server(
     server_handle_transmitter: Option<mpsc::Sender<ServerHandle>>,
 ) -> KResult<()> {
     // Instantiate and prepare the KMS server
-    let kms_server = Arc::new(KMSServer::instantiate(server_params).await?);
+    let kms_server = Arc::new(KMS::instantiate(server_params).await?);
 
     // Prepare the server
     let server = prepare_kms_server(kms_server, None).await?;
@@ -167,7 +166,7 @@ async fn start_https_kms_server(
     }
 
     // Instantiate and prepare the KMS server
-    let kms_server = Arc::new(KMSServer::instantiate(server_params).await?);
+    let kms_server = Arc::new(KMS::instantiate(server_params).await?);
     let server = prepare_kms_server(kms_server, Some(builder)).await?;
 
     // send the server handle to the caller

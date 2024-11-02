@@ -60,13 +60,12 @@ pub mod core;
 #[allow(clippy::expect_used)]
 pub mod database;
 pub mod error;
+pub mod hsm;
 pub mod kms_server;
 pub mod middlewares;
 pub mod result;
 pub mod routes;
 pub mod telemetry;
-
-pub use database::KMSServer;
 
 #[allow(clippy::panic, clippy::unwrap_used, clippy::expect_used, unsafe_code)]
 #[cfg(test)]

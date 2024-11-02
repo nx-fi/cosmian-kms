@@ -10,7 +10,7 @@ use actix_web::{
 use clap::crate_version;
 use tracing::{error, info, warn};
 
-use crate::{database::KMSServer, error::KmsError, result::KResult};
+use crate::{core::KMS, error::KmsError, result::KResult};
 
 pub mod access;
 pub mod google_cse;
@@ -65,7 +65,7 @@ impl actix_web::error::ResponseError for KmsError {
 #[post("/new_database")]
 pub(crate) async fn add_new_database(
     req: HttpRequest,
-    kms: Data<Arc<KMSServer>>,
+    kms: Data<Arc<KMS>>,
 ) -> KResult<Json<String>> {
     info!("GET /new_database {}", kms.get_user(&req));
     Ok(Json(kms.add_new_database().await?))
@@ -73,10 +73,7 @@ pub(crate) async fn add_new_database(
 
 /// Get the KMS version
 #[get("/version")]
-pub(crate) async fn get_version(
-    req: HttpRequest,
-    kms: Data<Arc<KMSServer>>,
-) -> KResult<Json<String>> {
+pub(crate) async fn get_version(req: HttpRequest, kms: Data<Arc<KMS>>) -> KResult<Json<String>> {
     info!("GET /version {}", kms.get_user(&req));
     Ok(Json(format!(
         "{} ({})",

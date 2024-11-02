@@ -43,8 +43,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::{kms_bail, result::KResult};
 
-pub type KMSServer = crate::core::KMS;
-
 pub(crate) mod cached_sqlcipher;
 pub(crate) mod cached_sqlite_struct;
 mod database_trait;

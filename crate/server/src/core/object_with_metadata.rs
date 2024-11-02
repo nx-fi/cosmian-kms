@@ -18,7 +18,10 @@ use crate::{
     result::{KResult, KResultHelper},
 };
 
-/// An object with its metadata such as permissions and state
+/// An object with its metadata such as owner, permissions and state
+///
+/// This is the main representation of objects through the KMS server.
+/// Mpe APIs should use this representation.
 #[derive(Clone)]
 pub(crate) struct ObjectWithMetadata {
     id: String,
