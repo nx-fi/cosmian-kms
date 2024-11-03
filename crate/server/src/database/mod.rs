@@ -54,6 +54,7 @@ pub(crate) use database_trait::{AtomicOperation, Database};
 pub(crate) mod cached_database;
 mod locate_query;
 mod migrate;
+pub(crate) mod store;
 pub(crate) use locate_query::{
     query_from_attributes, MySqlPlaceholder, PgSqlPlaceholder, SqlitePlaceholder,
 };

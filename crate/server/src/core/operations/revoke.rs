@@ -28,11 +28,6 @@ pub(crate) async fn revoke_operation(
     user: &str,
     params: Option<&ExtraDatabaseParams>,
 ) -> KResult<RevokeResponse> {
-    //TODO   Reasons should be kept
-
-    let revocation_reason = request.revocation_reason.clone();
-    let compromise_occurrence_date = request.compromise_occurrence_date;
-
     // there must be an identifier
     let uid_or_tags = request
         .unique_identifier
@@ -40,6 +35,10 @@ pub(crate) async fn revoke_operation(
         .ok_or(KmsError::UnsupportedPlaceholder)?
         .as_str()
         .context("unique identifiers or tags should be strings")?;
+
+    //TODO   Reasons should be kept in the database
+    let revocation_reason = request.revocation_reason.clone();
+    let compromise_occurrence_date = request.compromise_occurrence_date;
 
     recursively_revoke_key(
         uid_or_tags,

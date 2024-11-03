@@ -14,6 +14,8 @@ use crate::{
 /// Retrieve a single object for a given operation type
 /// or the Get operation if not found.
 ///
+/// This function will retrieve from the HSM is the UID
+///
 /// This function assumes that if the user can `Get` the object,
 /// then it can also do any other operation with it.
 pub(crate) async fn retrieve_object_for_operation(

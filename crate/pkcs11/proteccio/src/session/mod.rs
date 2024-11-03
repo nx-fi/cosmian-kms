@@ -638,10 +638,19 @@ impl Session {
                 template.len() as CK_ULONG,
             );
             if rv == CKR_ATTRIBUTE_SENSITIVE {
-                return Err(PError::Default("This key cannot be exported".to_string()));
+                return Err(PError::Default(format!(
+                    "This key {key_handle} cannot be exported from the HSM."
+                )));
+            }
+            if rv == CKR_OBJECT_HANDLE_INVALID {
+                return Err(PError::Default(format!(
+                    "Invalid HSM object id: {key_handle}"
+                )));
             }
             if rv != CKR_OK {
-                return Err(PError::Default("Failed to get the attributes".to_string()));
+                return Err(PError::Default(format!(
+                    "Failed to get the HSM attributes for key {key_handle}"
+                )));
             }
             Ok(())
         }

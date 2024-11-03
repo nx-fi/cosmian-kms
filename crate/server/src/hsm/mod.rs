@@ -1,6 +1,6 @@
 use std::{collections::HashSet, default::Default};
 
-use cosmian_hsm_traits::KeyMaterial;
+use cosmian_hsm_traits::{HsmObject, KeyMaterial, HSM};
 use cosmian_kmip::{
     crypto::secret::SafeBigUint,
     kmip::{
@@ -28,19 +28,17 @@ pub(crate) async fn get_hsm_object(
     kms: &KMS,
     user: &str,
 ) -> KResult<ObjectWithMetadata> {
-    let hsm = if let Some(hsm) = &kms.hsm {
-        if user != kms.params.hsm_admin {
-            return Err(KmsError::InvalidRequest(
-                "Only the HSM Admin can retrieve HSM objects".to_owned(),
-            ));
-        }
-        hsm
-    } else {
-        return Err(KmsError::NotSupported(
-            "This server does not support HSM operations".to_owned(),
-        ))
-    };
+    let hsm = ensure_hsm_admin(kms, user)?;
     // try converting the rest of the uid into a slot_id and key id
+    let (slot_id, key_id) = parse_uid(uid)?;
+    let hsm_object = hsm.export(slot_id, key_id).await?;
+    // Convert the HSM object into an ObjectWithMetadata
+    let owm = to_object_with_metadate(&hsm_object, uid, user)?;
+    Ok(owm)
+}
+
+/// Parse the `uid` into a `slot_id` and `key_id`
+fn parse_uid(uid: &str) -> Result<(usize, usize), KmsError> {
     let (slot_id, key_id) = uid
         .trim_start_matches("hsm::")
         .split_once("::")
@@ -56,9 +54,32 @@ pub(crate) async fn get_hsm_object(
     let key_id = key_id.parse::<usize>().map_err(|e| {
         KmsError::InvalidRequest(format!("The key_id must be a valid unsigned integer: {e}"))
     })?;
-    let hsm_object = hsm.export(slot_id, key_id).await?;
-    // Convert the HSM object into an ObjectWithMetadata
-    let owm = match hsm_object.key_material() {
+    Ok((slot_id, key_id))
+}
+
+/// Ensure that the HSM is instantiated and that the user is the HSM admin
+fn ensure_hsm_admin<'a>(kms: &'a KMS, user: &str) -> KResult<&'a (dyn HSM + Sync + Send)> {
+    let hsm = if let Some(hsm) = &kms.hsm {
+        if user != kms.params.hsm_admin {
+            return Err(KmsError::InvalidRequest(
+                "Only the HSM Admin can retrieve HSM objects".to_owned(),
+            ));
+        }
+        hsm
+    } else {
+        return Err(KmsError::NotSupported(
+            "This server does not support HSM operations".to_owned(),
+        ))
+    };
+    Ok(&**hsm)
+}
+
+fn to_object_with_metadate(
+    hsm_object: &HsmObject,
+    uid: &str,
+    user: &str,
+) -> KResult<ObjectWithMetadata> {
+    match hsm_object.key_material() {
         KeyMaterial::AesKey(bytes) => {
             let length: i32 = i32::try_from(bytes.len())? * 8;
             let mut attributes = Attributes {
@@ -92,14 +113,14 @@ pub(crate) async fn get_hsm_object(
                     key_wrapping_data: None,
                 },
             };
-            ObjectWithMetadata::new(
+            Ok(ObjectWithMetadata::new(
                 uid.to_owned(),
                 object,
-                kms.params.hsm_admin.clone(),
+                user.to_owned(),
                 StateEnumeration::Active,
                 HashSet::from([ObjectOperationType::Get]),
                 attributes,
-            )
+            ))
         }
         KeyMaterial::RsaPrivateKey(km) => {
             let mut attributes = Attributes {
@@ -151,14 +172,14 @@ pub(crate) async fn get_hsm_object(
                     key_wrapping_data: None,
                 },
             };
-            ObjectWithMetadata::new(
+            Ok(ObjectWithMetadata::new(
                 uid.to_owned(),
                 object,
-                kms.params.hsm_admin.clone(),
+                user.to_owned(),
                 StateEnumeration::Active,
                 HashSet::from([ObjectOperationType::Get]),
                 attributes,
-            )
+            ))
         }
         KeyMaterial::RsaPublicKey(km) => {
             let mut attributes = Attributes {
@@ -194,16 +215,14 @@ pub(crate) async fn get_hsm_object(
                     key_wrapping_data: None,
                 },
             };
-            ObjectWithMetadata::new(
+            Ok(ObjectWithMetadata::new(
                 uid.to_owned(),
                 object,
-                kms.params.hsm_admin.clone(),
+                user.to_owned(),
                 StateEnumeration::Active,
                 HashSet::from([ObjectOperationType::Get]),
                 attributes,
-            )
+            ))
         }
-    };
-
-    Ok(owm)
+    }
 }
