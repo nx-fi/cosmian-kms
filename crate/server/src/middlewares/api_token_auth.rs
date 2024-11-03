@@ -41,7 +41,7 @@ where
 
 async fn get_api_token(kms_server: &Arc<KMS>, api_token_id: &str) -> KResult<String> {
     let mut owm_s = kms_server
-        .db
+        .objects_store
         .retrieve(
             api_token_id,
             &kms_server.params.default_username,

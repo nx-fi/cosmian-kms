@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 
 use cloudproof::reexport::{cover_crypt::Covercrypt, crypto_core::FixedSizeCBytes};
 use cosmian_hsm_traits::HSM;
@@ -27,12 +27,12 @@ use super::{
 use crate::{
     config::{DbParams, ServerParams},
     database::{
-        cached_database::CachedDatabase,
         cached_sqlcipher::CachedSqlCipher,
         mysql::MySqlPool,
         pgsql::PgPool,
         redis::{RedisWithFindex, REDIS_WITH_FINDEX_MASTER_KEY_LENGTH},
         sqlite::SqlitePool,
+        store::{ObjectsStore, PermissionsStore},
         Database,
     },
     error::KmsError,
@@ -42,25 +42,25 @@ use crate::{
 
 impl KMS {
     pub(crate) async fn instantiate(mut server_params: ServerParams) -> KResult<Self> {
-        let db: Box<dyn Database + Sync + Send> = if let Some(mut db_params) =
+        let db: Arc<dyn Database + Sync + Send> = if let Some(mut db_params) =
             server_params.db_params.as_mut()
         {
             match &mut db_params {
-                DbParams::SqliteEnc(db_path) => Box::new(CachedSqlCipher::instantiate(
+                DbParams::SqliteEnc(db_path) => Arc::new(CachedSqlCipher::instantiate(
                     db_path,
                     server_params.clear_db_on_start,
                 )?),
-                DbParams::Sqlite(db_path) => Box::new(
+                DbParams::Sqlite(db_path) => Arc::new(
                     SqlitePool::instantiate(
                         &db_path.join("kms.db"),
                         server_params.clear_db_on_start,
                     )
                     .await?,
                 ),
-                DbParams::Postgres(url) => Box::new(
+                DbParams::Postgres(url) => Arc::new(
                     PgPool::instantiate(url.as_str(), server_params.clear_db_on_start).await?,
                 ),
-                DbParams::Mysql(url) => Box::new(
+                DbParams::Mysql(url) => Arc::new(
                     MySqlPool::instantiate(url.as_str(), server_params.clear_db_on_start).await?,
                 ),
                 DbParams::RedisFindex(url, master_key, label) => {
@@ -73,7 +73,7 @@ impl KMS {
                         );
                     // `master_key` implements ZeroizeOnDrop so there is no need
                     // to manually zeroize.
-                    Box::new(
+                    Arc::new(
                         RedisWithFindex::instantiate(url.as_str(), new_master_key, label).await?,
                     )
                 }
@@ -82,8 +82,11 @@ impl KMS {
             kms_bail!("Fatal: no database configuration provided. Stopping.")
         };
 
+        let objects_store = ObjectsStore::new(db.clone());
+        let permissions_store = PermissionsStore::new(db);
+
         // Use cache
-        let db = Box::new(CachedDatabase::new(db)?);
+        // let db = Box::new(CachedDatabase::new(db)?);
 
         // Check if we have Proteccio HSM
         let hsm: Option<Box<dyn HSM + Sync + Send>> =
@@ -109,7 +112,8 @@ impl KMS {
 
         Ok(Self {
             params: server_params,
-            db,
+            objects_store,
+            permissions_store,
             hsm,
         })
     }

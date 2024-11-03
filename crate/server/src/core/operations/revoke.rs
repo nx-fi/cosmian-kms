@@ -70,7 +70,7 @@ pub(crate) async fn recursively_revoke_key(
 ) -> KResult<()> {
     // retrieve from tags or use passed identifier
     let owm_s = kms
-        .db
+        .objects_store
         .retrieve(uid_or_tags, user, ObjectOperationType::Revoke, params)
         .await?
         .into_values()
@@ -224,7 +224,7 @@ async fn revoke_key_core(
         },
         RevocationReason::TextString(_) => StateEnumeration::Deactivated,
     };
-    kms.db
+    kms.objects_store
         .update_state(unique_identifier, state, params)
         .await?;
 

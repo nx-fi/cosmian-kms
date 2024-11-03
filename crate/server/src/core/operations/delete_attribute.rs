@@ -125,13 +125,13 @@ pub(crate) async fn delete_attribute(
         }
     }
 
-    let tags = kms.db.retrieve_tags(owm.id(), params).await?;
+    let tags = kms.objects_store.retrieve_tags(owm.id(), params).await?;
 
     if let Ok(object_attributes) = owm.object_mut().attributes_mut() {
         *object_attributes = attributes.clone();
     }
 
-    kms.db
+    kms.objects_store
         .update_object(owm.id(), owm.object(), &attributes, Some(&tags), params)
         .await?;
 

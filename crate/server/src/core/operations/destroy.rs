@@ -61,7 +61,7 @@ pub(crate) async fn recursively_destroy_key(
 ) -> KResult<()> {
     // retrieve from tags or use passed identifier
     let owm_s = kms
-        .db
+        .objects_store
         .retrieve(uid_or_tags, user, ObjectOperationType::Destroy, params)
         .await?
         .into_values()
@@ -197,11 +197,11 @@ async fn destroy_key_core(
         key_block.attributes()?.clone()
     };
 
-    kms.db
+    kms.objects_store
         .update_object(unique_identifier, object, &attributes, None, params)
         .await?;
 
-    kms.db
+    kms.objects_store
         .update_state(unique_identifier, new_state, params)
         .await?;
 

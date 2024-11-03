@@ -67,7 +67,7 @@ async fn create_user_decryption_key_(
 
     // retrieve from tags or use passed identifier
     let mut owm_s = kmip_server
-        .db
+        .objects_store
         .retrieve(&msk_uid_or_tag, user, ObjectOperationType::Get, params)
         .await?
         .into_values()

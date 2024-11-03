@@ -179,7 +179,7 @@ async fn create_kms_keypair(
             pk_tags,
         )),
     ];
-    kms.db.atomic(owner, &operations, params).await?;
+    kms.objects_store.atomic(owner, &operations, params).await?;
 
     debug!("Created key pair: {}/{}", &sk_uid, &pk_uid);
     Ok(CreateKeyPairResponse {

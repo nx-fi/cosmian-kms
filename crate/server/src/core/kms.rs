@@ -33,7 +33,7 @@ use uuid::Uuid;
 use crate::{
     config::{DbParams, ServerParams},
     core::{extra_database_params::ExtraDatabaseParams, operations},
-    database::Database,
+    database::store::{ObjectsStore, PermissionsStore},
     error::KmsError,
     kms_bail, kms_error,
     middlewares::{JwtAuthClaim, PeerCommonName},
@@ -44,7 +44,10 @@ use crate::{
 /// `https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=kmip`
 pub struct KMS {
     pub(crate) params: ServerParams,
-    pub(crate) db: Box<dyn Database + Sync + Send>,
+    pub(crate) objects_store: ObjectsStore,
+    pub(crate) permissions_store: PermissionsStore,
+
+    // pub(crate) db: Box<dyn Database + Sync + Send>,
     pub(crate) hsm: Option<Box<dyn HSM + Sync + Send>>,
 }
 
@@ -68,7 +71,7 @@ impl KMS {
             // Generate a new group id
             let uid: u128 = loop {
                 let uid = Uuid::new_v4().to_u128_le();
-                if let Some(database) = self.db.filename(uid) {
+                if let Some(database) = self.objects_store.filename(uid).await {
                     if !database.exists() {
                         // Create an empty file (to book the group id)
                         fs::File::create(database)?;
@@ -88,7 +91,9 @@ impl KMS {
             // Create a dummy query to initialize the database
             // Note: if we don't proceed like that, the password will be set at the first query of the user
             // which let him put the password he wants.
-            self.db.find(None, None, "", true, Some(&params)).await?;
+            self.objects_store
+                .find(None, None, "", true, Some(&params))
+                .await?;
 
             return Ok(token)
         }
@@ -458,6 +463,7 @@ impl KMS {
         operations::locate(self, request, Some(StateEnumeration::Active), user, params).await
     }
 
+    #[allow(clippy::large_futures)]
     // This request is used to generate a replacement key pair for an existing
     // public/private key pair.  It is analogous to the Create Key Pair operation,
     // except that attributes of the replacement key pair are copied from the
@@ -567,7 +573,11 @@ impl KMS {
             .context("unique_identifier is not a string")?;
 
         // check the object identified by its `uid` is really owned by `owner`
-        if !self.db.is_object_owned_by(uid, owner, params).await? {
+        if !self
+            .permissions_store
+            .is_object_owned_by(uid, owner, params)
+            .await?
+        {
             kms_bail!(KmsError::Unauthorized(format!(
                 "Object with uid `{uid}` is not owned by owner `{owner}`"
             )))
@@ -581,7 +591,7 @@ impl KMS {
             ))
         }
 
-        self.db
+        self.permissions_store
             .grant_access(
                 uid,
                 &access.user_id,
@@ -609,7 +619,11 @@ impl KMS {
             .context("unique_identifier is not a string")?;
 
         // check the object identified by its `uid` is really owned by `owner`
-        if !self.db.is_object_owned_by(uid, owner, params).await? {
+        if !self
+            .permissions_store
+            .is_object_owned_by(uid, owner, params)
+            .await?
+        {
             kms_bail!(KmsError::Unauthorized(format!(
                 "Object with uid `{uid}` is not owned by owner `{owner}`"
             )))
@@ -623,7 +637,7 @@ impl KMS {
             ))
         }
 
-        self.db
+        self.permissions_store
             .remove_access(
                 uid,
                 &access.user_id,
@@ -647,14 +661,18 @@ impl KMS {
             .context("unique_identifier is not a string")?;
         // check the object identified by its `uid` is really owned by `owner`
         // only the owner can list the permission of an object
-        if !self.db.is_object_owned_by(object_id, owner, params).await? {
+        if !self
+            .permissions_store
+            .is_object_owned_by(object_id, owner, params)
+            .await?
+        {
             kms_bail!(KmsError::Unauthorized(format!(
                 "Object with uid `{object_id}` is not owned by owner `{owner}`"
             )))
         }
 
         let list = self
-            .db
+            .permissions_store
             .list_object_accesses_granted(object_id, params)
             .await?;
         let ids = list
@@ -674,7 +692,10 @@ impl KMS {
         owner: &str,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<Vec<ObjectOwnedResponse>> {
-        let list = self.db.find(None, None, owner, true, params).await?;
+        let list = self
+            .objects_store
+            .find(None, None, owner, true, params)
+            .await?;
         let ids = list.into_iter().map(ObjectOwnedResponse::from).collect();
         Ok(ids)
     }
@@ -686,7 +707,7 @@ impl KMS {
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<Vec<AccessRightsObtainedResponse>> {
         let list = self
-            .db
+            .permissions_store
             .list_user_granted_access_rights(user, params)
             .await?;
         let ids = list

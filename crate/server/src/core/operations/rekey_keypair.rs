@@ -44,7 +44,7 @@ pub(crate) async fn rekey_keypair(
 
     // retrieve from tags or use passed identifier
     let mut owm_s = kms
-        .db
+        .objects_store
         .retrieve(uid_or_tags, user, ObjectOperationType::Rekey, params)
         .await?
         .into_values()

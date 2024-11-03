@@ -60,7 +60,7 @@ async fn main() -> KResult<()> {
     };
 
     let clap_config = if conf.exists() {
-        _ = ClapConfig::parse(); // Do that do catch --help or --version even if we use a conf file
+        let _ = ClapConfig::parse(); // Do that do catch --help or --version even if we use a conf file
 
         info!(
             "Configuration file {conf:?} found. Command line arguments and env variables are \
@@ -213,6 +213,10 @@ mod tests {
                 quiet: false,
             },
             info: false,
+            hsm_model: "".to_string(),
+            hsm_admin: "".to_string(),
+            hsm_slot: vec![],
+            hsm_password: vec![],
         };
 
         let toml_string = r#"

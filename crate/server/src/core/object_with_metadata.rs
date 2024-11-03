@@ -1,7 +1,6 @@
 use std::{
     collections::HashSet,
     fmt::{self, Display, Formatter},
-    sync::Arc,
 };
 
 use cosmian_kmip::kmip::{
@@ -9,12 +8,10 @@ use cosmian_kmip::kmip::{
     kmip_types::{Attributes, StateEnumeration},
 };
 use cosmian_kms_client::access::ObjectOperationType;
-use log::trace;
+use tracing::trace;
 
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, wrapping::unwrap_key, KMS},
-    database::cached_database::{CachedUnwrappedObject, UnwrappedCache},
-    error::KmsError,
+    core::{extra_database_params::ExtraDatabaseParams, KMS},
     result::{KResult, KResultHelper},
 };
 
@@ -31,9 +28,6 @@ pub(crate) struct ObjectWithMetadata {
     state: StateEnumeration,
     permissions: HashSet<ObjectOperationType>,
     attributes: Attributes,
-    /// This is a reference the cache - if any -  holding the unwrapped version of the objects,
-    /// if the object is unwrappable;
-    unwrapped_cache: Option<Arc<UnwrappedCache>>,
 }
 
 impl ObjectWithMetadata {
@@ -52,7 +46,6 @@ impl ObjectWithMetadata {
             state,
             permissions,
             attributes,
-            unwrapped_cache: None,
         }
     }
 
@@ -68,7 +61,6 @@ impl ObjectWithMetadata {
     /// if any
     pub(crate) async fn set_object(&mut self, object: Object) {
         self.object = object;
-        self.clear_unwrapped().await;
     }
 
     /// Return a mutable borrow to the Object
@@ -108,9 +100,9 @@ impl ObjectWithMetadata {
     /// This call will return None for non-wrappable objects such as Certificates
     pub(crate) async fn unwrapped(
         &self,
-        kms: &KMS,
-        user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        _kms: &KMS,
+        _user: &str,
+        _params: Option<&ExtraDatabaseParams>,
     ) -> KResult<Object> {
         // Is this an unwrapped key?
         if self
@@ -125,62 +117,45 @@ impl ObjectWithMetadata {
             return Ok(self.object.clone());
         }
 
-        // check is we have it in cache
-        if let Some(unwrapped_cache) = &self.unwrapped_cache {
-            if let Some(unwrapped) = unwrapped_cache.read().await.peek(&self.id) {
-                trace!("Unwrapped cache hit");
-                return unwrapped
-                    .as_ref()
-                    .map(|u| u.unwrapped_object().to_owned())
-                    .map_err(Clone::clone);
-            }
-        }
+        panic!("this must be re-implemented");
 
-        // local async future unwrap the object
-        let unwrap_local = async {
-            let key_signature = self.object.key_signature()?;
-            let mut unwrapped_object = self.object.clone();
-            let key_block = unwrapped_object.key_block_mut()?;
-            unwrap_key(key_block, kms, user, params).await?;
-            Ok(CachedUnwrappedObject::new(key_signature, unwrapped_object))
-        };
-
-        // cache miss, try to unwrap
-        trace!("Unwrapped cache miss. Trying to unwrap");
-        let unwrapped_object = unwrap_local.await;
-        //pre-calculating the result avoids a clone on the `CachedUnwrappedObject`
-        let result = unwrapped_object
-            .as_ref()
-            .map(|u| u.unwrapped_object().to_owned())
-            .map_err(KmsError::clone);
-        // update cache is there is one
-        if let Some(unwrapped_cache) = &self.unwrapped_cache {
-            unwrapped_cache
-                .write()
-                .await
-                .put(self.id.clone(), unwrapped_object);
-        }
-        //return the result
-        result
-    }
-
-    /// Get the unwrapped cache
-    /// This is used for testing
-    #[cfg(test)]
-    pub(crate) fn unwrapped_cache(&self) -> Option<Arc<UnwrappedCache>> {
-        self.unwrapped_cache.clone()
-    }
-
-    /// Set the unwrapped cache
-    pub(crate) fn set_unwrapped_cache(&mut self, unwrapped_cache: Arc<UnwrappedCache>) {
-        self.unwrapped_cache = Some(unwrapped_cache);
-    }
-
-    /// Clear the Unwrapped value if any, forcing unwrapping again on a call to `unwrapped()`
-    pub(crate) async fn clear_unwrapped(&mut self) {
-        if let Some(cache) = &mut self.unwrapped_cache {
-            cache.write().await.pop(&self.id);
-        }
+        // // check is we have it in cache
+        // if let Some(unwrapped_cache) = &self.unwrapped_cache {
+        //     if let Some(unwrapped) = unwrapped_cache.read().await.peek(&self.id) {
+        //         trace!("Unwrapped cache hit");
+        //         return unwrapped
+        //             .as_ref()
+        //             .map(|u| u.unwrapped_object().to_owned())
+        //             .map_err(Clone::clone);
+        //     }
+        // }
+        //
+        // // local async future unwrap the object
+        // let unwrap_local = async {
+        //     let key_signature = self.object.key_signature()?;
+        //     let mut unwrapped_object = self.object.clone();
+        //     let key_block = unwrapped_object.key_block_mut()?;
+        //     unwrap_key(key_block, kms, user, params).await?;
+        //     Ok(CachedUnwrappedObject::new(key_signature, unwrapped_object))
+        // };
+        //
+        // // cache miss, try to unwrap
+        // trace!("Unwrapped cache miss. Trying to unwrap");
+        // let unwrapped_object = unwrap_local.await;
+        // //pre-calculating the result avoids a clone on the `CachedUnwrappedObject`
+        // let result = unwrapped_object
+        //     .as_ref()
+        //     .map(|u| u.unwrapped_object().to_owned())
+        //     .map_err(KmsError::clone);
+        // // update cache is there is one
+        // if let Some(unwrapped_cache) = &self.unwrapped_cache {
+        //     unwrapped_cache
+        //         .write()
+        //         .await
+        //         .put(self.id.clone(), unwrapped_object);
+        // }
+        // //return the result
+        // result
     }
 
     /// Transform this own to its unwrapped version.

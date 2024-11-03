@@ -434,14 +434,14 @@ async fn process_public_key(
                  default"
             )
         }
-        // generate a KMIP PrivateKey in the default format
+        // generate a KMIP Public in the default format
         let mut object = openssl_public_key_to_kmip_default_format(
             &openssl_key,
             attributes.cryptographic_usage_mask,
         )?;
         // add the attributes back
         let key_block = object.key_block_mut()?;
-        key_block.key_value.attributes = Some(Attributes::default());
+        key_block.key_value.attributes = Some(attributes);
 
         // wrap the key
         wrap_key(
@@ -454,7 +454,6 @@ async fn process_public_key(
         .await?;
         // reassign the wrapped key
         *object_with_metadata.object_mut() = object;
-        object_with_metadata.clear_unwrapped().await;
         return Ok(())
     }
 
@@ -471,7 +470,6 @@ async fn process_public_key(
                     attributes.cryptographic_usage_mask,
                 )?;
                 *object_with_metadata.object_mut() = object;
-                object_with_metadata.clear_unwrapped().await;
             }
             _ => kms_bail!("export: unsupported Key Format Type: {:?}", key_format_type),
         }
@@ -486,7 +484,7 @@ async fn process_public_key(
 
     // add the attributes back
     let key_block = object_with_metadata.object_mut().key_block_mut()?;
-    key_block.key_value.attributes = Some(Attributes::default());
+    key_block.key_value.attributes = Some(attributes);
 
     Ok(())
 }

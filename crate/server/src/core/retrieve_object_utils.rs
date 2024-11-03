@@ -58,7 +58,7 @@ async fn _retrieve_object(
 
     // Getting a database object
     let mut owm_s: Vec<ObjectWithMetadata> = kms
-        .db
+        .objects_store
         .retrieve(uid_or_tags, user, operation_type, params)
         .await?
         .into_values()

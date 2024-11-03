@@ -216,7 +216,7 @@ pub(crate) async fn certify(
     };
 
     // perform DB operations
-    kms.db.atomic(user, &operations, params).await?;
+    kms.objects_store.atomic(user, &operations, params).await?;
 
     Ok(CertifyResponse { unique_identifier })
 }

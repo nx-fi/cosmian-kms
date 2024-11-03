@@ -20,7 +20,6 @@ pub(crate) async fn get(
     params: Option<&ExtraDatabaseParams>,
 ) -> KResult<GetResponse> {
     trace!("Get: {}", serde_json::to_string(&request)?);
-
     let response = export_get(kms, request, ObjectOperationType::Get, user, params)
         .await
         .map(Into::into)?;

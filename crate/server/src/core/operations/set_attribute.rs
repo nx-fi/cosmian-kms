@@ -93,7 +93,7 @@ pub(crate) async fn set_attribute(
         }
     }
 
-    let tags = kms.db.retrieve_tags(owm.id(), params).await?;
+    let tags = kms.objects_store.retrieve_tags(owm.id(), params).await?;
 
     match owm.object().object_type() {
         ObjectType::PublicKey
@@ -115,7 +115,7 @@ pub(crate) async fn set_attribute(
     }
 
     debug!("Set Attribute: {:?}", attributes);
-    kms.db
+    kms.objects_store
         .update_object(owm.id(), owm.object(), &attributes, Some(&tags), params)
         .await?;
 

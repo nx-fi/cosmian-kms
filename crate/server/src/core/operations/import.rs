@@ -68,7 +68,7 @@ pub(crate) async fn import(
         }
     };
     // execute the operations
-    kms.db.atomic(owner, &operations, params).await?;
+    kms.objects_store.atomic(owner, &operations, params).await?;
     // return the uid
     debug!("Imported object with uid: {}", uid);
     Ok(ImportResponse {

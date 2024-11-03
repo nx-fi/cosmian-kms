@@ -160,7 +160,7 @@ pub(crate) async fn get_attributes(
                 attribute_name,
             }) => {
                 if vendor_identification == VENDOR_ID_COSMIAN && attribute_name == VENDOR_ATTR_TAG {
-                    let tags = kms.db.retrieve_tags(owm.id(), params).await?;
+                    let tags = kms.objects_store.retrieve_tags(owm.id(), params).await?;
                     res.add_vendor_attribute(VendorAttribute {
                         vendor_identification: VENDOR_ID_COSMIAN.to_owned(),
                         attribute_name: VENDOR_ATTR_TAG.to_owned(),

@@ -1,7 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
-    sync::{Arc, RwLock},
+    sync::Arc,
 };
 
 use cosmian_kmip::kmip::{
@@ -9,6 +9,7 @@ use cosmian_kmip::kmip::{
     kmip_types::{Attributes, StateEnumeration},
 };
 use cosmian_kms_client::access::{IsWrapped, ObjectOperationType};
+use tokio::sync::RwLock;
 
 use crate::{
     core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
@@ -24,61 +25,71 @@ pub(crate) struct ObjectsStore {
 }
 
 impl ObjectsStore {
-    /// Register an Objects Database for Objects uid starting with <prefix>::
-    ///
-    /// The un-prefixed objects go to the default database with the None or empty prefix  
-    pub fn register_database(
-        &self,
-        prefix: Option<&str>,
-        database: Arc<dyn Database + Sync + Send>,
-    ) {
-        let mut map = self.dbs.write().expect("failed locking the DBs map");
-        map.insert(prefix.map(String::from).unwrap_or(String::new()), database);
+    /// Create a new Objects Store
+    ///  - `default_database` is the default database for objects without a prefix
+    pub(crate) fn new(default_database: Arc<dyn Database + Sync + Send>) -> Self {
+        Self {
+            dbs: RwLock::new(HashMap::from([(String::new(), default_database)])),
+        }
     }
 
+    #[allow(dead_code)]
+    /// Register an Objects Database for Objects uid starting with <prefix>::
+    pub(crate) async fn register_database(
+        &self,
+        prefix: &str,
+        database: Arc<dyn Database + Sync + Send>,
+    ) {
+        let mut map = self.dbs.write().await;
+        map.insert(prefix.to_owned(), database);
+    }
+
+    #[allow(dead_code)]
     /// Unregister the default objects database or a database for the given prefix
-    pub fn unregister_database(&self, prefix: Option<&str>) {
-        let mut map = self.dbs.write().expect("failed locking the DBs map");
+    pub(crate) async fn unregister_database(&self, prefix: Option<&str>) {
+        let mut map = self.dbs.write().await;
         map.remove(prefix.unwrap_or(""));
     }
 
-    fn get_database(&self, uid: &str) -> KResult<Arc<dyn Database + Sync + Send>> {
+    async fn get_database(&self, uid: &str) -> KResult<Arc<dyn Database + Sync + Send>> {
         // split the uid on the first ::
         let splits = uid.split_once("::");
         Ok(match splits {
             Some((prefix, _rest)) => self
                 .dbs
                 .read()
-                .expect("failed locking the DBs map")
+                .await
                 .get(prefix)
                 .ok_or_else(|| {
                     KmsError::InvalidRequest(format!(
-                        "No object store available for uids prefixed with {prefix}::"
+                        "No object store available for UIDs prefixed with {prefix}::"
                     ))
                 })?
                 .clone(),
             None => self
                 .dbs
                 .read()
-                .expect("failed locking the DBs map")
+                .await
                 .get("")
                 .ok_or_else(|| {
-                    KmsError::InvalidRequest("No default object store available".to_string())
+                    KmsError::InvalidRequest("No default object store available".to_owned())
                 })?
                 .clone(),
         })
     }
 
     /// Return the filename of the database or `None` if not supported
-    fn filename(&self, group_id: u128) -> Option<PathBuf> {
+    pub(crate) async fn filename(&self, group_id: u128) -> Option<PathBuf> {
         self.get_database("")
+            .await
             .ok()
             .and_then(|db| db.filename(group_id))
     }
 
+    #[allow(dead_code)]
     /// Migrate all the databases to the latest version
-    async fn migrate(&self, params: Option<&ExtraDatabaseParams>) -> KResult<()> {
-        let map = self.dbs.write().expect("failed locking the DBs map");
+    pub(crate) async fn migrate(&self, params: Option<&ExtraDatabaseParams>) -> KResult<()> {
+        let map = self.dbs.write().await;
         for (_prefix, db) in map.iter() {
             db.migrate(params).await?;
         }
@@ -90,7 +101,7 @@ impl ObjectsStore {
     /// A new UUID will be created if none is supplier.
     /// This method will fail if a `uid` is supplied
     /// and an object with the same id already exists
-    async fn create(
+    pub(crate) async fn create(
         &self,
         uid: Option<String>,
         owner: &str,
@@ -99,7 +110,9 @@ impl ObjectsStore {
         tags: &HashSet<String>,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<String> {
-        let db = self.get_database(uid.clone().unwrap_or(String::new()).as_str())?;
+        let db = self
+            .get_database(uid.clone().unwrap_or_default().as_str())
+            .await?;
         db.create(uid, owner, object, attributes, tags, params)
             .await
     }
@@ -110,33 +123,33 @@ impl ObjectsStore {
     /// in a JSON array.
     ///
     /// The `query_access_grant` allows additional filtering in the `access` table to see
-    /// if a `user`, that is not a owner, has the corresponding access granted
-    async fn retrieve(
+    /// if a `user`, that is not an owner, has the corresponding access granted
+    pub(crate) async fn retrieve(
         &self,
         uid_or_tags: &str,
         user: &str,
         query_access_grant: ObjectOperationType,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<HashMap<String, ObjectWithMetadata>> {
-        let db = self.get_database(uid_or_tags)?;
+        let db = self.get_database(uid_or_tags).await?;
         db.retrieve(uid_or_tags, user, query_access_grant, params)
             .await
     }
 
     /// Retrieve the tags of the object with the given `uid`
-    async fn retrieve_tags(
+    pub(crate) async fn retrieve_tags(
         &self,
         uid: &str,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<HashSet<String>> {
-        let db = self.get_database(uid)?;
+        let db = self.get_database(uid).await?;
         db.retrieve_tags(uid, params).await
     }
 
     /// Update an object in the database.
     ///
     /// If tags is `None`, the tags will not be updated.
-    async fn update_object(
+    pub(crate) async fn update_object(
         &self,
         uid: &str,
         object: &Object,
@@ -144,28 +157,28 @@ impl ObjectsStore {
         tags: Option<&HashSet<String>>,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<()> {
-        let db = self.get_database(uid)?;
+        let db = self.get_database(uid).await?;
         db.update_object(uid, object, attributes, tags, params)
             .await
     }
 
     /// Update the state of an object in the database.
-    async fn update_state(
+    pub(crate) async fn update_state(
         &self,
         uid: &str,
         state: StateEnumeration,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<()> {
-        let db = self.get_database(uid)?;
+        let db = self.get_database(uid).await?;
         db.update_state(uid, state, params).await
     }
 
-    /// Upsert (update or create if does not exist)
+    /// Upsert (update or create, if the object does not exist)
     ///
     /// If tags is `None`, the tags will not be updated.
     #[allow(clippy::too_many_arguments)]
     #[allow(dead_code)]
-    async fn upsert(
+    pub(crate) async fn upsert(
         &self,
         uid: &str,
         user: &str,
@@ -175,26 +188,26 @@ impl ObjectsStore {
         state: StateEnumeration,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<()> {
-        let db = self.get_database(uid)?;
+        let db = self.get_database(uid).await?;
         db.upsert(uid, user, object, attributes, tags, state, params)
             .await
     }
 
     /// Delete an object from the database.
     #[allow(dead_code)]
-    async fn delete(
+    pub(crate) async fn delete(
         &self,
         uid: &str,
         user: &str,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<()> {
-        let db = self.get_database(uid)?;
+        let db = self.get_database(uid).await?;
         db.delete(uid, user, params).await
     }
 
     /// Return uid, state and attributes of the object identified by its owner,
     /// and possibly by its attributes and/or its `state`
-    async fn find(
+    pub(crate) async fn find(
         &self,
         researched_attributes: Option<&Attributes>,
         state: Option<StateEnumeration>,
@@ -202,7 +215,7 @@ impl ObjectsStore {
         user_must_be_owner: bool,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<Vec<(String, StateEnumeration, Attributes, IsWrapped)>> {
-        let map = self.dbs.read().expect("failed locking the DBs map");
+        let map = self.dbs.read().await;
         let mut results: Vec<(String, StateEnumeration, Attributes, IsWrapped)> = Vec::new();
         for (_prefix, db) in map.iter() {
             results.extend(
@@ -215,14 +228,15 @@ impl ObjectsStore {
                 )
                 .await
                 .unwrap_or(vec![]),
-            )
+            );
         }
         Ok(results)
     }
 
     /// Perform an atomic set of operation on the database
-    /// (typically in a transaction)
-    async fn atomic(
+    /// (typically in a transaction). This function assumes
+    /// that all objects belong to the same database.
+    pub(crate) async fn atomic(
         &self,
         user: &str,
         operations: &[AtomicOperation],
@@ -237,7 +251,9 @@ impl ObjectsStore {
             | AtomicOperation::Upsert((uid, _, _, _, _))
             | AtomicOperation::UpdateObject((uid, _, _, _))
             | AtomicOperation::UpdateState((uid, _))
-            | AtomicOperation::Delete((uid)) => uid,
+            | AtomicOperation::Delete(uid) => uid,
         };
+        let db = self.get_database(uid).await?;
+        db.atomic(user, operations, params).await
     }
 }
