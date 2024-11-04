@@ -208,3 +208,15 @@ pub(crate) enum AtomicOperation {
     /// Delete (uid)
     Delete(String),
 }
+
+impl AtomicOperation {
+    pub(crate) fn get_object_uid(&self) -> &str {
+        match self {
+            AtomicOperation::Create((uid, _, _, _))
+            | AtomicOperation::Upsert((uid, _, _, _, _))
+            | AtomicOperation::UpdateObject((uid, _, _, _))
+            | AtomicOperation::UpdateState((uid, _))
+            | AtomicOperation::Delete(uid) => uid,
+        }
+    }
+}

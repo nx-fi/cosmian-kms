@@ -82,8 +82,8 @@ impl KMS {
             kms_bail!("Fatal: no database configuration provided. Stopping.")
         };
 
-        let objects_store = ObjectsStore::new(db.clone());
-        let permissions_store = PermissionsStore::new(db);
+        let permissions_store = Arc::new(PermissionsStore::new(db.clone()));
+        let objects_store = ObjectsStore::new(db, permissions_store.clone());
 
         // Use cache
         // let db = Box::new(CachedDatabase::new(db)?);

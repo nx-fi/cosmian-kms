@@ -10,26 +10,45 @@ use cosmian_kmip::kmip::{
 };
 use cosmian_kms_client::access::{IsWrapped, ObjectOperationType};
 use tokio::sync::RwLock;
+use tracing::trace;
 
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
-    database::{AtomicOperation, Database},
+    core::{
+        extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata,
+        wrapping::unwrap_key, KMS,
+    },
+    database::{
+        store::PermissionsStore,
+        unwrapped_cache::{CachedUnwrappedObject, UnwrappedCache},
+        AtomicOperation, Database,
+    },
     error::KmsError,
-    result::KResult,
+    result::{KResult, KResultHelper},
 };
 
 pub(crate) struct ObjectsStore {
     /// A map of uid prefixes to Objects Database
     /// The "no-prefix" DB is registered under the empty string
     dbs: RwLock<HashMap<String, Arc<dyn Database + Sync + Send>>>,
+    /// The Unwrapped cache keeps the unwrapped version of keys in memory
+    /// This cache avoid calls to HSMs for each operation
+    unwrapped_cache: UnwrappedCache,
+    /// The permissions store is used to check if a user has the right to perform an operation
+    //TODO use this store to check permissions in retrive, update, delete, etc.
+    _permissions_store: Arc<PermissionsStore>,
 }
 
 impl ObjectsStore {
     /// Create a new Objects Store
     ///  - `default_database` is the default database for objects without a prefix
-    pub(crate) fn new(default_database: Arc<dyn Database + Sync + Send>) -> Self {
+    pub(crate) fn new(
+        default_database: Arc<dyn Database + Sync + Send>,
+        permissions_store: Arc<PermissionsStore>,
+    ) -> Self {
         Self {
             dbs: RwLock::new(HashMap::from([(String::new(), default_database)])),
+            unwrapped_cache: UnwrappedCache::new(),
+            _permissions_store: permissions_store,
         }
     }
 
@@ -113,8 +132,12 @@ impl ObjectsStore {
         let db = self
             .get_database(uid.clone().unwrap_or_default().as_str())
             .await?;
-        db.create(uid, owner, object, attributes, tags, params)
-            .await
+        let uid = db
+            .create(uid, owner, object, attributes, tags, params)
+            .await?;
+        // Clear the cache for the unwrapped key (if any)
+        self.unwrapped_cache.validate_cache(&uid, object).await;
+        Ok(uid)
     }
 
     /// Retrieve objects from the database.
@@ -122,18 +145,24 @@ impl ObjectsStore {
     /// The `uid_or_tags` parameter can be either a `uid` or a comma-separated list of tags
     /// in a JSON array.
     ///
-    /// The `query_access_grant` allows additional filtering in the `access` table to see
+    /// The `permission` allows additional filtering in the `access` table to see
     /// if a `user`, that is not an owner, has the corresponding access granted
     pub(crate) async fn retrieve(
         &self,
         uid_or_tags: &str,
         user: &str,
-        query_access_grant: ObjectOperationType,
+        permission: ObjectOperationType,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<HashMap<String, ObjectWithMetadata>> {
         let db = self.get_database(uid_or_tags).await?;
-        db.retrieve(uid_or_tags, user, query_access_grant, params)
-            .await
+        let objects = db.retrieve(uid_or_tags, user, permission, params).await?;
+        // check if we need to invalidate the cache wrapped objects
+        for owm in objects.values() {
+            self.unwrapped_cache
+                .validate_cache(owm.id(), owm.object())
+                .await;
+        }
+        Ok(objects)
     }
 
     /// Retrieve the tags of the object with the given `uid`
@@ -159,7 +188,9 @@ impl ObjectsStore {
     ) -> KResult<()> {
         let db = self.get_database(uid).await?;
         db.update_object(uid, object, attributes, tags, params)
-            .await
+            .await?;
+        self.unwrapped_cache.validate_cache(uid, object).await;
+        Ok(())
     }
 
     /// Update the state of an object in the database.
@@ -173,37 +204,39 @@ impl ObjectsStore {
         db.update_state(uid, state, params).await
     }
 
-    /// Upsert (update or create, if the object does not exist)
-    ///
-    /// If tags is `None`, the tags will not be updated.
-    #[allow(clippy::too_many_arguments)]
-    #[allow(dead_code)]
-    pub(crate) async fn upsert(
-        &self,
-        uid: &str,
-        user: &str,
-        object: &Object,
-        attributes: &Attributes,
-        tags: Option<&HashSet<String>>,
-        state: StateEnumeration,
-        params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<()> {
-        let db = self.get_database(uid).await?;
-        db.upsert(uid, user, object, attributes, tags, state, params)
-            .await
-    }
+    // /// Upsert (update or create, if the object does not exist)
+    // ///
+    // /// If tags is `None`, the tags will not be updated.
+    // #[allow(clippy::too_many_arguments)]
+    // pub(crate) async fn upsert(
+    //     &self,
+    //     uid: &str,
+    //     user: &str,
+    //     object: &Object,
+    //     attributes: &Attributes,
+    //     tags: Option<&HashSet<String>>,
+    //     state: StateEnumeration,
+    //     params: Option<&ExtraDatabaseParams>,
+    // ) -> KResult<()> {
+    //     let db = self.get_database(uid).await?;
+    //     db.upsert(uid, user, object, attributes, tags, state, params)
+    //         .await?;
+    //     self.unwrapped_cache.validate_cache(uid, object).await;
+    //     Ok(())
+    // }
 
-    /// Delete an object from the database.
-    #[allow(dead_code)]
-    pub(crate) async fn delete(
-        &self,
-        uid: &str,
-        user: &str,
-        params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<()> {
-        let db = self.get_database(uid).await?;
-        db.delete(uid, user, params).await
-    }
+    // /// Delete an object from the database.
+    // pub(crate) async fn delete(
+    //     &self,
+    //     uid: &str,
+    //     user: &str,
+    //     params: Option<&ExtraDatabaseParams>,
+    // ) -> KResult<()> {
+    //     let db = self.get_database(uid).await?;
+    //     db.delete(uid, user, params).await?;
+    //     self.unwrapped_cache.clear_cache(uid).await;
+    //     Ok(())
+    // }
 
     /// Return uid, state and attributes of the object identified by its owner,
     /// and possibly by its attributes and/or its `state`
@@ -246,14 +279,170 @@ impl ObjectsStore {
             return Ok(())
         }
         let first_op = &operations[0];
-        let uid = match first_op {
-            AtomicOperation::Create((uid, _, _, _))
-            | AtomicOperation::Upsert((uid, _, _, _, _))
-            | AtomicOperation::UpdateObject((uid, _, _, _))
-            | AtomicOperation::UpdateState((uid, _))
-            | AtomicOperation::Delete(uid) => uid,
+        let first_uid = first_op.get_object_uid();
+        let db = self.get_database(first_uid).await?;
+        db.atomic(user, operations, params).await?;
+        // invalidate of clear cache for all operations
+        for op in operations {
+            match op {
+                AtomicOperation::Create((uid, object, ..))
+                | AtomicOperation::UpdateObject((uid, object, ..))
+                | AtomicOperation::Upsert((uid, object, ..)) => {
+                    self.unwrapped_cache.validate_cache(uid, object).await;
+                }
+                AtomicOperation::Delete(uid) => {
+                    self.unwrapped_cache.clear_cache(uid).await;
+                }
+                AtomicOperation::UpdateState(_) => {}
+            }
+        }
+        Ok(())
+    }
+
+    /// Unwrap the object (if need be) and return the unwrapped object
+    /// The unwrapped object is cached in memory
+    //TODO refactor unwrapk_key() to use the permissions store
+    pub(crate) async fn get_unwrapped(
+        &self,
+        uid: &str,
+        object: &Object,
+        kms: &KMS,
+        user: &str,
+        params: Option<&ExtraDatabaseParams>,
+    ) -> KResult<Object> {
+        // Is this an unwrapped key?
+        if object
+            .key_block()
+            .context("Cannot unwrap non key object")?
+            .key_wrapping_data
+            .is_none()
+        {
+            // already an unwrapped key
+            tracing::trace!("Already an unwrapped key");
+            return Ok(object.clone());
+        }
+
+        // check is we have it in cache
+        match self.unwrapped_cache.peek(uid).await {
+            Some(Ok(u)) => {
+                // Note: In theory the cache should always be in sync...
+                if *u.key_signature() == object.key_signature()? {
+                    trace!("Unwrapped cache hit");
+                    return Ok(u.unwrapped_object().clone());
+                }
+            }
+            Some(Err(e)) => {
+                return Err(e);
+            }
+            None => {
+                // try unwrapping
+            }
+        }
+
+        // local async future unwrap the object
+        let unwrap_local = async {
+            let key_signature = object.key_signature()?;
+            let mut unwrapped_object = object.clone();
+            let key_block = unwrapped_object.key_block_mut()?;
+            unwrap_key(key_block, kms, user, params).await?;
+            Ok(CachedUnwrappedObject::new(key_signature, unwrapped_object))
         };
-        let db = self.get_database(uid).await?;
-        db.atomic(user, operations, params).await
+
+        // cache miss, try to unwrap
+        trace!("Unwrapped cache miss. Trying to unwrap");
+        let unwrapped_object = unwrap_local.await;
+        //pre-calculating the result avoids a clone on the `CachedUnwrappedObject`
+        let result = unwrapped_object
+            .as_ref()
+            .map(|u| u.unwrapped_object().to_owned())
+            .map_err(KmsError::clone);
+        // update cache is there is one
+        self.unwrapped_cache
+            .insert(uid.to_owned(), unwrapped_object)
+            .await;
+        //return the result
+        result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{collections::HashSet, sync::Arc};
+
+    use cloudproof::reexport::crypto_core::{
+        reexport::rand_core::{RngCore, SeedableRng},
+        CsRng,
+    };
+    use cosmian_kmip::{
+        crypto::symmetric::create_symmetric_key_kmip_object,
+        kmip::kmip_types::CryptographicAlgorithm,
+    };
+    use cosmian_kms_client::access::ObjectOperationType;
+    use cosmian_logger::log_utils::log_init;
+    use tempfile::TempDir;
+    use uuid::Uuid;
+
+    use crate::{
+        database::{
+            sqlite::SqlitePool,
+            store::{ObjectsStore, PermissionsStore},
+        },
+        result::KResult,
+    };
+
+    #[tokio::test]
+    pub(crate) async fn test_lru_cache() -> KResult<()> {
+        log_init(option_env!("RUST_LOG"));
+
+        let dir = TempDir::new()?;
+        let db_file = dir.path().join("test_sqlite.db");
+        if db_file.exists() {
+            std::fs::remove_file(&db_file)?;
+        }
+        let sqlite = Arc::new(SqlitePool::instantiate(&db_file, true).await?);
+        let permissions_store = Arc::new(PermissionsStore::new(sqlite.clone()));
+        let db = ObjectsStore::new(sqlite, permissions_store);
+        let db_params = None;
+
+        let mut rng = CsRng::from_entropy();
+
+        // create a symmetric key with tags
+        let mut symmetric_key_bytes = vec![0; 32];
+        rng.fill_bytes(&mut symmetric_key_bytes);
+        // create symmetric key
+        let symmetric_key =
+            create_symmetric_key_kmip_object(&symmetric_key_bytes, CryptographicAlgorithm::AES)?;
+
+        // insert into DB
+        let owner = "eyJhbGciOiJSUzI1Ni";
+        let uid = Uuid::new_v4().to_string();
+        let uid_ = db
+            .create(
+                Some(uid.clone()),
+                owner,
+                &symmetric_key,
+                symmetric_key.attributes()?,
+                &HashSet::new(),
+                db_params.as_ref(),
+            )
+            .await?;
+        assert_eq!(&uid, &uid_);
+
+        // The key should not be in cache
+        assert!(db.unwrapped_cache.get_cache().await.peek(&uid).is_none());
+
+        // fetch the key
+        let map = db
+            .retrieve(&uid, owner, ObjectOperationType::Get, db_params.as_ref())
+            .await?;
+        assert_eq!(map.len(), 1);
+        assert!(map.contains_key(&uid));
+        {
+            let cache = db.unwrapped_cache.get_cache();
+            // the unwrapped version should not be in the cache
+            assert!(cache.await.peek(&uid).is_none());
+        }
+
+        Ok(())
     }
 }

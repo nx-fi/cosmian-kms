@@ -8,11 +8,10 @@ use cosmian_kmip::kmip::{
     kmip_types::{Attributes, StateEnumeration},
 };
 use cosmian_kms_client::access::ObjectOperationType;
-use tracing::trace;
 
 use crate::{
     core::{extra_database_params::ExtraDatabaseParams, KMS},
-    result::{KResult, KResultHelper},
+    result::KResult,
 };
 
 /// An object with its metadata such as owner, permissions and state
@@ -100,62 +99,13 @@ impl ObjectWithMetadata {
     /// This call will return None for non-wrappable objects such as Certificates
     pub(crate) async fn unwrapped(
         &self,
-        _kms: &KMS,
-        _user: &str,
-        _params: Option<&ExtraDatabaseParams>,
+        kms: &KMS,
+        user: &str,
+        params: Option<&ExtraDatabaseParams>,
     ) -> KResult<Object> {
-        // Is this an unwrapped key?
-        if self
-            .object
-            .key_block()
-            .context("Cannot unwrap non key object")?
-            .key_wrapping_data
-            .is_none()
-        {
-            // already an unwrapped key
-            trace!("Already an unwrapped key");
-            return Ok(self.object.clone());
-        }
-
-        panic!("this must be re-implemented");
-
-        // // check is we have it in cache
-        // if let Some(unwrapped_cache) = &self.unwrapped_cache {
-        //     if let Some(unwrapped) = unwrapped_cache.read().await.peek(&self.id) {
-        //         trace!("Unwrapped cache hit");
-        //         return unwrapped
-        //             .as_ref()
-        //             .map(|u| u.unwrapped_object().to_owned())
-        //             .map_err(Clone::clone);
-        //     }
-        // }
-        //
-        // // local async future unwrap the object
-        // let unwrap_local = async {
-        //     let key_signature = self.object.key_signature()?;
-        //     let mut unwrapped_object = self.object.clone();
-        //     let key_block = unwrapped_object.key_block_mut()?;
-        //     unwrap_key(key_block, kms, user, params).await?;
-        //     Ok(CachedUnwrappedObject::new(key_signature, unwrapped_object))
-        // };
-        //
-        // // cache miss, try to unwrap
-        // trace!("Unwrapped cache miss. Trying to unwrap");
-        // let unwrapped_object = unwrap_local.await;
-        // //pre-calculating the result avoids a clone on the `CachedUnwrappedObject`
-        // let result = unwrapped_object
-        //     .as_ref()
-        //     .map(|u| u.unwrapped_object().to_owned())
-        //     .map_err(KmsError::clone);
-        // // update cache is there is one
-        // if let Some(unwrapped_cache) = &self.unwrapped_cache {
-        //     unwrapped_cache
-        //         .write()
-        //         .await
-        //         .put(self.id.clone(), unwrapped_object);
-        // }
-        // //return the result
-        // result
+        kms.objects_store
+            .get_unwrapped(self.id(), self.object(), kms, user, params)
+            .await
     }
 
     /// Transform this own to its unwrapped version.

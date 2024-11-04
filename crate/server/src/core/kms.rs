@@ -1,6 +1,7 @@
 use std::{
     collections::{BTreeSet, HashSet},
     fs,
+    sync::Arc,
 };
 
 use actix_web::{HttpMessage, HttpRequest};
@@ -44,10 +45,13 @@ use crate::{
 /// `https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=kmip`
 pub struct KMS {
     pub(crate) params: ServerParams,
+    /// The Object store may be backed by multiple databases or HSMs
+    /// and store the cryptographic objects and their attributes.
+    /// Objects are spread across the underlying stores based on their ID prefix.
     pub(crate) objects_store: ObjectsStore,
-    pub(crate) permissions_store: PermissionsStore,
-
-    // pub(crate) db: Box<dyn Database + Sync + Send>,
+    /// The Permissions store holds the permissions for the objects
+    pub(crate) permissions_store: Arc<PermissionsStore>,
+    //TODO refactor this into ObjectStore
     pub(crate) hsm: Option<Box<dyn HSM + Sync + Send>>,
 }
 
