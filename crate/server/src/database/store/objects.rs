@@ -214,6 +214,15 @@ impl Store {
     //     Ok(())
     // }
 
+    pub(crate) async fn list_ids_for_tags(&self, tags: HashSet<String>) -> KResult<Vec<String>> {
+        let map = self.objects.read().await;
+        let mut results: Vec<String> = Vec::new();
+        for (_prefix, db) in map.iter() {
+            results.extend(db.list_ids_for_tags(tags).await?);
+        }
+        Ok(results)
+    }
+
     /// Return uid, state and attributes of the object identified by its owner,
     /// and possibly by its attributes and/or its `state`
     pub(crate) async fn find(

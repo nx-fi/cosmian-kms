@@ -150,6 +150,9 @@ pub(crate) trait ObjectsDatabase {
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<()>;
 
+    /// List the `uid` of all the objects that have the given `tags`
+    async fn list_ids_for_tags(&self, tags: HashSet<String>) -> KResult<Vec<String>>;
+
     /// Return uid, state and attributes of the object identified by its owner,
     /// and possibly by its attributes and/or its `state`
     async fn find(

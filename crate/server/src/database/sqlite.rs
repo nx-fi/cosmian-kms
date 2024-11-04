@@ -330,6 +330,26 @@ impl ObjectsDatabase for SqlitePool {
         }
     }
 
+    async fn list_ids_for_tags(&self, tags: HashSet<String>) -> KResult<Vec<String>> {
+        let tags_params = tags
+            .iter()
+            .enumerate()
+            .map(|(i, _)| format!("${}", i + 1))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let raw_sql = get_sqlite_query!("select-ids-from-tags").replace("@TAGS", &tags_params);
+
+        let mut query = sqlx::query::<Sqlite>(&raw_sql);
+        for tag in &tags {
+            query = query.bind(tag);
+        }
+
+        let rows = query.fetch_all(&self.pool).await?;
+        let ids = rows.iter().map(|r| r.get(0)).collect::<Vec<String>>();
+        Ok(ids)
+    }
+
     async fn find(
         &self,
         researched_attributes: Option<&Attributes>,
@@ -689,6 +709,32 @@ pub(crate) async fn upsert_(
 
     trace!("Upserted in DB: {uid}");
     Ok(())
+}
+
+pub(crate) async fn list_ids_for_tags_<'e, E>(
+    tags: HashSet<String>,
+    executor: E,
+) -> KResult<Vec<String>>
+where
+    E: Executor<'e, Database = Sqlite> + Copy,
+{
+    let tags_params = tags
+        .iter()
+        .enumerate()
+        .map(|(i, _)| format!("${}", i + 1))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    let raw_sql = get_sqlite_query!("select-ids-from-tags").replace("@TAGS", &tags_params);
+
+    let mut query = sqlx::query::<Sqlite>(&raw_sql);
+    for tag in &tags {
+        query = query.bind(tag);
+    }
+
+    let rows = query.fetch_all(executor).await?;
+    let ids = rows.iter().map(|r| r.get(0)).collect::<Vec<String>>();
+    Ok(ids)
 }
 
 pub(crate) async fn list_accesses_<'e, E>(
