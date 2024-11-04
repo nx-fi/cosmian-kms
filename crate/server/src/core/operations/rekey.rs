@@ -38,7 +38,7 @@ pub(crate) async fn rekey(
 
     // retrieve the symmetric key associated with the uid (the array MUST contain only one element)
     let mut owm_s = kms
-        .objects_store
+        .store
         .retrieve(uid_or_tags, owner, ObjectOperationType::Rekey, params)
         .await?
         .into_values()
@@ -86,7 +86,7 @@ pub(crate) async fn rekey(
     let (uid, operations) = process_symmetric_key(kms, import_request, owner, params).await?;
 
     // execute the operations
-    kms.objects_store.atomic(owner, &operations, params).await?;
+    kms.store.atomic(owner, &operations, params).await?;
 
     // return the uid
     debug!("Re-key symmetric key with uid: {uid}");

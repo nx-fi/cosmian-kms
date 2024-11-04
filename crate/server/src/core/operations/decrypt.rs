@@ -99,7 +99,7 @@ async fn get_key(
 
     // retrieve from tags or use passed identifier
     let mut owm_s = kms
-        .objects_store
+        .store
         .retrieve(uid_or_tags, user, ObjectOperationType::Decrypt, params)
         .await?
         .into_values()

@@ -39,12 +39,12 @@ where
     }
 }
 
-async fn get_api_token(kms_server: &Arc<KMS>, api_token_id: &str) -> KResult<String> {
-    let mut owm_s = kms_server
-        .objects_store
+async fn get_api_token(kms: &Arc<KMS>, api_token_id: &str) -> KResult<String> {
+    let mut owm_s = kms
+        .store
         .retrieve(
             api_token_id,
-            &kms_server.params.default_username,
+            &kms.params.default_username,
             ObjectOperationType::Get,
             None,
         )

@@ -70,7 +70,7 @@ async fn create_kms_key(
         }
     };
     let uid = kms
-        .objects_store
+        .store
         .create(
             unique_identifier,
             owner,

@@ -3,7 +3,7 @@ use cosmian_kmip::{
     kmip::{kmip_data_structures::KeyBlock, kmip_objects::ObjectType, kmip_types::LinkType},
 };
 use cosmian_kms_client::access::ObjectOperationType;
-use tracing::debug;
+use tracing::{debug, trace};
 
 use crate::{
     core::{
@@ -40,7 +40,7 @@ pub(crate) async fn unwrap_key(
     };
 
     debug!("unwrapping_key_uid: {unwrapping_key_uid}");
-    debug!("user: {user}");
+    trace!("user: {user}");
 
     // fetch the unwrapping key
     let unwrapping_key = retrieve_object_for_operation(

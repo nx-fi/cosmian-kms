@@ -1,25 +1,14 @@
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::collections::{HashMap, HashSet};
 
 use cosmian_kmip::kmip::kmip_types::StateEnumeration;
 use cosmian_kms_client::access::ObjectOperationType;
 
 use crate::{
-    core::extra_database_params::ExtraDatabaseParams, database::Database, result::KResult,
+    core::extra_database_params::ExtraDatabaseParams, database::store::Store, result::KResult,
 };
 
-/// There i only a Single Database backing the permissions store
-pub(crate) struct PermissionsStore {
-    db: Arc<dyn Database + Sync + Send>,
-}
-
-impl PermissionsStore {
-    pub(crate) fn new(db: Arc<dyn Database + Sync + Send>) -> Self {
-        Self { db }
-    }
-
+/// Methods that manipulate permissions
+impl Store {
     /// List all the access rights granted to the `user`
     /// on all the objects in the database
     /// (i.e. the objects for which `user` is not the owner)
@@ -30,7 +19,9 @@ impl PermissionsStore {
         user: &str,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<HashMap<String, (String, StateEnumeration, HashSet<ObjectOperationType>)>> {
-        self.db.list_user_granted_access_rights(user, params).await
+        self.permissions
+            .list_user_granted_access_rights(user, params)
+            .await
     }
 
     /// List all the accessed granted per `user`
@@ -40,7 +31,9 @@ impl PermissionsStore {
         uid: &str,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<HashMap<String, HashSet<ObjectOperationType>>> {
-        self.db.list_object_accesses_granted(uid, params).await
+        self.permissions
+            .list_object_accesses_granted(uid, params)
+            .await
     }
 
     /// Grant the access right to `user` to perform the `operation_type`
@@ -52,7 +45,7 @@ impl PermissionsStore {
         operation_types: HashSet<ObjectOperationType>,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<()> {
-        self.db
+        self.permissions
             .grant_access(uid, user, operation_types, params)
             .await
     }
@@ -66,7 +59,7 @@ impl PermissionsStore {
         operation_types: HashSet<ObjectOperationType>,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<()> {
-        self.db
+        self.permissions
             .remove_access(uid, user, operation_types, params)
             .await
     }
@@ -78,7 +71,9 @@ impl PermissionsStore {
         owner: &str,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<bool> {
-        self.db.is_object_owned_by(uid, owner, params).await
+        self.permissions
+            .is_object_owned_by(uid, owner, params)
+            .await
     }
 
     /// List all the access rights that have been granted to a user on an object
@@ -93,7 +88,7 @@ impl PermissionsStore {
         no_inherited_access: bool,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<HashSet<ObjectOperationType>> {
-        self.db
+        self.permissions
             .list_user_access_rights_on_object(uid, user, no_inherited_access, params)
             .await
     }

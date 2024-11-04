@@ -22,7 +22,7 @@ pub(crate) async fn locate(
     trace!("Locate request: {}", request);
     // Find all the objects that match the attributes
     let uids_attrs = kms
-        .objects_store
+        .store
         .find(Some(&request.attributes), state, user, false, params)
         .await?;
     trace!("Found {} objects: {:?}", uids_attrs.len(), uids_attrs);

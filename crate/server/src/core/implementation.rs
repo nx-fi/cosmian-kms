@@ -32,7 +32,7 @@ use crate::{
         pgsql::PgPool,
         redis::{RedisWithFindex, REDIS_WITH_FINDEX_MASTER_KEY_LENGTH},
         sqlite::SqlitePool,
-        store::{ObjectsStore, PermissionsStore},
+        store::Store,
         Database,
     },
     error::KmsError,
@@ -82,11 +82,8 @@ impl KMS {
             kms_bail!("Fatal: no database configuration provided. Stopping.")
         };
 
-        let permissions_store = Arc::new(PermissionsStore::new(db.clone()));
-        let objects_store = ObjectsStore::new(db, permissions_store.clone());
-
-        // Use cache
-        // let db = Box::new(CachedDatabase::new(db)?);
+        // Create the stores
+        let store = Store::new(db.clone(), db);
 
         // Check if we have Proteccio HSM
         let hsm: Option<Box<dyn HSM + Sync + Send>> =
@@ -112,8 +109,7 @@ impl KMS {
 
         Ok(Self {
             params: server_params,
-            objects_store,
-            permissions_store,
+            store,
             hsm,
         })
     }

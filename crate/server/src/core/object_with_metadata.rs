@@ -103,7 +103,7 @@ impl ObjectWithMetadata {
         user: &str,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<Object> {
-        kms.objects_store
+        kms.store
             .get_unwrapped(self.id(), self.object(), kms, user, params)
             .await
     }

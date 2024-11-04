@@ -9,7 +9,6 @@ use cosmian_kmip::kmip::{
     kmip_types::{Attributes, StateEnumeration},
 };
 use cosmian_kms_client::access::{IsWrapped, ObjectOperationType};
-use tokio::sync::RwLock;
 use tracing::trace;
 
 use crate::{
@@ -17,41 +16,13 @@ use crate::{
         extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata,
         wrapping::unwrap_key, KMS,
     },
-    database::{
-        store::PermissionsStore,
-        unwrapped_cache::{CachedUnwrappedObject, UnwrappedCache},
-        AtomicOperation, Database,
-    },
+    database::{store::Store, unwrapped_cache::CachedUnwrappedObject, AtomicOperation, Database},
     error::KmsError,
     result::{KResult, KResultHelper},
 };
 
-pub(crate) struct ObjectsStore {
-    /// A map of uid prefixes to Objects Database
-    /// The "no-prefix" DB is registered under the empty string
-    dbs: RwLock<HashMap<String, Arc<dyn Database + Sync + Send>>>,
-    /// The Unwrapped cache keeps the unwrapped version of keys in memory
-    /// This cache avoid calls to HSMs for each operation
-    unwrapped_cache: UnwrappedCache,
-    /// The permissions store is used to check if a user has the right to perform an operation
-    //TODO use this store to check permissions in retrive, update, delete, etc.
-    _permissions_store: Arc<PermissionsStore>,
-}
-
-impl ObjectsStore {
-    /// Create a new Objects Store
-    ///  - `default_database` is the default database for objects without a prefix
-    pub(crate) fn new(
-        default_database: Arc<dyn Database + Sync + Send>,
-        permissions_store: Arc<PermissionsStore>,
-    ) -> Self {
-        Self {
-            dbs: RwLock::new(HashMap::from([(String::new(), default_database)])),
-            unwrapped_cache: UnwrappedCache::new(),
-            _permissions_store: permissions_store,
-        }
-    }
-
+/// Methods that manipulate Objects in the database(s)
+impl Store {
     #[allow(dead_code)]
     /// Register an Objects Database for Objects uid starting with <prefix>::
     pub(crate) async fn register_database(
@@ -59,14 +30,14 @@ impl ObjectsStore {
         prefix: &str,
         database: Arc<dyn Database + Sync + Send>,
     ) {
-        let mut map = self.dbs.write().await;
+        let mut map = self.objects.write().await;
         map.insert(prefix.to_owned(), database);
     }
 
     #[allow(dead_code)]
     /// Unregister the default objects database or a database for the given prefix
     pub(crate) async fn unregister_database(&self, prefix: Option<&str>) {
-        let mut map = self.dbs.write().await;
+        let mut map = self.objects.write().await;
         map.remove(prefix.unwrap_or(""));
     }
 
@@ -75,7 +46,7 @@ impl ObjectsStore {
         let splits = uid.split_once("::");
         Ok(match splits {
             Some((prefix, _rest)) => self
-                .dbs
+                .objects
                 .read()
                 .await
                 .get(prefix)
@@ -86,7 +57,7 @@ impl ObjectsStore {
                 })?
                 .clone(),
             None => self
-                .dbs
+                .objects
                 .read()
                 .await
                 .get("")
@@ -108,7 +79,7 @@ impl ObjectsStore {
     #[allow(dead_code)]
     /// Migrate all the databases to the latest version
     pub(crate) async fn migrate(&self, params: Option<&ExtraDatabaseParams>) -> KResult<()> {
-        let map = self.dbs.write().await;
+        let map = self.objects.write().await;
         for (_prefix, db) in map.iter() {
             db.migrate(params).await?;
         }
@@ -248,7 +219,7 @@ impl ObjectsStore {
         user_must_be_owner: bool,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<Vec<(String, StateEnumeration, Attributes, IsWrapped)>> {
-        let map = self.dbs.read().await;
+        let map = self.objects.read().await;
         let mut results: Vec<(String, StateEnumeration, Attributes, IsWrapped)> = Vec::new();
         for (_prefix, db) in map.iter() {
             results.extend(
@@ -301,7 +272,7 @@ impl ObjectsStore {
 
     /// Unwrap the object (if need be) and return the unwrapped object
     /// The unwrapped object is cached in memory
-    //TODO refactor unwrapk_key() to use the permissions store
+    //TODO refactor unwrap_key() to use the permissions store
     pub(crate) async fn get_unwrapped(
         &self,
         uid: &str,
@@ -318,7 +289,7 @@ impl ObjectsStore {
             .is_none()
         {
             // already an unwrapped key
-            tracing::trace!("Already an unwrapped key");
+            trace!("Already an unwrapped key");
             return Ok(object.clone());
         }
 
@@ -383,10 +354,7 @@ mod tests {
     use uuid::Uuid;
 
     use crate::{
-        database::{
-            sqlite::SqlitePool,
-            store::{ObjectsStore, PermissionsStore},
-        },
+        database::{sqlite::SqlitePool, store::Store},
         result::KResult,
     };
 
@@ -400,8 +368,7 @@ mod tests {
             std::fs::remove_file(&db_file)?;
         }
         let sqlite = Arc::new(SqlitePool::instantiate(&db_file, true).await?);
-        let permissions_store = Arc::new(PermissionsStore::new(sqlite.clone()));
-        let db = ObjectsStore::new(sqlite, permissions_store);
+        let store = Store::new(sqlite.clone(), sqlite);
         let db_params = None;
 
         let mut rng = CsRng::from_entropy();
@@ -416,7 +383,7 @@ mod tests {
         // insert into DB
         let owner = "eyJhbGciOiJSUzI1Ni";
         let uid = Uuid::new_v4().to_string();
-        let uid_ = db
+        let uid_ = store
             .create(
                 Some(uid.clone()),
                 owner,
@@ -429,16 +396,16 @@ mod tests {
         assert_eq!(&uid, &uid_);
 
         // The key should not be in cache
-        assert!(db.unwrapped_cache.get_cache().await.peek(&uid).is_none());
+        assert!(store.unwrapped_cache.get_cache().await.peek(&uid).is_none());
 
         // fetch the key
-        let map = db
+        let map = store
             .retrieve(&uid, owner, ObjectOperationType::Get, db_params.as_ref())
             .await?;
         assert_eq!(map.len(), 1);
         assert!(map.contains_key(&uid));
         {
-            let cache = db.unwrapped_cache.get_cache();
+            let cache = store.unwrapped_cache.get_cache();
             // the unwrapped version should not be in the cache
             assert!(cache.await.peek(&uid).is_none());
         }

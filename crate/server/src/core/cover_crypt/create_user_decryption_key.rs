@@ -45,7 +45,7 @@ pub(crate) async fn create_user_decryption_key(
 }
 
 async fn create_user_decryption_key_(
-    kmip_server: &KMS,
+    kms: &KMS,
     cover_crypt: Covercrypt,
     create_attributes: &Attributes,
     user: &str,
@@ -66,8 +66,8 @@ async fn create_user_decryption_key_(
         .to_string();
 
     // retrieve from tags or use passed identifier
-    let mut owm_s = kmip_server
-        .objects_store
+    let mut owm_s = kms
+        .store
         .retrieve(&msk_uid_or_tag, user, ObjectOperationType::Get, params)
         .await?
         .into_values()

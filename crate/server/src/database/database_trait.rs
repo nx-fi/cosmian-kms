@@ -212,11 +212,11 @@ pub(crate) enum AtomicOperation {
 impl AtomicOperation {
     pub(crate) fn get_object_uid(&self) -> &str {
         match self {
-            AtomicOperation::Create((uid, _, _, _))
-            | AtomicOperation::Upsert((uid, _, _, _, _))
-            | AtomicOperation::UpdateObject((uid, _, _, _))
-            | AtomicOperation::UpdateState((uid, _))
-            | AtomicOperation::Delete(uid) => uid,
+            Self::Create((uid, _, _, _))
+            | Self::Upsert((uid, _, _, _, _))
+            | Self::UpdateObject((uid, _, _, _))
+            | Self::UpdateState((uid, _))
+            | Self::Delete(uid) => uid,
         }
     }
 }
