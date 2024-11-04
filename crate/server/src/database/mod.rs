@@ -45,12 +45,12 @@ use crate::{kms_bail, result::KResult};
 
 pub(crate) mod cached_sqlcipher;
 pub(crate) mod cached_sqlite_struct;
-mod database_trait;
+mod database_traits;
 pub(crate) mod mysql;
 pub(crate) mod pgsql;
 pub(crate) mod redis;
 pub(crate) mod sqlite;
-pub(crate) use database_trait::{AtomicOperation, Database};
+pub(crate) use database_traits::{AtomicOperation, ObjectsDatabase, PermissionsDatabase};
 mod locate_query;
 mod migrate;
 pub(crate) mod store;

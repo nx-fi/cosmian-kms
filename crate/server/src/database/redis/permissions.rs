@@ -114,6 +114,7 @@ impl TryFrom<&Triple> for Location {
 /// The problem is that the search function does not return the `userid::obj_uid` when
 /// searching for either a userid or a uid, so wee need to store a triplet
 /// rather than just the permission
+#[derive(Clone)]
 pub(crate) struct PermissionsDB {
     findex: Arc<FindexRedis>,
     label: Vec<u8>,

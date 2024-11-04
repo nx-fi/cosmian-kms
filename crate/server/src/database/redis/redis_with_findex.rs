@@ -28,7 +28,11 @@ use super::{
 };
 use crate::{
     core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
-    database::{database_trait::AtomicOperation, redis::objects_db::RedisOperation, Database},
+    database::{
+        database_traits::{AtomicOperation, PermissionsDatabase},
+        redis::objects_db::RedisOperation,
+        ObjectsDatabase,
+    },
     error::KmsError,
     kms_bail, kms_error,
     result::{KResult, KResultHelper},
@@ -46,6 +50,7 @@ fn intersect_all<I: IntoIterator<Item = HashSet<Location>>>(sets: I) -> HashSet<
     iter.fold(first, |acc, set| acc.intersection(&set).cloned().collect())
 }
 
+#[derive(Clone)]
 pub(crate) struct RedisWithFindex {
     objects_db: Arc<ObjectsDB>,
     permissions_db: PermissionsDB,
@@ -232,7 +237,7 @@ impl RedisWithFindex {
 }
 
 #[async_trait(?Send)]
-impl Database for RedisWithFindex {
+impl ObjectsDatabase for RedisWithFindex {
     fn filename(&self, _group_id: u128) -> Option<PathBuf> {
         None
     }
@@ -429,6 +434,151 @@ impl Database for RedisWithFindex {
         Ok(())
     }
 
+    async fn atomic(
+        &self,
+        user: &str,
+        operations: &[AtomicOperation],
+        params: Option<&ExtraDatabaseParams>,
+    ) -> KResult<()> {
+        let mut redis_operations: Vec<RedisOperation> = Vec::with_capacity(operations.len());
+        for operation in operations {
+            match operation {
+                AtomicOperation::Upsert((uid, object, attributes, tags, state)) => {
+                    //TODO: this operation contains a non atomic retrieve_tags. It will be hard to make this whole method atomic
+                    let db_object = self
+                        .prepare_object_for_upsert(
+                            uid,
+                            user,
+                            object,
+                            attributes,
+                            tags.as_ref(),
+                            *state,
+                            params,
+                        )
+                        .await?;
+                    redis_operations.push(RedisOperation::Upsert(uid.clone(), db_object));
+                }
+                AtomicOperation::Create((uid, object, attributes, tags)) => {
+                    let (uid, db_object) = self
+                        .prepare_object_for_create(
+                            Some(uid.clone()),
+                            user,
+                            object,
+                            attributes,
+                            tags,
+                        )
+                        .await?;
+                    redis_operations.push(RedisOperation::Create(uid, db_object));
+                }
+                AtomicOperation::Delete(uid) => {
+                    redis_operations.push(RedisOperation::Delete(uid.clone()));
+                }
+                AtomicOperation::UpdateObject((uid, object, attributes, tags)) => {
+                    //TODO: this operation contains a non atomic retrieve_object. It will be hard to make this whole method atomic
+                    let db_object = self
+                        .prepare_object_for_update(uid, object, attributes, tags.as_ref())
+                        .await?;
+                    redis_operations.push(RedisOperation::Upsert(uid.clone(), db_object));
+                }
+                AtomicOperation::UpdateState((uid, state)) => {
+                    //TODO: this operation contains a non atomic retrieve_object. It will be hard to make this whole method atomic
+                    let db_object = self.prepare_object_for_state_update(uid, *state).await?;
+                    redis_operations.push(RedisOperation::Upsert(uid.clone(), db_object));
+                }
+            }
+        }
+        self.objects_db.atomic(&redis_operations).await
+    }
+
+    /// Return uid, state and attributes of the object identified by its owner,
+    /// and possibly by its attributes and/or its `state`
+    async fn find(
+        &self,
+        researched_attributes: Option<&Attributes>,
+        state: Option<StateEnumeration>,
+        user: &str,
+        user_must_be_owner: bool,
+        _params: Option<&ExtraDatabaseParams>,
+    ) -> KResult<Vec<(String, StateEnumeration, Attributes, IsWrapped)>> {
+        let mut keywords = {
+            researched_attributes.map_or_else(HashSet::new, |attributes| {
+                let tags = attributes.get_tags();
+                trace!("find: tags: {tags:?}");
+                let mut keywords = tags
+                    .iter()
+                    .map(|tag| Keyword::from(tag.as_bytes()))
+                    .collect::<HashSet<Keyword>>();
+                // index some of the attributes
+                keywords.extend(keywords_from_attributes(attributes));
+                keywords
+            })
+        };
+        if user_must_be_owner {
+            trace!("find: user must be owner");
+            keywords.insert(Keyword::from(user.as_bytes()));
+        }
+        // if there are now keywords, we return an empty list
+        if keywords.is_empty() {
+            return Ok(vec![])
+        }
+        // search the keywords in the index
+        let res = self
+            .findex
+            .search(&self.findex_key.to_bytes(), &self.label, keywords)
+            .await?;
+        trace!("find: res: {:?}", res);
+        // we want the intersection of all the locations
+        let locations = intersect_all(res.values().cloned());
+        let uids = locations
+            .into_iter()
+            .map(|location| {
+                String::from_utf8(location.to_vec())
+                    .map_err(|e| kms_error!(format!("Invalid uid. Error: {e:?}")))
+            })
+            .collect::<KResult<HashSet<String>>>()?;
+        trace!("find: uids before permissions: {:?}", uids);
+        // if the user is not the owner, we need to check the permissions
+        let permissions = if user_must_be_owner {
+            HashMap::new()
+        } else {
+            self.permissions_db
+                .list_user_permissions(&self.findex_key, user)
+                .await?
+        };
+
+        // fetch the corresponding objects
+        let redis_db_objects = self.objects_db.objects_get(&uids).await?;
+        Ok(redis_db_objects
+            .into_iter()
+            .filter(|(uid, redis_db_object)| {
+                state.map_or(true, |state| redis_db_object.state == state)
+                    && (if redis_db_object.owner == user {
+                        true
+                    } else {
+                        permissions.contains_key(uid)
+                    })
+            })
+            .map(|(uid, redis_db_object)| {
+                (
+                    uid,
+                    redis_db_object.state,
+                    redis_db_object
+                        .object
+                        .attributes()
+                        .cloned()
+                        .unwrap_or_else(|_| Attributes {
+                            object_type: Some(redis_db_object.object.object_type()),
+                            ..Default::default()
+                        }),
+                    false, // TODO: de-hardcode this value by updating the query. See issue: http://gitlab.cosmian.com/core/kms/-/issues/15
+                )
+            })
+            .collect())
+    }
+}
+
+#[async_trait(?Send)]
+impl PermissionsDatabase for RedisWithFindex {
     async fn list_user_granted_access_rights(
         &self,
         user: &str,
@@ -521,92 +671,6 @@ impl Database for RedisWithFindex {
         Ok(object.owner == owner)
     }
 
-    /// Return uid, state and attributes of the object identified by its owner,
-    /// and possibly by its attributes and/or its `state`
-    async fn find(
-        &self,
-        researched_attributes: Option<&Attributes>,
-        state: Option<StateEnumeration>,
-        user: &str,
-        user_must_be_owner: bool,
-        _params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<Vec<(String, StateEnumeration, Attributes, IsWrapped)>> {
-        let mut keywords = {
-            researched_attributes.map_or_else(HashSet::new, |attributes| {
-                let tags = attributes.get_tags();
-                trace!("find: tags: {tags:?}");
-                let mut keywords = tags
-                    .iter()
-                    .map(|tag| Keyword::from(tag.as_bytes()))
-                    .collect::<HashSet<Keyword>>();
-                // index some of the attributes
-                keywords.extend(keywords_from_attributes(attributes));
-                keywords
-            })
-        };
-        if user_must_be_owner {
-            trace!("find: user must be owner");
-            keywords.insert(Keyword::from(user.as_bytes()));
-        }
-        // if there are now keywords, we return an empty list
-        if keywords.is_empty() {
-            return Ok(vec![])
-        }
-        // search the keywords in the index
-        let res = self
-            .findex
-            .search(&self.findex_key.to_bytes(), &self.label, keywords)
-            .await?;
-        trace!("find: res: {:?}", res);
-        // we want the intersection of all the locations
-        let locations = intersect_all(res.values().cloned());
-        let uids = locations
-            .into_iter()
-            .map(|location| {
-                String::from_utf8(location.to_vec())
-                    .map_err(|e| kms_error!(format!("Invalid uid. Error: {e:?}")))
-            })
-            .collect::<KResult<HashSet<String>>>()?;
-        trace!("find: uids before permissions: {:?}", uids);
-        // if the user is not the owner, we need to check the permissions
-        let permissions = if user_must_be_owner {
-            HashMap::new()
-        } else {
-            self.permissions_db
-                .list_user_permissions(&self.findex_key, user)
-                .await?
-        };
-
-        // fetch the corresponding objects
-        let redis_db_objects = self.objects_db.objects_get(&uids).await?;
-        Ok(redis_db_objects
-            .into_iter()
-            .filter(|(uid, redis_db_object)| {
-                state.map_or(true, |state| redis_db_object.state == state)
-                    && (if redis_db_object.owner == user {
-                        true
-                    } else {
-                        permissions.contains_key(uid)
-                    })
-            })
-            .map(|(uid, redis_db_object)| {
-                (
-                    uid,
-                    redis_db_object.state,
-                    redis_db_object
-                        .object
-                        .attributes()
-                        .cloned()
-                        .unwrap_or_else(|_| Attributes {
-                            object_type: Some(redis_db_object.object.object_type()),
-                            ..Default::default()
-                        }),
-                    false, // TODO: de-hardcode this value by updating the query. See issue: http://gitlab.cosmian.com/core/kms/-/issues/15
-                )
-            })
-            .collect())
-    }
-
     async fn list_user_access_rights_on_object(
         &self,
         uid: &str,
@@ -621,62 +685,6 @@ impl Database for RedisWithFindex {
             .unwrap_or_default()
             .into_iter()
             .collect())
-    }
-
-    async fn atomic(
-        &self,
-        user: &str,
-        operations: &[AtomicOperation],
-        params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<()> {
-        let mut redis_operations: Vec<RedisOperation> = Vec::with_capacity(operations.len());
-        for operation in operations {
-            match operation {
-                AtomicOperation::Upsert((uid, object, attributes, tags, state)) => {
-                    //TODO: this operation contains a non atomic retrieve_tags. It will be hard to make this whole method atomic
-                    let db_object = self
-                        .prepare_object_for_upsert(
-                            uid,
-                            user,
-                            object,
-                            attributes,
-                            tags.as_ref(),
-                            *state,
-                            params,
-                        )
-                        .await?;
-                    redis_operations.push(RedisOperation::Upsert(uid.clone(), db_object));
-                }
-                AtomicOperation::Create((uid, object, attributes, tags)) => {
-                    let (uid, db_object) = self
-                        .prepare_object_for_create(
-                            Some(uid.clone()),
-                            user,
-                            object,
-                            attributes,
-                            tags,
-                        )
-                        .await?;
-                    redis_operations.push(RedisOperation::Create(uid, db_object));
-                }
-                AtomicOperation::Delete(uid) => {
-                    redis_operations.push(RedisOperation::Delete(uid.clone()));
-                }
-                AtomicOperation::UpdateObject((uid, object, attributes, tags)) => {
-                    //TODO: this operation contains a non atomic retrieve_object. It will be hard to make this whole method atomic
-                    let db_object = self
-                        .prepare_object_for_update(uid, object, attributes, tags.as_ref())
-                        .await?;
-                    redis_operations.push(RedisOperation::Upsert(uid.clone(), db_object));
-                }
-                AtomicOperation::UpdateState((uid, state)) => {
-                    //TODO: this operation contains a non atomic retrieve_object. It will be hard to make this whole method atomic
-                    let db_object = self.prepare_object_for_state_update(uid, *state).await?;
-                    redis_operations.push(RedisOperation::Upsert(uid.clone(), db_object));
-                }
-            }
-        }
-        self.objects_db.atomic(&redis_operations).await
     }
 }
 

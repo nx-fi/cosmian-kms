@@ -16,13 +16,13 @@ use uuid::Uuid;
 
 use crate::{
     core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
-    database::{database_trait::AtomicOperation, Database},
+    database::{database_traits::AtomicOperation, ObjectsDatabase},
     error::KmsError,
     kms_bail,
     result::KResult,
 };
 
-pub(crate) async fn tx_and_list<DB: Database>(
+pub(crate) async fn tx_and_list<DB: ObjectsDatabase>(
     db_and_params: &(DB, Option<ExtraDatabaseParams>),
 ) -> KResult<()> {
     log_init(None);
@@ -108,7 +108,7 @@ pub(crate) async fn tx_and_list<DB: Database>(
     Ok(())
 }
 
-pub(crate) async fn atomic<DB: Database>(
+pub(crate) async fn atomic<DB: ObjectsDatabase>(
     db_and_params: &(DB, Option<ExtraDatabaseParams>),
 ) -> KResult<()> {
     log_init(None);
@@ -229,7 +229,7 @@ pub(crate) async fn atomic<DB: Database>(
     Ok(())
 }
 
-pub(crate) async fn upsert<DB: Database>(
+pub(crate) async fn upsert<DB: ObjectsDatabase>(
     db_and_params: &(DB, Option<ExtraDatabaseParams>),
 ) -> KResult<()> {
     log_init(None);
@@ -325,7 +325,7 @@ pub(crate) async fn upsert<DB: Database>(
     Ok(())
 }
 
-pub(crate) async fn crud<DB: Database>(
+pub(crate) async fn crud<DB: ObjectsDatabase>(
     db_and_params: &(DB, Option<ExtraDatabaseParams>),
 ) -> KResult<()> {
     log_init(None);

@@ -33,7 +33,6 @@ use crate::{
         redis::{RedisWithFindex, REDIS_WITH_FINDEX_MASTER_KEY_LENGTH},
         sqlite::SqlitePool,
         store::Store,
-        Database,
     },
     error::KmsError,
     kms_bail,
@@ -41,49 +40,8 @@ use crate::{
 };
 
 impl KMS {
-    pub(crate) async fn instantiate(mut server_params: ServerParams) -> KResult<Self> {
-        let db: Arc<dyn Database + Sync + Send> = if let Some(mut db_params) =
-            server_params.db_params.as_mut()
-        {
-            match &mut db_params {
-                DbParams::SqliteEnc(db_path) => Arc::new(CachedSqlCipher::instantiate(
-                    db_path,
-                    server_params.clear_db_on_start,
-                )?),
-                DbParams::Sqlite(db_path) => Arc::new(
-                    SqlitePool::instantiate(
-                        &db_path.join("kms.db"),
-                        server_params.clear_db_on_start,
-                    )
-                    .await?,
-                ),
-                DbParams::Postgres(url) => Arc::new(
-                    PgPool::instantiate(url.as_str(), server_params.clear_db_on_start).await?,
-                ),
-                DbParams::Mysql(url) => Arc::new(
-                    MySqlPool::instantiate(url.as_str(), server_params.clear_db_on_start).await?,
-                ),
-                DbParams::RedisFindex(url, master_key, label) => {
-                    // There is no reason to keep a copy of the key in the shared config
-                    // So we are going to create a "zeroizable" copy which will be passed to Redis with Findex
-                    // and zeroize the one in the shared config
-                    let new_master_key =
-                        Secret::<REDIS_WITH_FINDEX_MASTER_KEY_LENGTH>::from_unprotected_bytes(
-                            &mut master_key.to_bytes(),
-                        );
-                    // `master_key` implements ZeroizeOnDrop so there is no need
-                    // to manually zeroize.
-                    Arc::new(
-                        RedisWithFindex::instantiate(url.as_str(), new_master_key, label).await?,
-                    )
-                }
-            }
-        } else {
-            kms_bail!("Fatal: no database configuration provided. Stopping.")
-        };
-
-        // Create the stores
-        let store = Store::new(db.clone(), db);
+    pub(crate) async fn instantiate(server_params: ServerParams) -> KResult<Self> {
+        let store = Self::get_store(&server_params).await?;
 
         // Check if we have Proteccio HSM
         let hsm: Option<Box<dyn HSM + Sync + Send>> =
@@ -111,6 +69,60 @@ impl KMS {
             params: server_params,
             store,
             hsm,
+        })
+    }
+
+    async fn get_store(server_params: &ServerParams) -> KResult<Store> {
+        let db_params = server_params.db_params.as_ref().ok_or_else(|| {
+            KmsError::InvalidRequest(
+                "Fatal: no database configuration provided. Stopping.".to_owned(),
+            )
+        })?;
+        Ok(match db_params {
+            DbParams::Sqlite(db_path) => {
+                let db = Arc::new(
+                    SqlitePool::instantiate(
+                        &db_path.join("kms.db"),
+                        server_params.clear_db_on_start,
+                    )
+                    .await?,
+                );
+                Store::new(db.clone(), db)
+            }
+            DbParams::SqliteEnc(db_path) => {
+                let db = Arc::new(CachedSqlCipher::instantiate(
+                    db_path,
+                    server_params.clear_db_on_start,
+                )?);
+                Store::new(db.clone(), db)
+            }
+            DbParams::Postgres(url) => {
+                let db = Arc::new(
+                    PgPool::instantiate(url.as_str(), server_params.clear_db_on_start).await?,
+                );
+                Store::new(db.clone(), db)
+            }
+            DbParams::Mysql(url) => {
+                let db = Arc::new(
+                    MySqlPool::instantiate(url.as_str(), server_params.clear_db_on_start).await?,
+                );
+                Store::new(db.clone(), db)
+            }
+            DbParams::RedisFindex(url, master_key, label) => {
+                // There is no reason to keep a copy of the key in the shared config
+                // So we are going to create a "zeroizable" copy which will be passed to Redis with Findex
+                // and zeroize the one in the shared config
+                let new_master_key =
+                    Secret::<REDIS_WITH_FINDEX_MASTER_KEY_LENGTH>::from_unprotected_bytes(
+                        &mut master_key.to_bytes(),
+                    );
+                // `master_key` implements ZeroizeOnDrop so there is no need
+                // to manually zeroize.
+                let db = Arc::new(
+                    RedisWithFindex::instantiate(url.as_str(), new_master_key, label).await?,
+                );
+                Store::new(db.clone(), db)
+            }
         })
     }
 

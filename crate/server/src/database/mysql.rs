@@ -21,12 +21,14 @@ use tracing::{debug, trace};
 use uuid::Uuid;
 
 use super::{
-    query_from_attributes, state_from_string, DBObject, Database, MySqlPlaceholder, MYSQL_QUERIES,
+    query_from_attributes, state_from_string, DBObject, MySqlPlaceholder, ObjectsDatabase,
+    MYSQL_QUERIES,
 };
 use crate::{
     core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
     database::{
-        database_trait::AtomicOperation, migrate::do_migration,
+        database_traits::{AtomicOperation, PermissionsDatabase},
+        migrate::do_migration,
         KMS_VERSION_BEFORE_MIGRATION_SUPPORT,
     },
     error::KmsError,
@@ -74,6 +76,7 @@ impl TryFrom<&MySqlRow> for ObjectWithMetadata {
 
 /// The `MySQL` connector is also compatible to connect a `MariaDB`
 /// see: <https://mariadb.com/kb/en/mariadb-vs-mysql-compatibility>/
+#[derive(Clone)]
 pub(crate) struct MySqlPool {
     pool: Pool<MySql>,
 }
@@ -116,7 +119,7 @@ impl MySqlPool {
 }
 
 #[async_trait(?Send)]
-impl Database for MySqlPool {
+impl ObjectsDatabase for MySqlPool {
     fn filename(&self, _group_id: u128) -> Option<PathBuf> {
         None
     }
@@ -295,6 +298,50 @@ impl Database for MySqlPool {
         }
     }
 
+    async fn atomic(
+        &self,
+        user: &str,
+        operations: &[AtomicOperation],
+        _params: Option<&ExtraDatabaseParams>,
+    ) -> KResult<()> {
+        if is_migration_in_progress_(&self.pool).await? {
+            kms_bail!("Migration in progress. Please retry later");
+        }
+
+        let mut tx = self.pool.begin().await?;
+        match atomic_(user, operations, &mut tx).await {
+            Ok(()) => {
+                tx.commit().await?;
+                Ok(())
+            }
+            Err(e) => {
+                tx.rollback().await.context("transaction failed")?;
+                Err(e)
+            }
+        }
+    }
+
+    async fn find(
+        &self,
+        researched_attributes: Option<&Attributes>,
+        state: Option<StateEnumeration>,
+        user: &str,
+        user_must_be_owner: bool,
+        _params: Option<&ExtraDatabaseParams>,
+    ) -> KResult<Vec<(String, StateEnumeration, Attributes, IsWrapped)>> {
+        find_(
+            researched_attributes,
+            state,
+            user,
+            user_must_be_owner,
+            &self.pool,
+        )
+        .await
+    }
+}
+
+#[async_trait(?Send)]
+impl PermissionsDatabase for MySqlPool {
     async fn list_user_granted_access_rights(
         &self,
         user: &str,
@@ -348,24 +395,6 @@ impl Database for MySqlPool {
         is_object_owned_by_(uid, owner, &self.pool).await
     }
 
-    async fn find(
-        &self,
-        researched_attributes: Option<&Attributes>,
-        state: Option<StateEnumeration>,
-        user: &str,
-        user_must_be_owner: bool,
-        _params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<Vec<(String, StateEnumeration, Attributes, IsWrapped)>> {
-        find_(
-            researched_attributes,
-            state,
-            user,
-            user_must_be_owner,
-            &self.pool,
-        )
-        .await
-    }
-
     async fn list_user_access_rights_on_object(
         &self,
         uid: &str,
@@ -374,29 +403,6 @@ impl Database for MySqlPool {
         _params: Option<&ExtraDatabaseParams>,
     ) -> KResult<HashSet<ObjectOperationType>> {
         list_user_access_rights_on_object_(uid, user, no_inherited_access, &self.pool).await
-    }
-
-    async fn atomic(
-        &self,
-        user: &str,
-        operations: &[AtomicOperation],
-        _params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<()> {
-        if is_migration_in_progress_(&self.pool).await? {
-            kms_bail!("Migration in progress. Please retry later");
-        }
-
-        let mut tx = self.pool.begin().await?;
-        match atomic_(user, operations, &mut tx).await {
-            Ok(()) => {
-                tx.commit().await?;
-                Ok(())
-            }
-            Err(e) => {
-                tx.rollback().await.context("transaction failed")?;
-                Err(e)
-            }
-        }
     }
 }
 

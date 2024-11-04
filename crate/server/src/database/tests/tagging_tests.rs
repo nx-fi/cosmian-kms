@@ -19,14 +19,14 @@ use uuid::Uuid;
 
 use crate::{
     core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
-    database::Database,
+    database::{ObjectsDatabase, PermissionsDatabase},
     result::KResult,
 };
 
 const USER_GET: &str = "user_get";
 const USER_DECRYPT: &str = "user_decrypt";
 
-pub(crate) async fn tags<DB: Database>(
+pub(crate) async fn tags<DB: ObjectsDatabase + PermissionsDatabase>(
     db_and_params: &(DB, Option<ExtraDatabaseParams>),
     verify_attributes: bool,
 ) -> KResult<()> {

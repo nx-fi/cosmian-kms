@@ -15,8 +15,44 @@ use crate::{
     result::KResult,
 };
 
+/// An atomic operation on the objects database
+#[allow(dead_code)]
+pub(crate) enum AtomicOperation {
+    /// Create (uid, object, attributes, tags) - the state will be active
+    Create((String, Object, Attributes, HashSet<String>)),
+    /// Upsert (uid, object, attributes, tags, state) - the state be updated
+    Upsert(
+        (
+            String,
+            Object,
+            Attributes,
+            Option<HashSet<String>>,
+            StateEnumeration,
+        ),
+    ),
+    /// Update the object (uid, object, attributes, tags) - the state will be not be updated
+    UpdateObject((String, Object, Attributes, Option<HashSet<String>>)),
+    /// Update the state (uid, state)
+    UpdateState((String, StateEnumeration)),
+    /// Delete (uid)
+    Delete(String),
+}
+
+impl AtomicOperation {
+    pub(crate) fn get_object_uid(&self) -> &str {
+        match self {
+            Self::Create((uid, _, _, _))
+            | Self::Upsert((uid, _, _, _, _))
+            | Self::UpdateObject((uid, _, _, _))
+            | Self::UpdateState((uid, _))
+            | Self::Delete(uid) => uid,
+        }
+    }
+}
+
+/// Trait that must implement all databases, HSMs, etc. that store objects
 #[async_trait(?Send)]
-pub(crate) trait Database {
+pub(crate) trait ObjectsDatabase {
     /// Return the filename of the database or `None` if not supported
     fn filename(&self, group_id: u128) -> Option<PathBuf>;
 
@@ -105,6 +141,30 @@ pub(crate) trait Database {
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<()>;
 
+    /// Perform an atomic set of operation on the database
+    /// (typically in a transaction)
+    async fn atomic(
+        &self,
+        user: &str,
+        operations: &[AtomicOperation],
+        params: Option<&ExtraDatabaseParams>,
+    ) -> KResult<()>;
+
+    /// Return uid, state and attributes of the object identified by its owner,
+    /// and possibly by its attributes and/or its `state`
+    async fn find(
+        &self,
+        researched_attributes: Option<&Attributes>,
+        state: Option<StateEnumeration>,
+        user: &str,
+        user_must_be_owner: bool,
+        params: Option<&ExtraDatabaseParams>,
+    ) -> KResult<Vec<(String, StateEnumeration, Attributes, IsWrapped)>>;
+}
+
+/// Trait that the database must implement to store permissions
+#[async_trait(?Send)]
+pub(crate) trait PermissionsDatabase {
     /// List all the access rights granted to the `user`
     /// on all the objects in the database
     /// (i.e. the objects for which `user` is not the owner)
@@ -152,17 +212,6 @@ pub(crate) trait Database {
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<bool>;
 
-    /// Return uid, state and attributes of the object identified by its owner,
-    /// and possibly by its attributes and/or its `state`
-    async fn find(
-        &self,
-        researched_attributes: Option<&Attributes>,
-        state: Option<StateEnumeration>,
-        user: &str,
-        user_must_be_owner: bool,
-        params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<Vec<(String, StateEnumeration, Attributes, IsWrapped)>>;
-
     /// List all the access rights that have been granted to a user on an object
     ///
     /// These access rights may have been directly granted or via the wildcard user
@@ -175,48 +224,4 @@ pub(crate) trait Database {
         no_inherited_access: bool,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<HashSet<ObjectOperationType>>;
-
-    /// Perform an atomic set of operation on the database
-    /// (typically in a transaction)
-    async fn atomic(
-        &self,
-        user: &str,
-        operations: &[AtomicOperation],
-        params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<()>;
-}
-
-/// An atomic operation on the database
-#[allow(dead_code)]
-pub(crate) enum AtomicOperation {
-    /// Create (uid, object, attributes, tags) - the state will be active
-    Create((String, Object, Attributes, HashSet<String>)),
-    /// Upsert (uid, object, attributes, tags, state) - the state be updated
-    Upsert(
-        (
-            String,
-            Object,
-            Attributes,
-            Option<HashSet<String>>,
-            StateEnumeration,
-        ),
-    ),
-    /// Update the object (uid, object, attributes, tags) - the state will be not be updated
-    UpdateObject((String, Object, Attributes, Option<HashSet<String>>)),
-    /// Update the state (uid, state)
-    UpdateState((String, StateEnumeration)),
-    /// Delete (uid)
-    Delete(String),
-}
-
-impl AtomicOperation {
-    pub(crate) fn get_object_uid(&self) -> &str {
-        match self {
-            Self::Create((uid, _, _, _))
-            | Self::Upsert((uid, _, _, _, _))
-            | Self::UpdateObject((uid, _, _, _))
-            | Self::UpdateState((uid, _))
-            | Self::Delete(uid) => uid,
-        }
-    }
 }

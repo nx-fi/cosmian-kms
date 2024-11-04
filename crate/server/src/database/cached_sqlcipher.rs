@@ -32,18 +32,19 @@ use super::{
 use crate::{
     core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
     database::{
-        database_trait::AtomicOperation,
+        database_traits::{AtomicOperation, PermissionsDatabase},
         migrate::do_migration,
         sqlite::{atomic_, is_migration_in_progress_, migrate_, retrieve_tags_},
-        Database, KMS_VERSION_BEFORE_MIGRATION_SUPPORT, SQLITE_QUERIES,
+        ObjectsDatabase, KMS_VERSION_BEFORE_MIGRATION_SUPPORT, SQLITE_QUERIES,
     },
     get_sqlite_query, kms_bail, kms_error,
     result::{KResult, KResultHelper},
 };
 
+#[derive(Clone)]
 pub(crate) struct CachedSqlCipher {
     path: PathBuf,
-    cache: KMSSqliteCache,
+    cache: Arc<KMSSqliteCache>,
 }
 
 // We allow 100 opened connection
@@ -58,7 +59,7 @@ impl CachedSqlCipher {
         }
         Ok(Self {
             path: path.to_path_buf(),
-            cache: KMSSqliteCache::new(KMS_SQLITE_CACHE_SIZE),
+            cache: Arc::new(KMSSqliteCache::new(KMS_SQLITE_CACHE_SIZE)),
         })
     }
 
@@ -131,7 +132,7 @@ impl CachedSqlCipher {
 }
 
 #[async_trait(?Send)]
-impl Database for CachedSqlCipher {
+impl ObjectsDatabase for CachedSqlCipher {
     fn filename(&self, group_id: u128) -> Option<PathBuf> {
         Some(self.path.join(format!("{group_id}.sqlite")))
     }
@@ -368,6 +369,63 @@ impl Database for CachedSqlCipher {
         kms_bail!("Missing group_id/key for opening SQLCipher")
     }
 
+    async fn atomic(
+        &self,
+        user: &str,
+        operations: &[AtomicOperation],
+        params: Option<&ExtraDatabaseParams>,
+    ) -> KResult<()> {
+        if let Some(params) = params {
+            let pool = self.pre_query(params.group_id, &params.key).await?;
+            if is_migration_in_progress_(&*pool).await? {
+                kms_bail!("Migration in progress. Please retry later");
+            }
+            let mut tx = pool.begin().await?;
+            return match atomic_(user, operations, &mut tx).await {
+                Ok(()) => {
+                    tx.commit().await?;
+                    self.post_query(params.group_id)?;
+                    Ok(())
+                }
+                Err(e) => {
+                    tx.rollback().await.context("transaction failed")?;
+                    self.post_query(params.group_id)?;
+                    Err(e)
+                }
+            }
+        }
+        kms_bail!("Missing group_id/key for opening SQLCipher")
+    }
+
+    async fn find(
+        &self,
+        researched_attributes: Option<&Attributes>,
+        state: Option<StateEnumeration>,
+        user: &str,
+        user_must_be_owner: bool,
+        params: Option<&ExtraDatabaseParams>,
+    ) -> KResult<Vec<(String, StateEnumeration, Attributes, IsWrapped)>> {
+        trace!("cached sqlcipher: find: {:?}", researched_attributes);
+        if let Some(params) = params {
+            let pool = self.pre_query(params.group_id, &params.key).await?;
+            let ret = find_(
+                researched_attributes,
+                state,
+                user,
+                user_must_be_owner,
+                &*pool,
+            )
+            .await;
+            trace!("cached sqlcipher: before post_query: {:?}", ret);
+            self.post_query(params.group_id)?;
+            return ret
+        }
+
+        kms_bail!("Missing group_id/key for opening SQLCipher")
+    }
+}
+#[async_trait(?Send)]
+impl PermissionsDatabase for CachedSqlCipher {
     async fn list_user_granted_access_rights(
         &self,
         user: &str,
@@ -454,33 +512,6 @@ impl Database for CachedSqlCipher {
         kms_bail!("Missing group_id/key for opening SQLCipher")
     }
 
-    async fn find(
-        &self,
-        researched_attributes: Option<&Attributes>,
-        state: Option<StateEnumeration>,
-        user: &str,
-        user_must_be_owner: bool,
-        params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<Vec<(String, StateEnumeration, Attributes, IsWrapped)>> {
-        trace!("cached sqlcipher: find: {:?}", researched_attributes);
-        if let Some(params) = params {
-            let pool = self.pre_query(params.group_id, &params.key).await?;
-            let ret = find_(
-                researched_attributes,
-                state,
-                user,
-                user_must_be_owner,
-                &*pool,
-            )
-            .await;
-            trace!("cached sqlcipher: before post_query: {:?}", ret);
-            self.post_query(params.group_id)?;
-            return ret
-        }
-
-        kms_bail!("Missing group_id/key for opening SQLCipher")
-    }
-
     async fn list_user_access_rights_on_object(
         &self,
         uid: &str,
@@ -496,35 +527,6 @@ impl Database for CachedSqlCipher {
                 list_user_access_rights_on_object_(uid, user, no_inherited_access, &*pool).await;
             self.post_query(params.group_id)?;
             return ret
-        }
-
-        kms_bail!("Missing group_id/key for opening SQLCipher")
-    }
-
-    async fn atomic(
-        &self,
-        user: &str,
-        operations: &[AtomicOperation],
-        params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<()> {
-        if let Some(params) = params {
-            let pool = self.pre_query(params.group_id, &params.key).await?;
-            if is_migration_in_progress_(&*pool).await? {
-                kms_bail!("Migration in progress. Please retry later");
-            }
-            let mut tx = pool.begin().await?;
-            return match atomic_(user, operations, &mut tx).await {
-                Ok(()) => {
-                    tx.commit().await?;
-                    self.post_query(params.group_id)?;
-                    Ok(())
-                }
-                Err(e) => {
-                    tx.rollback().await.context("transaction failed")?;
-                    self.post_query(params.group_id)?;
-                    Err(e)
-                }
-            }
         }
 
         kms_bail!("Missing group_id/key for opening SQLCipher")

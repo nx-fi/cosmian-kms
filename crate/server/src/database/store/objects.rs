@@ -16,7 +16,9 @@ use crate::{
         extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata,
         wrapping::unwrap_key, KMS,
     },
-    database::{store::Store, unwrapped_cache::CachedUnwrappedObject, AtomicOperation, Database},
+    database::{
+        store::Store, unwrapped_cache::CachedUnwrappedObject, AtomicOperation, ObjectsDatabase,
+    },
     error::KmsError,
     result::{KResult, KResultHelper},
 };
@@ -28,7 +30,7 @@ impl Store {
     pub(crate) async fn register_database(
         &self,
         prefix: &str,
-        database: Arc<dyn Database + Sync + Send>,
+        database: Arc<dyn ObjectsDatabase + Sync + Send>,
     ) {
         let mut map = self.objects.write().await;
         map.insert(prefix.to_owned(), database);
@@ -41,7 +43,10 @@ impl Store {
         map.remove(prefix.unwrap_or(""));
     }
 
-    async fn get_database(&self, uid: &str) -> KResult<Arc<dyn Database + Sync + Send>> {
+    async fn get_database<'a>(
+        &'a self,
+        uid: &str,
+    ) -> KResult<Arc<dyn ObjectsDatabase + Sync + Send>> {
         // split the uid on the first ::
         let splits = uid.split_once("::");
         Ok(match splits {

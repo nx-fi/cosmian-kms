@@ -19,12 +19,12 @@ use uuid::Uuid;
 
 use crate::{
     core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
-    database::Database,
+    database::ObjectsDatabase,
     kms_bail,
     result::KResult,
 };
 
-pub(crate) async fn find_attributes<DB: Database>(
+pub(crate) async fn find_attributes<DB: ObjectsDatabase>(
     db_and_params: &(DB, Option<ExtraDatabaseParams>),
 ) -> KResult<()> {
     cosmian_logger::log_utils::log_init(None);

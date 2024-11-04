@@ -23,8 +23,9 @@ use uuid::Uuid;
 use crate::{
     core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
     database::{
-        database_trait::AtomicOperation, migrate::do_migration, query_from_attributes,
-        state_from_string, DBObject, Database, PgSqlPlaceholder,
+        database_traits::{AtomicOperation, PermissionsDatabase},
+        migrate::do_migration,
+        query_from_attributes, state_from_string, DBObject, ObjectsDatabase, PgSqlPlaceholder,
         KMS_VERSION_BEFORE_MIGRATION_SUPPORT, PGSQL_QUERIES,
     },
     error::KmsError,
@@ -70,6 +71,7 @@ impl TryFrom<&PgRow> for ObjectWithMetadata {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct PgPool {
     pool: Pool<Postgres>,
 }
@@ -114,7 +116,7 @@ impl PgPool {
 }
 
 #[async_trait(?Send)]
-impl Database for PgPool {
+impl ObjectsDatabase for PgPool {
     fn filename(&self, _group_id: u128) -> Option<PathBuf> {
         None
     }
@@ -293,6 +295,50 @@ impl Database for PgPool {
         }
     }
 
+    async fn atomic(
+        &self,
+        user: &str,
+        operations: &[AtomicOperation],
+        _params: Option<&ExtraDatabaseParams>,
+    ) -> KResult<()> {
+        if is_migration_in_progress_(&self.pool).await? {
+            kms_bail!("Migration in progress. Please retry later");
+        }
+
+        let mut tx = self.pool.begin().await?;
+        match atomic_(user, operations, &mut tx).await {
+            Ok(()) => {
+                tx.commit().await?;
+                Ok(())
+            }
+            Err(e) => {
+                tx.rollback().await.context("transaction failed")?;
+                Err(e)
+            }
+        }
+    }
+
+    async fn find(
+        &self,
+        researched_attributes: Option<&Attributes>,
+        state: Option<StateEnumeration>,
+        user: &str,
+        user_must_be_owner: bool,
+        _params: Option<&ExtraDatabaseParams>,
+    ) -> KResult<Vec<(String, StateEnumeration, Attributes, IsWrapped)>> {
+        find_(
+            researched_attributes,
+            state,
+            user,
+            user_must_be_owner,
+            &self.pool,
+        )
+        .await
+    }
+}
+
+#[async_trait(?Send)]
+impl PermissionsDatabase for PgPool {
     async fn list_user_granted_access_rights(
         &self,
         user: &str,
@@ -346,24 +392,6 @@ impl Database for PgPool {
         is_object_owned_by_(uid, owner, &self.pool).await
     }
 
-    async fn find(
-        &self,
-        researched_attributes: Option<&Attributes>,
-        state: Option<StateEnumeration>,
-        user: &str,
-        user_must_be_owner: bool,
-        _params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<Vec<(String, StateEnumeration, Attributes, IsWrapped)>> {
-        find_(
-            researched_attributes,
-            state,
-            user,
-            user_must_be_owner,
-            &self.pool,
-        )
-        .await
-    }
-
     async fn list_user_access_rights_on_object(
         &self,
         uid: &str,
@@ -372,29 +400,6 @@ impl Database for PgPool {
         _params: Option<&ExtraDatabaseParams>,
     ) -> KResult<HashSet<ObjectOperationType>> {
         list_user_access_rights_on_object_(uid, user, no_inherited_access, &self.pool).await
-    }
-
-    async fn atomic(
-        &self,
-        user: &str,
-        operations: &[AtomicOperation],
-        _params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<()> {
-        if is_migration_in_progress_(&self.pool).await? {
-            kms_bail!("Migration in progress. Please retry later");
-        }
-
-        let mut tx = self.pool.begin().await?;
-        match atomic_(user, operations, &mut tx).await {
-            Ok(()) => {
-                tx.commit().await?;
-                Ok(())
-            }
-            Err(e) => {
-                tx.rollback().await.context("transaction failed")?;
-                Err(e)
-            }
-        }
     }
 }
 

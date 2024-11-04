@@ -4,10 +4,12 @@ use cosmian_kms_client::access::ObjectOperationType;
 use uuid::Uuid;
 
 use crate::{
-    core::extra_database_params::ExtraDatabaseParams, database::Database, result::KResult,
+    core::extra_database_params::ExtraDatabaseParams,
+    database::{ObjectsDatabase, PermissionsDatabase},
+    result::KResult,
 };
 
-pub(crate) async fn permissions<DB: Database>(
+pub(crate) async fn permissions<DB: ObjectsDatabase + PermissionsDatabase>(
     db_and_params: &(DB, Option<ExtraDatabaseParams>),
 ) -> KResult<()> {
     cosmian_logger::log_utils::log_init(None);
@@ -16,7 +18,7 @@ pub(crate) async fn permissions<DB: Database>(
     Ok(())
 }
 
-async fn permissions_users<DB: Database>(
+async fn permissions_users<DB: ObjectsDatabase + PermissionsDatabase>(
     db_and_params: &(DB, Option<ExtraDatabaseParams>),
 ) -> KResult<()> {
     cosmian_logger::log_utils::log_init(None);
@@ -130,7 +132,7 @@ async fn permissions_users<DB: Database>(
     Ok(())
 }
 
-async fn permissions_wildcard<DB: Database>(
+async fn permissions_wildcard<DB: ObjectsDatabase + PermissionsDatabase>(
     db_and_params: &(DB, Option<ExtraDatabaseParams>),
 ) -> KResult<()> {
     let db = &db_and_params.0;
