@@ -721,6 +721,8 @@ where
     for tag in tags {
         query = query.bind(tag);
     }
+    // Bind the tags len and the user
+    query = query.bind(i16::try_from(tags.len())?);
 
     let rows = query.fetch_all(executor).await?;
     let ids = rows.iter().map(|r| r.get(0)).collect::<HashSet<String>>();
