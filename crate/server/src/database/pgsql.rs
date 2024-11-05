@@ -318,6 +318,14 @@ impl ObjectsDatabase for PgPool {
         }
     }
 
+    async fn list_uids_for_tags(
+        &self,
+        tags: &HashSet<String>,
+        _params: Option<&ExtraDatabaseParams>,
+    ) -> KResult<HashSet<String>> {
+        list_uids_from_tags_(tags, &self.pool).await
+    }
+
     async fn find(
         &self,
         researched_attributes: Option<&Attributes>,
@@ -671,6 +679,34 @@ pub(crate) async fn upsert_(
 
     trace!("Upserted in DB: {uid}");
     Ok(())
+}
+
+pub(crate) async fn list_uids_from_tags_<'e, E>(
+    tags: &HashSet<String>,
+    executor: E,
+) -> KResult<HashSet<String>>
+where
+    E: Executor<'e, Database = Postgres> + Copy,
+{
+    let tags_params = tags
+        .iter()
+        .enumerate()
+        .map(|(i, _)| format!("${}", i + 1))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    let raw_sql = get_pgsql_query!("select-uids-from-tags")
+        .replace("@TAGS", &tags_params)
+        .replace("@LEN", &format!("${}", tags.len()));
+
+    let mut query = sqlx::query::<Postgres>(&raw_sql);
+    for tag in tags {
+        query = query.bind(tag);
+    }
+
+    let rows = query.fetch_all(executor).await?;
+    let uids = rows.iter().map(|r| r.get(0)).collect::<HashSet<String>>();
+    Ok(uids)
 }
 
 pub(crate) async fn list_accesses_<'e, E>(

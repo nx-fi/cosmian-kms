@@ -287,24 +287,7 @@ impl ObjectsDatabase for RedisWithFindex {
         let uids = if uid_or_tags.starts_with('[') {
             let tags: HashSet<String> = serde_json::from_str(uid_or_tags)
                 .with_context(|| format!("Invalid tags: {uid_or_tags}"))?;
-            let keywords = tags
-                .iter()
-                .map(|tag| Keyword::from(tag.as_bytes()))
-                .collect::<HashSet<Keyword>>();
-            // find the locations that match at least one of the tags
-            let res = self
-                .findex
-                .search(&self.findex_key.to_bytes(), &self.label, keywords)
-                .await?;
-            // we want the intersection of all the locations
-            let locations = intersect_all(res.values().cloned());
-            locations
-                .into_iter()
-                .map(|location| {
-                    String::from_utf8(location.to_vec())
-                        .map_err(|e| kms_error!(format!("Invalid uid. Error: {e:?}")))
-                })
-                .collect::<KResult<HashSet<String>>>()?
+            self.list_uids_for_tags(&tags, None).await?
         } else {
             // it is an UID
             HashSet::from([uid_or_tags.to_owned()])
@@ -488,6 +471,31 @@ impl ObjectsDatabase for RedisWithFindex {
             }
         }
         self.objects_db.atomic(&redis_operations).await
+    }
+
+    async fn list_uids_for_tags(
+        &self,
+        tags: &HashSet<String>,
+        _params: Option<&ExtraDatabaseParams>,
+    ) -> KResult<HashSet<String>> {
+        let keywords = tags
+            .iter()
+            .map(|tag| Keyword::from(tag.as_bytes()))
+            .collect::<HashSet<Keyword>>();
+        // find the locations that match at least one of the tags
+        let res = self
+            .findex
+            .search(&self.findex_key.to_bytes(), &self.label, keywords)
+            .await?;
+        // we want the intersection of all the locations
+        let locations = intersect_all(res.values().cloned());
+        locations
+            .into_iter()
+            .map(|location| {
+                String::from_utf8(location.to_vec())
+                    .map_err(|e| kms_error!(format!("Invalid uid. Error: {e:?}")))
+            })
+            .collect::<KResult<HashSet<String>>>()
     }
 
     /// Return uid, state and attributes of the object identified by its owner,

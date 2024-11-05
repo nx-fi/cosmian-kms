@@ -321,6 +321,14 @@ impl ObjectsDatabase for MySqlPool {
         }
     }
 
+    async fn list_uids_for_tags(
+        &self,
+        tags: &HashSet<String>,
+        _params: Option<&ExtraDatabaseParams>,
+    ) -> KResult<HashSet<String>> {
+        list_uids_for_tags_(tags, &self.pool).await
+    }
+
     async fn find(
         &self,
         researched_attributes: Option<&Attributes>,
@@ -666,6 +674,31 @@ pub(crate) async fn upsert_(
 
     trace!("Upserted in DB: {uid}");
     Ok(())
+}
+
+pub(crate) async fn list_uids_for_tags_<'e, E>(
+    tags: &HashSet<String>,
+    executor: E,
+) -> KResult<HashSet<String>>
+where
+    E: Executor<'e, Database = MySql> + Copy,
+{
+    let tags_params = tags.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+
+    // Build the raw SQL query
+    let raw_sql = get_mysql_query!("select-uids-from-tags").replace("@TAGS", &tags_params);
+
+    // Bind the tags paramss
+    let mut query = sqlx::query::<MySql>(&raw_sql);
+    for tag in tags {
+        query = query.bind(tag);
+    }
+
+    // Bind the tags len
+    query = query.bind(i16::try_from(tags.len())?);
+    let rows = query.fetch_all(executor).await?;
+    let uids = rows.iter().map(|r| r.get(0)).collect::<HashSet<String>>();
+    Ok(uids)
 }
 
 pub(crate) async fn list_accesses_<'e, E>(

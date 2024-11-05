@@ -23,7 +23,8 @@ use super::{
     sqlite::SqlitePool,
 };
 use crate::{
-    core::extra_database_params::ExtraDatabaseParams, database::tests::database_tests::atomic,
+    core::extra_database_params::ExtraDatabaseParams,
+    database::tests::{database_tests::atomic, list_uids_for_tags_test::list_uids_for_tags_test},
     result::KResult,
 };
 
@@ -31,6 +32,7 @@ mod additional_redis_findex_tests;
 mod database_tests;
 mod find_attributes_test;
 mod json_access_test;
+mod list_uids_for_tags_test;
 mod owner_test;
 mod permissions_test;
 mod tagging_tests;
@@ -99,6 +101,7 @@ pub(crate) async fn test_redis_with_findex() -> KResult<()> {
     atomic(&get_redis_with_findex().await?).await?;
     upsert(&get_redis_with_findex().await?).await?;
     crud(&get_redis_with_findex().await?).await?;
+    list_uids_for_tags_test(&get_redis_with_findex().await?).await?;
     Ok(())
 }
 
@@ -125,6 +128,7 @@ pub(crate) async fn test_sql_cipher() -> KResult<()> {
     atomic(&get_sql_cipher(&dir_path, &db_key)?).await?;
     upsert(&get_sql_cipher(&dir_path, &db_key)?).await?;
     crud(&get_sql_cipher(&dir_path, &db_key)?).await?;
+    list_uids_for_tags_test(&get_sql_cipher(&dir_path, &db_key)?).await?;
     Ok(())
 }
 
@@ -146,6 +150,7 @@ pub(crate) async fn test_sqlite() -> KResult<()> {
     atomic(&get_sqlite(&db_file).await?).await?;
     upsert(&get_sqlite(&db_file).await?).await?;
     crud(&get_sqlite(&db_file).await?).await?;
+    list_uids_for_tags_test(&get_sqlite(&db_file).await?).await?;
     Ok(())
 }
 
@@ -160,6 +165,7 @@ pub(crate) async fn test_postgresql() -> KResult<()> {
     atomic(&get_pgsql().await?).await?;
     upsert(&get_pgsql().await?).await?;
     crud(&get_pgsql().await?).await?;
+    list_uids_for_tags_test(&get_pgsql().await?).await?;
     Ok(())
 }
 
@@ -175,6 +181,7 @@ pub(crate) async fn test_mysql() -> KResult<()> {
     atomic(&get_mysql().await?).await?;
     upsert(&get_mysql().await?).await?;
     crud(&get_mysql().await?).await?;
+    list_uids_for_tags_test(&get_mysql().await?).await?;
     Ok(())
 }
 

@@ -214,11 +214,16 @@ impl Store {
     //     Ok(())
     // }
 
-    pub(crate) async fn list_ids_for_tags(&self, tags: HashSet<String>) -> KResult<Vec<String>> {
+    #[allow(dead_code)]
+    pub(crate) async fn list_uids_for_tags(
+        &self,
+        tags: &HashSet<String>,
+        params: Option<&ExtraDatabaseParams>,
+    ) -> KResult<Vec<String>> {
         let map = self.objects.read().await;
         let mut results: Vec<String> = Vec::new();
         for (_prefix, db) in map.iter() {
-            results.extend(db.list_ids_for_tags(tags).await?);
+            results.extend(db.list_uids_for_tags(tags, params).await?);
         }
         Ok(results)
     }

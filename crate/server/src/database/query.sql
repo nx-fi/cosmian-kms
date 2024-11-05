@@ -138,3 +138,6 @@ INNER JOIN (
 ON objects.id = matched_tags.id
 LEFT JOIN read_access
 ON objects.id = read_access.id AND (read_access.userid=@USER OR read_access.userid='*' );
+
+-- name: select-uids-from-tags
+SELECT id FROM tags WHERE tag IN (@TAGS) GROUP BY id HAVING COUNT(DISTINCT tag) = @LEN;

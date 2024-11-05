@@ -34,7 +34,9 @@ use crate::{
     database::{
         database_traits::{AtomicOperation, PermissionsDatabase},
         migrate::do_migration,
-        sqlite::{atomic_, is_migration_in_progress_, migrate_, retrieve_tags_},
+        sqlite::{
+            atomic_, is_migration_in_progress_, list_uids_for_tags_, migrate_, retrieve_tags_,
+        },
         ObjectsDatabase, KMS_VERSION_BEFORE_MIGRATION_SUPPORT, SQLITE_QUERIES,
     },
     get_sqlite_query, kms_bail, kms_error,
@@ -394,6 +396,21 @@ impl ObjectsDatabase for CachedSqlCipher {
                 }
             }
         }
+        kms_bail!("Missing group_id/key for opening SQLCipher")
+    }
+
+    async fn list_uids_for_tags(
+        &self,
+        tags: &HashSet<String>,
+        params: Option<&ExtraDatabaseParams>,
+    ) -> KResult<HashSet<String>> {
+        if let Some(params) = params {
+            let pool = self.pre_query(params.group_id, &params.key).await?;
+            let ret = list_uids_for_tags_(tags, &*pool).await;
+            self.post_query(params.group_id)?;
+            return ret
+        }
+
         kms_bail!("Missing group_id/key for opening SQLCipher")
     }
 
