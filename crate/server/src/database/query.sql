@@ -60,10 +60,8 @@ DELETE FROM context WHERE version=$1;
 INSERT INTO objects (id, object, attributes, state, owner) VALUES ($1, $2, $3, $4, $5);
 
 -- name: select-object
-SELECT objects.id, objects.object, objects.attributes, objects.owner, objects.state, read_access.permissions
+SELECT objects.id, objects.object, objects.attributes, objects.owner, objects.state
         FROM objects
-        LEFT JOIN read_access
-        ON objects.id = read_access.id AND ( read_access.userid=$2 OR read_access.userid='*' )
         WHERE objects.id=$1;
 
 -- name: update-object-with-object
@@ -126,7 +124,7 @@ DELETE FROM tags WHERE id=$1;
 
 
 -- name: select-from-tags
-SELECT objects.id, objects.object, objects.attributes, objects.owner, objects.state, read_access.permissions
+SELECT objects.id, objects.object, objects.attributes, objects.owner, objects.state
 FROM objects
 INNER JOIN (
     SELECT id
@@ -135,9 +133,7 @@ INNER JOIN (
     GROUP BY id
     HAVING COUNT(DISTINCT tag) = @LEN
 ) AS matched_tags
-ON objects.id = matched_tags.id
-LEFT JOIN read_access
-ON objects.id = read_access.id AND (read_access.userid=@USER OR read_access.userid='*' );
+ON objects.id = matched_tags.id;
 
 -- name: select-uids-from-tags
 SELECT id FROM tags WHERE tag IN (@TAGS) GROUP BY id HAVING COUNT(DISTINCT tag) = @LEN;

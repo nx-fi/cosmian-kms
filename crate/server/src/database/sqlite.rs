@@ -474,54 +474,31 @@ pub(crate) async fn retrieve_<'e, E>(
 where
     E: Executor<'e, Database = Sqlite> + Copy,
 {
-    let rows: Vec<SqliteRow> = if uid_or_tags.starts_with('[') {
+    let uids = if uid_or_tags.starts_with('[') {
         // deserialize the array to an HashSet
         let tags: HashSet<String> = serde_json::from_str(uid_or_tags)
             .with_context(|| format!("Invalid tags: {uid_or_tags}"))?;
-
-        // find the key(s) that matches the tags
-        // the user must be the owner or have decrypt permissions
-        // Build the raw tags params
-        let tags_params = tags
-            .iter()
-            .enumerate()
-            .map(|(i, _)| format!("${}", i + 1))
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        // Build the raw SQL query
-        let raw_sql = get_sqlite_query!("select-from-tags")
-            .replace("@TAGS", &tags_params)
-            .replace("@LEN", &format!("${}", tags.len() + 1))
-            .replace("@USER", &format!("${}", tags.len() + 2));
-
-        trace!("retrieve: tags: {tags:?}, user: {user}, raw_sql = {raw_sql},");
-
-        // Bind the tags params
-        let mut query = sqlx::query::<Sqlite>(&raw_sql);
-        for tag in &tags {
-            query = query.bind(tag);
-        }
-        // Bind the tags len and the user
-        query = query.bind(i16::try_from(tags.len())?).bind(user);
-
-        // Execute the query
-        query.fetch_all(executor).await?
+        list_uids_for_tags_(&tags, executor).await?
     } else {
-        sqlx::query(get_sqlite_query!("select-object"))
-            .bind(uid_or_tags)
-            .bind(user)
-            .fetch_optional(executor)
-            .await?
-            .map_or(vec![], |row| vec![row])
+        HashSet::from([uid_or_tags.to_string()])
     };
 
-    // process the rows and find the tags
     let mut res: HashMap<String, ObjectWithMetadata> = HashMap::new();
-    for row in rows {
-        let object_with_metadata = ObjectWithMetadata::try_from(&row)?;
+    for uid in uids {
+        let row: Option<SqliteRow> = sqlx::query(get_sqlite_query!("select-object"))
+            .bind(&uid)
+            .bind(user)
+            .fetch_optional(executor)
+            .await?;
+
+        if row.is_none() {
+            continue
+        }
+
+        let object_with_metadata = ObjectWithMetadata::try_from(&row.unwrap())?;
         res.insert(object_with_metadata.id().to_owned(), object_with_metadata);
     }
+
     Ok(res)
 }
 
