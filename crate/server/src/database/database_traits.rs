@@ -76,16 +76,12 @@ pub(crate) trait ObjectsDatabase {
 
     /// Retrieve objects from the database.
     ///
-    /// The `uid_or_tags` parameter can be either a `uid` or a comma-separated list of tags
+    /// The `uid_or_tags` parameter can be either an ` uid ` or a comma-separated list of tags
     /// in a JSON array.
-    ///
-    /// The `query_access_grant` allows additional filtering in the `access` table to see
-    /// if a `user`, that is not a owner, has the corresponding access granted
     async fn retrieve(
         &self,
         uid_or_tags: &str,
         user: &str,
-        query_access_grant: ObjectOperationType,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<HashMap<String, ObjectWithMetadata>>;
 

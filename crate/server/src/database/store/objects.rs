@@ -118,7 +118,7 @@ impl Store {
 
     /// Retrieve objects from the database.
     ///
-    /// The `uid_or_tags` parameter can be either a `uid` or a comma-separated list of tags
+    /// The `uid_or_tags` parameter can be either an ` uid ` or a comma-separated list of tags
     /// in a JSON array.
     ///
     /// The `permission` allows additional filtering in the `access` table to see

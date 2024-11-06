@@ -195,10 +195,9 @@ impl ObjectsDatabase for SqlitePool {
         &self,
         uid_or_tags: &str,
         user: &str,
-        query_access_grant: ObjectOperationType,
         _params: Option<&ExtraDatabaseParams>,
     ) -> KResult<HashMap<String, ObjectWithMetadata>> {
-        retrieve_(uid_or_tags, user, query_access_grant, &self.pool).await
+        retrieve_(uid_or_tags, user, &self.pool).await
     }
 
     async fn retrieve_tags(
@@ -470,7 +469,6 @@ pub(crate) async fn create_(
 pub(crate) async fn retrieve_<'e, E>(
     uid_or_tags: &str,
     user: &str,
-    operation_type: ObjectOperationType,
     executor: E,
 ) -> KResult<HashMap<String, ObjectWithMetadata>>
 where
@@ -522,30 +520,7 @@ where
     let mut res: HashMap<String, ObjectWithMetadata> = HashMap::new();
     for row in rows {
         let object_with_metadata = ObjectWithMetadata::try_from(&row)?;
-        trace!("row = {}", object_with_metadata.object());
-
-        // check if the user, who is not an owner, has the right permissions
-        if (user != object_with_metadata.owner())
-            && !object_with_metadata.permissions().contains(&operation_type)
-        {
-            continue
-        }
-
-        // check if the object is already in the result
-        // this can happen as permissions may have been granted
-        // to both this user and the wildcard user
-        match res.get_mut(object_with_metadata.id()) {
-            Some(existing_object) => {
-                // update the permissions
-                for permission in object_with_metadata.permissions() {
-                    existing_object.permissions_mut().insert(*permission);
-                }
-            }
-            None => {
-                // insert the object
-                res.insert(object_with_metadata.id().to_owned(), object_with_metadata);
-            }
-        };
+        res.insert(object_with_metadata.id().to_owned(), object_with_metadata);
     }
     Ok(res)
 }

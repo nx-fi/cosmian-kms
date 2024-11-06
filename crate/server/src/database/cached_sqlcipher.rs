@@ -220,12 +220,11 @@ impl ObjectsDatabase for CachedSqlCipher {
         &self,
         uid_or_tags: &str,
         user: &str,
-        query_access_grant: ObjectOperationType,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<HashMap<String, ObjectWithMetadata>> {
         if let Some(params) = params {
             let pool = self.pre_query(params.group_id, &params.key).await?;
-            let ret = retrieve_(uid_or_tags, user, query_access_grant, &*pool).await;
+            let ret = retrieve_(uid_or_tags, user, &*pool).await;
             self.post_query(params.group_id)?;
             return ret
         }

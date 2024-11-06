@@ -697,12 +697,14 @@ where
 
     let raw_sql = get_pgsql_query!("select-uids-from-tags")
         .replace("@TAGS", &tags_params)
-        .replace("@LEN", &format!("${}", tags.len()));
+        .replace("@LEN", &format!("${}", tags.len() + 1));
 
     let mut query = sqlx::query::<Postgres>(&raw_sql);
     for tag in tags {
         query = query.bind(tag);
     }
+    // Bind the tags len and the user
+    query = query.bind(i16::try_from(tags.len())?);
 
     let rows = query.fetch_all(executor).await?;
     let uids = rows.iter().map(|r| r.get(0)).collect::<HashSet<String>>();
