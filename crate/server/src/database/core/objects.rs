@@ -23,10 +23,80 @@ use crate::{
     result::{KResult, KResultHelper},
 };
 
-/// Methods that manipulate Objects in the database(s)
+/// Enum representing different user filters for object operations.
+///
+/// This enum is used to specify the conditions under which a user can perform
+/// operations on objects in the database.
+///
+/// Variants:
+/// - `None`: No user filter is applied.
+/// - `UserMustBeOwner`: The user must be the owner of the object.
+/// - `UserCanPerformAnyOperation(HashSet<KmipOperation>)`: The user can perform any of the specified operations.
+/// - `UserCanPerformAllOperations(HashSet<KmipOperation>)`: The user can perform all the specified operations.
+#[derive(Clone)]
+pub enum UserFilter {
+    None,
+    UserMustBeOwner,
+    UserCanPerformAnyOperation(HashSet<KmipOperation>),
+    UserCanPerformAllOperations(HashSet<KmipOperation>),
+}
+
+/// Enum representing different state filters for object operations.
+///
+/// This enum is used to specify the conditions based on the state of objects
+/// in the database.
+///
+/// Variants:
+/// - `None`: No state filter is applied.
+/// - `StateIn(HashSet<StateEnumeration>)`: The object state must be in the specified set of states.
+/// - `StateNotIn(HashSet<StateEnumeration>)`: The object state must not be in the specified set of states.
+#[derive(Clone)]
+pub enum StateFilter {
+    None,
+    StateIn(HashSet<StateEnumeration>),
+    StateNotIn(HashSet<StateEnumeration>),
+}
+
+/// Struct representing the database and providing methods to manipulate objects within it.
+///
+/// The `Database` struct provides various methods to register, unregister, retrieve, create, update,
+/// and delete objects in the database. It also supports operations like migration, atomic transactions,
+/// and cache management for unwrapped objects.
+///
+/// # Methods
+///
+/// - `register_objects_store`: Registers an `ObjectsStore` for objects with a specific prefix.
+/// - `unregister_object_store`: Unregisters the default objects store or a store for a given prefix.
+/// - `get_object_store`: Retrieves the appropriate object store based on the prefix of the `uid`.
+/// - `filename`: Returns the filename of the database or `None` if not supported.
+/// - `migrate`: Migrates all the databases to the latest version.
+/// - `create`: Creates a new object in the database.
+/// - `retrieve_objects`: Retrieves objects from the database based on `uid` or tags.
+/// - `retrieve_object`: Retrieves a single object from the database.
+/// - `retrieve_tags`: Retrieves the tags of an object with the given `uid`.
+/// - `update_object`: Updates the specified object in the database.
+/// - `update_state`: Updates the state of an object in the database.
+/// - `atomic`: Performs an atomic set of operations on the database.
+/// - `get_unwrapped`: Unwraps the object (if needed) and returns the unwrapped object.
 impl Database {
     #[allow(dead_code)]
-    /// Register an Objects Database for Objects uid starting with <prefix>::
+    /// Register an Objects store for Objects `uid` starting with `<prefix>::`.
+    ///
+    /// This function registers an `ObjectsStore` for objects whose unique identifiers
+    /// start with the specified prefix. The prefix is used to route operations to the
+    /// appropriate store.
+    ///
+    /// # Arguments
+    ///
+    /// * `prefix` - A string slice representing the prefix for the objects' unique identifiers.
+    /// * `objects_store` - An `Arc` containing the `ObjectsStore` to be registered.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let store = Arc::new(MyObjectsStore::new());
+    /// database.register_objects_store("my_prefix", store).await;
+    /// ```
     pub(crate) async fn register_objects_store(
         &self,
         prefix: &str,
@@ -37,12 +107,29 @@ impl Database {
     }
 
     #[allow(dead_code)]
-    /// Unregister the default objects database or a database for the given prefix
+    /// Unregister the default objects store or a store for the given prefix
     pub(crate) async fn unregister_object_store(&self, prefix: Option<&str>) {
         let mut map = self.objects.write().await;
         map.remove(prefix.unwrap_or(""));
     }
 
+    /// Return the object store for the given `uid`
+    ///
+    /// This function retrieves the appropriate object store based on the prefix of the `uid`.
+    /// If the `uid` contains a prefix separated by "::", it will look for a store registered with that prefix.
+    /// If no prefix is found, it will return the default object store.
+    ///
+    /// # Arguments
+    ///
+    /// * `uid` - A string slice representing the unique identifier of the object.
+    ///
+    /// # Returns
+    ///
+    /// * `KResult<Arc<dyn ObjectsStore + Sync + Send>>` - A result containing the object store.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if no object store is found for the given prefix or if no default object store is available.
     async fn get_object_store<'a>(
         &'a self,
         uid: &str,
@@ -93,8 +180,22 @@ impl Database {
 
     /// Create the given Object in the database.
     ///
+    /// # Arguments
+    ///
+    /// * `uid` - An optional string representing the unique identifier of the object.
+    /// * `owner` - A string slice representing the owner of the object.
+    /// * `object` - A reference to the `Object` to be created.
+    /// * `attributes` - A reference to the `Attributes` of the object.
+    /// * `tags` - A reference to a `HashSet` of tags associated with the object.
+    /// * `params` - An optional reference to `ExtraStoreParams` for additional parameters.
+    ///
+    /// # Returns
+    ///
+    /// * `KResult<String>` - A result containing the unique identifier of the created object.
+    /// Create the given Object in the database.
+    ///
     /// A new UUID will be created if none is supplier.
-    /// This method will fail if a `uid` is supplied
+    /// This method will fail if an ` uid ` is supplied
     /// and an object with the same id already exists
     pub(crate) async fn create(
         &self,
@@ -118,16 +219,33 @@ impl Database {
 
     /// Retrieve objects from the database.
     ///
-    /// The `uid_or_tags` parameter can be either an ` uid ` or a comma-separated list of tags
-    /// in a JSON array.
+    /// The `uid_or_tags` parameter can be either a `uid` or a JSON array of tags.
     ///
-    /// The `permission` allows additional filtering in the `access` table to see
-    /// if a `user`, that is not an owner, has the corresponding access granted
-    pub(crate) async fn retrieve(
+    /// The `user_filter` parameter allows filtering based on user permissions.
+    ///
+    /// The `state_filter` parameter allows filtering based on the state of the objects.
+    ///
+    /// The `params` parameter allows passing additional parameters for the database query.
+    ///
+    /// Returns a `KResult` containing a `HashMap` where the keys are the `uid`s and the values are the `ObjectWithMetadata`.
+    ///
+    /// # Arguments
+    ///
+    /// * `uid_or_tags` - A string representing either a `uid` or a JSON array of tags.
+    /// * `user` - A string representing the user requesting the objects.
+    /// * `user_filter` - A `UserFilter` enum to filter objects based on user permissions.
+    /// * `state_filter` - A `StateFilter` enum to filter objects based on their state.
+    /// * `params` - An optional reference to `ExtraStoreParams` for additional query parameters.
+    ///
+    /// # Returns
+    ///
+    /// * `KResult<HashMap<String, ObjectWithMetadata>>` - A result containing a map of `uid`s to `ObjectWithMetadata`.
+    pub(crate) async fn retrieve_objects(
         &self,
         uid_or_tags: &str,
         user: &str,
-        permission: KmipOperation,
+        user_filter: UserFilter,
+        state_filter: StateFilter,
         params: Option<&ExtraStoreParams>,
     ) -> KResult<HashMap<String, ObjectWithMetadata>> {
         let uids = if uid_or_tags.starts_with('[') {
@@ -137,29 +255,146 @@ impl Database {
         } else {
             vec![uid_or_tags.to_owned()]
         };
-
         let mut results: HashMap<String, ObjectWithMetadata> = HashMap::new();
         for uid in &uids {
-            let db = self.get_object_store(uid).await?;
-            let mut retrieve = self.is_object_owned_by(uid, user, params).await?;
-            // user is not the owner, check if the user has the permission
-            if !retrieve {
-                let operations = self
-                    .list_user_operations_on_object(uid, user, false, params)
-                    .await?;
-                retrieve = operations.contains(&permission);
-            }
-            if retrieve {
-                let owm = db.retrieve(uid, params).await?;
-                if let Some(owm) = owm {
-                    // check if we need to invalidate the cache wrapped objects
-                    self.unwrapped_cache.validate_cache(uid, owm.object()).await;
-                    results.insert(uid.to_owned(), owm);
-                }
+            let owm = self
+                .retrieve_object(uid, user, user_filter.clone(), state_filter.clone(), params)
+                .await?;
+            if let Some(owm) = owm {
+                results.insert(uid.to_owned(), owm);
             }
         }
         Ok(results)
     }
+
+    /// Retrieve a single object from the database.
+    ///
+    /// This method retrieves an object identified by its `uid` and applies
+    /// user and state filters to determine if the object should be returned.
+    ///
+    /// # Arguments
+    ///
+    /// * `uid` - A string slice that holds the unique identifier of the object.
+    /// * `user` - A string slice representing the user requesting the object.
+    /// * `user_filter` - A `UserFilter` enum to filter objects based on user permissions.
+    /// * `state_filter` - A `StateFilter` enum to filter objects based on their state.
+    /// * `params` - An optional reference to `ExtraStoreParams` for additional query parameters.
+    ///
+    /// # Returns
+    ///
+    /// * `KResult<Option<ObjectWithMetadata>>` - A result containing an optional `ObjectWithMetadata`.
+    ///   If the object is found and passes the filters, it is returned wrapped in `Some`.
+    ///   If the object is not found or does not pass the filters, `None` is returned.
+    pub(crate) async fn retrieve_object(
+        &self,
+        uid: &str,
+        user: &str,
+        user_filter: UserFilter,
+        state_filter: StateFilter,
+        params: Option<&ExtraStoreParams>,
+    ) -> KResult<Option<ObjectWithMetadata>> {
+        let retrieve = match user_filter {
+            UserFilter::None => true,
+            UserFilter::UserMustBeOwner => self.is_object_owned_by(uid, user, params).await?,
+            UserFilter::UserCanPerformAnyOperation(operations) => {
+                let user_operations = self
+                    .list_user_operations_on_object(uid, user, false, params)
+                    .await?;
+                let mut retrieve = false;
+                for operation in operations {
+                    if user_operations.contains(&operation) {
+                        retrieve = true;
+                        break;
+                    }
+                }
+                retrieve
+            }
+            UserFilter::UserCanPerformAllOperations(operations) => {
+                let user_operations = self
+                    .list_user_operations_on_object(uid, user, false, params)
+                    .await?;
+                let mut retrieve = true;
+                for operation in operations {
+                    if !user_operations.contains(&operation) {
+                        retrieve = false;
+                        break;
+                    }
+                }
+                retrieve
+            }
+        };
+        if !retrieve {
+            return Ok(None);
+        }
+        // retrieve the object
+        let db = self.get_object_store(uid).await?;
+        let owm = db.retrieve(uid, params).await?;
+        owm.map_or_else(
+            || Ok(None),
+            |owm| match state_filter {
+                StateFilter::None => Ok(Some(owm)),
+                StateFilter::StateIn(states) => {
+                    if states.contains(&owm.state()) {
+                        Ok(Some(owm))
+                    } else {
+                        Ok(None)
+                    }
+                }
+                StateFilter::StateNotIn(states) => {
+                    if states.contains(&owm.state()) {
+                        Ok(None)
+                    } else {
+                        Ok(Some(owm))
+                    }
+                }
+            },
+        )
+    }
+
+    // /// Retrieve objects from the database.
+    // ///
+    // /// The `uid_or_tags` parameter can be either an ` uid ` or a comma-separated list of tags
+    // /// in a JSON array.
+    // ///
+    // /// The `permission` allows additional filtering in the `access` table to see
+    // /// if a `user` that is not an owner has the corresponding access granted
+    // pub(crate) async fn retrieve(
+    //     &self,
+    //     uid_or_tags: &str,
+    //     user: &str,
+    //     permission: KmipOperation,
+    //     params: Option<&ExtraStoreParams>,
+    // ) -> KResult<HashMap<String, ObjectWithMetadata>> {
+    //     let uids = if uid_or_tags.starts_with('[') {
+    //         // tags
+    //         let tags: HashSet<String> = serde_json::from_str(uid_or_tags)?;
+    //         self.list_uids_for_tags(&tags, params).await?
+    //     } else {
+    //         vec![uid_or_tags.to_owned()]
+    //     };
+    //
+    //     let mut results: HashMap<String, ObjectWithMetadata> = HashMap::new();
+    //     for uid in &uids {
+    //         let mut retrieve = self.is_object_owned_by(uid, user, params).await?;
+    //         // user is not the owner, check if the user has the permission
+    //         if !retrieve {
+    //             let operations = self
+    //                 .list_user_operations_on_object(uid, user, false, params)
+    //                 .await?;
+    //             retrieve = operations.contains(&permission);
+    //         }
+    //         if retrieve {
+    //             let db = self.get_object_store(uid).await?;
+    //             let owm = db.retrieve(uid, params).await?;
+    //             if let Some(owm) = owm {
+    //                 // check if we need to invalidate the cache wrapped objects
+    //                 self.unwrapped_cache.validate_cache(uid, owm.object()).await;
+    //                 results.insert(uid.to_owned(), owm);
+    //             }
+    //         }
+    //     }
+    //     Ok(results)
+    // }
 
     /// Retrieve the tags of the object with the given `uid`
     pub(crate) async fn retrieve_tags(
@@ -171,9 +406,25 @@ impl Database {
         db.retrieve_tags(uid, params).await
     }
 
-    /// Update an object in the database.
+    /// This method updates the specified object identified by its `uid` in the database.
+    /// If the `tags` parameter is `None`, the tags will not be updated.
     ///
-    /// If tags is `None`, the tags will not be updated.
+    /// # Arguments
+    ///
+    /// * `uid` - A string slice that holds the unique identifier of the object.
+    /// * `object` - A reference to the `Object` to be updated.
+    /// * `attributes` - A reference to the `Attributes` of the object.
+    /// * `tags` - An optional reference to a `HashSet` of tags associated with the object.
+    /// * `params` - An optional reference to `ExtraStoreParams` for additional parameters.
+    ///
+    /// # Returns
+    ///
+    /// * `KResult<()>` - A result indicating success or failure of the update operation.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the object store for the given `uid` cannot be found
+    /// or if the update operation fails.
     pub(crate) async fn update_object(
         &self,
         uid: &str,
@@ -276,9 +527,25 @@ impl Database {
         Ok(results)
     }
 
-    /// Perform an atomic set of operation on the database
-    /// (typically in a transaction). This function assumes
-    /// that all objects belong to the same database.
+    /// Perform an atomic set of operations on the database.
+    ///
+    /// This function executes a series of operations (typically in a transaction) atomically.
+    /// It assumes that all objects involved in the operations belong to the same database.
+    ///
+    /// # Arguments
+    ///
+    /// * `user` - A string slice representing the user performing the operations.
+    /// * `operations` - A slice of `AtomicOperation` representing the operations to be performed.
+    /// * `params` - An optional reference to `ExtraStoreParams` for additional parameters.
+    ///
+    /// # Returns
+    ///
+    /// * `KResult<()>` - A result indicating success or failure of the atomic operation.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if any of the operations fail or if the database
+    /// cannot be accessed.
     pub(crate) async fn atomic(
         &self,
         user: &str,
@@ -332,7 +599,7 @@ impl Database {
             return Ok(object.clone());
         }
 
-        // check is we have it in cache
+        // check if we have it in the cache
         match self.unwrapped_cache.peek(uid).await {
             Some(Ok(u)) => {
                 // Note: In theory the cache should always be in sync...
@@ -387,13 +654,15 @@ mod tests {
         crypto::symmetric::create_symmetric_key_kmip_object,
         kmip::kmip_types::CryptographicAlgorithm,
     };
-    use cosmian_kms_client::access::KmipOperation;
     use cosmian_logger::log_utils::log_init;
     use tempfile::TempDir;
     use uuid::Uuid;
 
     use crate::{
-        database::{Database, SqlitePool},
+        database::{
+            core::objects::{StateFilter, UserFilter},
+            Database, SqlitePool,
+        },
         result::KResult,
     };
 
@@ -415,7 +684,7 @@ mod tests {
         // create a symmetric key with tags
         let mut symmetric_key_bytes = vec![0; 32];
         rng.fill_bytes(&mut symmetric_key_bytes);
-        // create symmetric key
+        // create a symmetric key
         let symmetric_key =
             create_symmetric_key_kmip_object(&symmetric_key_bytes, CryptographicAlgorithm::AES)?;
 
@@ -434,15 +703,21 @@ mod tests {
             .await?;
         assert_eq!(&uid, &uid_);
 
-        // The key should not be in cache
+        // The key should not be in the cache
         assert!(store.unwrapped_cache.get_cache().await.peek(&uid).is_none());
 
         // fetch the key
-        let map = store
-            .retrieve(&uid, owner, KmipOperation::Get, db_params.as_ref())
+        let owm = store
+            .retrieve_object(
+                &uid,
+                owner,
+                UserFilter::None,
+                StateFilter::None,
+                db_params.as_ref(),
+            )
             .await?;
-        assert_eq!(map.len(), 1);
-        assert!(map.contains_key(&uid));
+        assert!(owm.is_some());
+        assert_eq!(owm.unwrap().id(), &uid);
         {
             let cache = store.unwrapped_cache.get_cache();
             // the unwrapped version should not be in the cache

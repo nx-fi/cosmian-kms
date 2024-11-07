@@ -1,3 +1,6 @@
+//! This module contains the core database functionalities, including object management,
+//! permission checks, and caching mechanisms for unwrapped keys.
+
 use std::{collections::HashMap, sync::Arc};
 
 use tokio::sync::RwLock;
@@ -9,12 +12,14 @@ use crate::database::{
     unwrapped_cache::UnwrappedCache,
 };
 
+/// The `Database` struct represents the core database functionalities, including object management,
+/// permission checks, and caching mechanisms for unwrapped keys.
 pub(crate) struct Database {
-    /// A map of uid prefixes to Objects Database
+    /// A map of uid prefixes to Object Store
     /// The "no-prefix" DB is registered under the empty string
     objects: RwLock<HashMap<String, Arc<dyn ObjectsStore + Sync + Send>>>,
-    /// The Unwrapped cache keeps the unwrapped version of keys in memory
-    /// This cache avoid calls to HSMs for each operation
+    /// The Unwrapped cache keeps the unwrapped version of keys in memory.
+    /// This cache avoids calls to HSMs for each operation
     unwrapped_cache: UnwrappedCache,
     /// The permissions store is used to check if a user has the right to perform an operation
     //TODO use this store to check permissions in retrive, update, delete, etc.

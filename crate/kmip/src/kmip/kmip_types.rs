@@ -2697,7 +2697,7 @@ pub enum KeyWrapType {
 /// Note: The states correspond to those described in [SP800-57-1].
 #[allow(non_camel_case_types)]
 #[derive(
-    ValueEnum, Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Display, EnumIter,
+    ValueEnum, Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Display, EnumIter, Hash,
 )]
 pub enum StateEnumeration {
     /// Pre-Active: The object exists and SHALL NOT be used for any cryptographic purpose.
