@@ -6,7 +6,7 @@ use cosmian_kmip::{
         kmip_types::LinkType,
     },
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_client::access::KmipOperation;
 
 use crate::{
     core::{
@@ -46,14 +46,9 @@ pub(crate) async fn wrap_key(
     };
 
     // fetch the wrapping key
-    let wrapping_key = retrieve_object_for_operation(
-        wrapping_key_uid,
-        ObjectOperationType::Encrypt,
-        kms,
-        user,
-        params,
-    )
-    .await?;
+    let wrapping_key =
+        retrieve_object_for_operation(wrapping_key_uid, KmipOperation::Encrypt, kms, user, params)
+            .await?;
 
     // in the case the key is a Private Key, we need to fetch the corresponding private key or certificate
     let object_type = wrapping_key.object().object_type();
@@ -68,7 +63,7 @@ pub(crate) async fn wrap_key(
             // fetch the private key
             retrieve_object_for_operation(
                 &public_key_uid.to_string(),
-                ObjectOperationType::Decrypt,
+                KmipOperation::Decrypt,
                 kms,
                 user,
                 params,

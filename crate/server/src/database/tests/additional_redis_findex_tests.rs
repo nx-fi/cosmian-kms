@@ -14,7 +14,7 @@ use cosmian_kmip::{
     kmip::kmip_types::{CryptographicAlgorithm, StateEnumeration},
     KmipResultHelper,
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_client::access::KmipOperation;
 use redis::aio::ConnectionManager;
 use tracing::trace;
 
@@ -113,13 +113,13 @@ pub(crate) async fn test_permissions_db() -> KResult<()> {
 
     // let us add the permission Encrypt on object O1 for user U1
     permissions_db
-        .add(&findex_key, "O1", "U1", ObjectOperationType::Encrypt)
+        .add(&findex_key, "O1", "U1", KmipOperation::Encrypt)
         .await?;
 
     // verify that the permission is present
     let permissions = permissions_db.get(&findex_key, "O1", "U1", false).await?;
     assert_eq!(permissions.len(), 1);
-    assert!(permissions.contains(&ObjectOperationType::Encrypt));
+    assert!(permissions.contains(&KmipOperation::Encrypt));
 
     // find the permissions for user U1
     let permissions = permissions_db
@@ -127,10 +127,7 @@ pub(crate) async fn test_permissions_db() -> KResult<()> {
         .await?;
     assert_eq!(permissions.len(), 1);
     assert!(permissions.contains_key("O1"));
-    assert_eq!(
-        permissions["O1"],
-        HashSet::from([ObjectOperationType::Encrypt])
-    );
+    assert_eq!(permissions["O1"], HashSet::from([KmipOperation::Encrypt]));
 
     //find the permission for the object O1
     let permissions = permissions_db
@@ -138,21 +135,18 @@ pub(crate) async fn test_permissions_db() -> KResult<()> {
         .await?;
     assert_eq!(permissions.len(), 1);
     assert!(permissions.contains_key("U1"));
-    assert_eq!(
-        permissions["U1"],
-        HashSet::from([ObjectOperationType::Encrypt])
-    );
+    assert_eq!(permissions["U1"], HashSet::from([KmipOperation::Encrypt]));
 
     // add the permission Decrypt to user U1 for object O1
     permissions_db
-        .add(&findex_key, "O1", "U1", ObjectOperationType::Decrypt)
+        .add(&findex_key, "O1", "U1", KmipOperation::Decrypt)
         .await?;
 
     // assert the permission is present
     let permissions = permissions_db.get(&findex_key, "O1", "U1", false).await?;
     assert_eq!(permissions.len(), 2);
-    assert!(permissions.contains(&ObjectOperationType::Encrypt));
-    assert!(permissions.contains(&ObjectOperationType::Decrypt));
+    assert!(permissions.contains(&KmipOperation::Encrypt));
+    assert!(permissions.contains(&KmipOperation::Decrypt));
 
     // find the permissions for user U1
     let permissions = permissions_db
@@ -162,7 +156,7 @@ pub(crate) async fn test_permissions_db() -> KResult<()> {
     assert!(permissions.contains_key("O1"));
     assert_eq!(
         permissions["O1"],
-        HashSet::from([ObjectOperationType::Encrypt, ObjectOperationType::Decrypt])
+        HashSet::from([KmipOperation::Encrypt, KmipOperation::Decrypt])
     );
 
     //find the permission for the object O1
@@ -173,7 +167,7 @@ pub(crate) async fn test_permissions_db() -> KResult<()> {
     assert!(permissions.contains_key("U1"));
     assert_eq!(
         permissions["U1"],
-        HashSet::from([ObjectOperationType::Encrypt, ObjectOperationType::Decrypt])
+        HashSet::from([KmipOperation::Encrypt, KmipOperation::Decrypt])
     );
 
     // the situation now is that we have
@@ -181,12 +175,12 @@ pub(crate) async fn test_permissions_db() -> KResult<()> {
 
     // let us add the permission Encrypt on object O1 for user U2
     permissions_db
-        .add(&findex_key, "O1", "U2", ObjectOperationType::Encrypt)
+        .add(&findex_key, "O1", "U2", KmipOperation::Encrypt)
         .await?;
     // assert the permission is present
     let permissions = permissions_db.get(&findex_key, "O1", "U2", false).await?;
     assert_eq!(permissions.len(), 1);
-    assert!(permissions.contains(&ObjectOperationType::Encrypt));
+    assert!(permissions.contains(&KmipOperation::Encrypt));
 
     // find the permissions for user U2
     let permissions = permissions_db
@@ -194,10 +188,7 @@ pub(crate) async fn test_permissions_db() -> KResult<()> {
         .await?;
     assert_eq!(permissions.len(), 1);
     assert!(permissions.contains_key("O1"));
-    assert_eq!(
-        permissions["O1"],
-        HashSet::from([ObjectOperationType::Encrypt])
-    );
+    assert_eq!(permissions["O1"], HashSet::from([KmipOperation::Encrypt]));
 
     //find the permission for the object O1
     let permissions = permissions_db
@@ -207,13 +198,10 @@ pub(crate) async fn test_permissions_db() -> KResult<()> {
     assert!(permissions.contains_key("U1"));
     assert_eq!(
         permissions["U1"],
-        HashSet::from([ObjectOperationType::Encrypt, ObjectOperationType::Decrypt])
+        HashSet::from([KmipOperation::Encrypt, KmipOperation::Decrypt])
     );
     assert!(permissions.contains_key("U2"));
-    assert_eq!(
-        permissions["U2"],
-        HashSet::from([ObjectOperationType::Encrypt])
-    );
+    assert_eq!(permissions["U2"], HashSet::from([KmipOperation::Encrypt]));
 
     // the situation now is that we have
     // O1 -> U1 -> Encrypt, Decrypt
@@ -221,12 +209,12 @@ pub(crate) async fn test_permissions_db() -> KResult<()> {
 
     // let us add the permission Encrypt on object O2 for user U2
     permissions_db
-        .add(&findex_key, "O2", "U2", ObjectOperationType::Encrypt)
+        .add(&findex_key, "O2", "U2", KmipOperation::Encrypt)
         .await?;
     // assert the permission is present
     let permissions = permissions_db.get(&findex_key, "O2", "U2", false).await?;
     assert_eq!(permissions.len(), 1);
-    assert!(permissions.contains(&ObjectOperationType::Encrypt));
+    assert!(permissions.contains(&KmipOperation::Encrypt));
 
     // find the permissions for user U2
     let permissions = permissions_db
@@ -234,15 +222,9 @@ pub(crate) async fn test_permissions_db() -> KResult<()> {
         .await?;
     assert_eq!(permissions.len(), 2);
     assert!(permissions.contains_key("O1"));
-    assert_eq!(
-        permissions["O1"],
-        HashSet::from([ObjectOperationType::Encrypt])
-    );
+    assert_eq!(permissions["O1"], HashSet::from([KmipOperation::Encrypt]));
     assert!(permissions.contains_key("O2"));
-    assert_eq!(
-        permissions["O2"],
-        HashSet::from([ObjectOperationType::Encrypt])
-    );
+    assert_eq!(permissions["O2"], HashSet::from([KmipOperation::Encrypt]));
 
     //find the permission for the object O2
     let permissions = permissions_db
@@ -250,10 +232,7 @@ pub(crate) async fn test_permissions_db() -> KResult<()> {
         .await?;
     assert_eq!(permissions.len(), 1);
     assert!(permissions.contains_key("U2"));
-    assert_eq!(
-        permissions["U2"],
-        HashSet::from([ObjectOperationType::Encrypt])
-    );
+    assert_eq!(permissions["U2"], HashSet::from([KmipOperation::Encrypt]));
 
     // the situation now is that we have
     // O1 -> U1 -> Encrypt, Decrypt
@@ -262,12 +241,12 @@ pub(crate) async fn test_permissions_db() -> KResult<()> {
 
     // let us remove the permission Decrypt on object O1 for user U1
     permissions_db
-        .remove(&findex_key, "O1", "U1", ObjectOperationType::Decrypt)
+        .remove(&findex_key, "O1", "U1", KmipOperation::Decrypt)
         .await?;
     // assert the permission Encrypt is present and Decrypt is not
     let permissions = permissions_db.get(&findex_key, "O1", "U1", false).await?;
     assert_eq!(permissions.len(), 1);
-    assert!(permissions.contains(&ObjectOperationType::Encrypt));
+    assert!(permissions.contains(&KmipOperation::Encrypt));
 
     // find the permissions for user U1
     let permissions = permissions_db
@@ -275,10 +254,7 @@ pub(crate) async fn test_permissions_db() -> KResult<()> {
         .await?;
     assert_eq!(permissions.len(), 1);
     assert!(permissions.contains_key("O1"));
-    assert_eq!(
-        permissions["O1"],
-        HashSet::from([ObjectOperationType::Encrypt])
-    );
+    assert_eq!(permissions["O1"], HashSet::from([KmipOperation::Encrypt]));
 
     //find the permission for the object O1
     let permissions = permissions_db
@@ -286,19 +262,13 @@ pub(crate) async fn test_permissions_db() -> KResult<()> {
         .await?;
     assert_eq!(permissions.len(), 2);
     assert!(permissions.contains_key("U1"));
-    assert_eq!(
-        permissions["U1"],
-        HashSet::from([ObjectOperationType::Encrypt])
-    );
+    assert_eq!(permissions["U1"], HashSet::from([KmipOperation::Encrypt]));
     assert!(permissions.contains_key("U2"));
-    assert_eq!(
-        permissions["U2"],
-        HashSet::from([ObjectOperationType::Encrypt])
-    );
+    assert_eq!(permissions["U2"], HashSet::from([KmipOperation::Encrypt]));
 
     // let us remove the permission Encrypt on object O1 for user U1
     permissions_db
-        .remove(&findex_key, "O1", "U1", ObjectOperationType::Encrypt)
+        .remove(&findex_key, "O1", "U1", KmipOperation::Encrypt)
         .await?;
     // assert the permission is not present
     let permissions = permissions_db.get(&findex_key, "O1", "U1", false).await?;
@@ -316,14 +286,11 @@ pub(crate) async fn test_permissions_db() -> KResult<()> {
         .await?;
     assert_eq!(permissions.len(), 1);
     assert!(permissions.contains_key("U2"));
-    assert_eq!(
-        permissions["U2"],
-        HashSet::from([ObjectOperationType::Encrypt])
-    );
+    assert_eq!(permissions["U2"], HashSet::from([KmipOperation::Encrypt]));
 
     // let us remove the permission Encrypt on object O1 for user U2
     permissions_db
-        .remove(&findex_key, "O1", "U2", ObjectOperationType::Encrypt)
+        .remove(&findex_key, "O1", "U2", KmipOperation::Encrypt)
         .await?;
     // assert the permission is not present
     let permissions = permissions_db.get(&findex_key, "O1", "U2", false).await?;
@@ -335,10 +302,7 @@ pub(crate) async fn test_permissions_db() -> KResult<()> {
         .await?;
     assert_eq!(permissions.len(), 1);
     assert!(permissions.contains_key("O2"));
-    assert_eq!(
-        permissions["O2"],
-        HashSet::from([ObjectOperationType::Encrypt])
-    );
+    assert_eq!(permissions["O2"], HashSet::from([KmipOperation::Encrypt]));
 
     //find the permission for the object O1
     let permissions = permissions_db
@@ -368,7 +332,7 @@ pub(crate) async fn test_corner_case() -> KResult<()> {
 
     // remove a permission that does not exist
     permissions_db
-        .remove(&findex_key, "O1", "U1", ObjectOperationType::Encrypt)
+        .remove(&findex_key, "O1", "U1", KmipOperation::Encrypt)
         .await?;
 
     // test that it does not exist
@@ -389,7 +353,7 @@ pub(crate) async fn test_corner_case() -> KResult<()> {
 
     //add the permission Encrypt on object O1 for user U1
     permissions_db
-        .add(&findex_key, "O1", "U1", ObjectOperationType::Encrypt)
+        .add(&findex_key, "O1", "U1", KmipOperation::Encrypt)
         .await?;
 
     // test there is one permission for user U1
@@ -398,10 +362,7 @@ pub(crate) async fn test_corner_case() -> KResult<()> {
         .await?;
     assert_eq!(permissions.len(), 1);
     assert!(permissions.contains_key("O1"));
-    assert_eq!(
-        permissions["O1"],
-        HashSet::from([ObjectOperationType::Encrypt])
-    );
+    assert_eq!(permissions["O1"], HashSet::from([KmipOperation::Encrypt]));
 
     // test there is one permission for object O1
     let permissions = permissions_db
@@ -409,14 +370,11 @@ pub(crate) async fn test_corner_case() -> KResult<()> {
         .await?;
     assert_eq!(permissions.len(), 1);
     assert!(permissions.contains_key("U1"));
-    assert_eq!(
-        permissions["U1"],
-        HashSet::from([ObjectOperationType::Encrypt])
-    );
+    assert_eq!(permissions["U1"], HashSet::from([KmipOperation::Encrypt]));
 
     // remove the permission again
     permissions_db
-        .remove(&findex_key, "O1", "U1", ObjectOperationType::Encrypt)
+        .remove(&findex_key, "O1", "U1", KmipOperation::Encrypt)
         .await?;
 
     // test there are no permissions for user U1

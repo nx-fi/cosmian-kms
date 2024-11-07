@@ -10,7 +10,7 @@ use cosmian_kmip::{
     },
     openssl::{kmip_private_key_to_openssl, kmip_public_key_to_openssl},
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_client::access::KmipOperation;
 use strum::IntoEnumIterator;
 use tracing::{debug, trace};
 
@@ -43,14 +43,9 @@ pub(crate) async fn get_attributes(
         .as_str()
         .context("Get Attributes: the unique identifier must be a string")?;
 
-    let owm = retrieve_object_for_operation(
-        uid_or_tags,
-        ObjectOperationType::GetAttributes,
-        kms,
-        user,
-        params,
-    )
-    .await?;
+    let owm =
+        retrieve_object_for_operation(uid_or_tags, KmipOperation::GetAttributes, kms, user, params)
+            .await?;
     trace!(
         "Get Attributes: Retrieved object for get attributes: {}",
         owm.object()

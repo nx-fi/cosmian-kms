@@ -11,7 +11,7 @@ use base64::Engine;
 use cosmian_kmip::kmip::{
     kmip_objects::ObjectType, kmip_operations::ErrorReason, kmip_types::StateEnumeration,
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_client::access::KmipOperation;
 use tracing::{debug, error, trace};
 
 use crate::{
@@ -45,7 +45,7 @@ async fn get_api_token(kms: &Arc<KMS>, api_token_id: &str) -> KResult<String> {
         .retrieve(
             api_token_id,
             &kms.params.default_username,
-            ObjectOperationType::Get,
+            KmipOperation::Get,
             None,
         )
         .await?

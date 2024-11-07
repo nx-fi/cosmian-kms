@@ -7,7 +7,7 @@ use cosmian_kmip::kmip::{
     kmip_operations::{Destroy, DestroyResponse, ErrorReason},
     kmip_types::{Attributes, KeyFormatType, LinkType, StateEnumeration},
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_client::access::KmipOperation;
 use tracing::{debug, trace};
 use zeroize::Zeroizing;
 
@@ -62,7 +62,7 @@ pub(crate) async fn recursively_destroy_key(
     // retrieve from tags or use passed identifier
     let owm_s = kms
         .store
-        .retrieve(uid_or_tags, user, ObjectOperationType::Destroy, params)
+        .retrieve(uid_or_tags, user, KmipOperation::Destroy, params)
         .await?
         .into_values()
         .filter(|owm| {

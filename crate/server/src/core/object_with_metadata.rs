@@ -1,13 +1,9 @@
-use std::{
-    collections::HashSet,
-    fmt::{self, Display, Formatter},
-};
+use std::fmt::{self, Display, Formatter};
 
 use cosmian_kmip::kmip::{
     kmip_objects::Object,
     kmip_types::{Attributes, StateEnumeration},
 };
-use cosmian_kms_client::access::ObjectOperationType;
 
 use crate::{
     core::{extra_database_params::ExtraDatabaseParams, KMS},
@@ -25,7 +21,6 @@ pub(crate) struct ObjectWithMetadata {
     object: Object,
     owner: String,
     state: StateEnumeration,
-    permissions: HashSet<ObjectOperationType>,
     attributes: Attributes,
 }
 
@@ -35,7 +30,6 @@ impl ObjectWithMetadata {
         object: Object,
         owner: String,
         state: StateEnumeration,
-        permissions: HashSet<ObjectOperationType>,
         attributes: Attributes,
     ) -> Self {
         Self {
@@ -43,7 +37,6 @@ impl ObjectWithMetadata {
             object,
             owner,
             state,
-            permissions,
             attributes,
         }
     }
@@ -58,7 +51,7 @@ impl ObjectWithMetadata {
 
     /// Set a new object, clearing the cached unwrapped version
     /// if any
-    pub(crate) async fn set_object(&mut self, object: Object) {
+    pub(crate) fn set_object(&mut self, object: Object) {
         self.object = object;
     }
 
@@ -69,20 +62,13 @@ impl ObjectWithMetadata {
         &mut self.object
     }
 
+    #[cfg(test)]
     pub(crate) fn owner(&self) -> &str {
         &self.owner
     }
 
     pub(crate) const fn state(&self) -> StateEnumeration {
         self.state
-    }
-
-    pub(crate) const fn permissions(&self) -> &HashSet<ObjectOperationType> {
-        &self.permissions
-    }
-
-    pub(crate) fn permissions_mut(&mut self) -> &mut HashSet<ObjectOperationType> {
-        &mut self.permissions
     }
 
     pub(crate) const fn attributes(&self) -> &Attributes {
@@ -126,9 +112,8 @@ impl Display for ObjectWithMetadata {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "ObjectWithMetadata {{ id: {}, object: {}, owner: {}, state: {}, permissions: {:?}, \
-             attributes: {:?} }}",
-            self.id, self.object, self.owner, self.state, self.permissions, self.attributes
+            "ObjectWithMetadata {{ id: {}, object: {}, owner: {}, state: {}, attributes: {:?} }}",
+            self.id, self.object, self.owner, self.state, self.attributes
         )
     }
 }

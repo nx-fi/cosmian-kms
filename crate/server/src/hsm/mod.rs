@@ -12,7 +12,7 @@ use cosmian_kmip::{
         },
     },
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_client::access::KmipOperation;
 use num_bigint_dig::BigUint;
 use KmipKeyMaterial::TransparentRSAPublicKey;
 
@@ -24,7 +24,7 @@ use crate::{
 
 pub(crate) async fn get_hsm_object(
     uid: &str,
-    _operation_type: ObjectOperationType,
+    _operation_type: KmipOperation,
     kms: &KMS,
     user: &str,
 ) -> KResult<ObjectWithMetadata> {
@@ -118,7 +118,6 @@ fn to_object_with_metadate(
                 object,
                 user.to_owned(),
                 StateEnumeration::Active,
-                HashSet::from([ObjectOperationType::Get]),
                 attributes,
             ))
         }
@@ -177,7 +176,6 @@ fn to_object_with_metadate(
                 object,
                 user.to_owned(),
                 StateEnumeration::Active,
-                HashSet::from([ObjectOperationType::Get]),
                 attributes,
             ))
         }
@@ -220,7 +218,6 @@ fn to_object_with_metadate(
                 object,
                 user.to_owned(),
                 StateEnumeration::Active,
-                HashSet::from([ObjectOperationType::Get]),
                 attributes,
             ))
         }

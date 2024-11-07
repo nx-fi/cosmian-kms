@@ -11,7 +11,7 @@ use cosmian_kmip::kmip::{
     kmip_operations::ErrorReason,
     kmip_types::{Attributes, StateEnumeration},
 };
-use cosmian_kms_client::access::{IsWrapped, ObjectOperationType};
+use cosmian_kms_client::access::{IsWrapped, KmipOperation};
 use serde_json::Value;
 use sqlx::{
     postgres::{PgConnectOptions, PgPoolOptions, PgRow},
@@ -61,13 +61,7 @@ impl TryFrom<&PgRow> for ObjectWithMetadata {
             .reason(ErrorReason::Internal_Server_Error)?;
         let owner = row.get::<String, _>(3);
         let state = state_from_string(&row.get::<String, _>(4))?;
-        let permissions: HashSet<ObjectOperationType> = match row.try_get::<Value, _>(5) {
-            Err(_) => HashSet::new(),
-            Ok(v) => serde_json::from_value(v)
-                .context("failed deserializing the permissions")
-                .reason(ErrorReason::Internal_Server_Error)?,
-        };
-        Ok(Self::new(id, object, owner, state, permissions, attributes))
+        Ok(Self::new(id, object, owner, state, attributes))
     }
 }
 
@@ -186,12 +180,10 @@ impl ObjectsDatabase for PgPool {
 
     async fn retrieve(
         &self,
-        uid_or_tags: &str,
-        user: &str,
-        query_access_grant: ObjectOperationType,
+        uid: &str,
         _params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<HashMap<String, ObjectWithMetadata>> {
-        retrieve_(uid_or_tags, user, query_access_grant, &self.pool).await
+    ) -> KResult<Option<ObjectWithMetadata>> {
+        retrieve_(uid, &self.pool).await
     }
 
     async fn retrieve_tags(
@@ -347,27 +339,27 @@ impl ObjectsDatabase for PgPool {
 
 #[async_trait(?Send)]
 impl PermissionsDatabase for PgPool {
-    async fn list_user_granted_access_rights(
+    async fn list_user_operations_granted(
         &self,
         user: &str,
         _params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<HashMap<String, (String, StateEnumeration, HashSet<ObjectOperationType>)>> {
+    ) -> KResult<HashMap<String, (String, StateEnumeration, HashSet<KmipOperation>)>> {
         list_user_granted_access_rights_(user, &self.pool).await
     }
 
-    async fn list_object_accesses_granted(
+    async fn list_object_operations_granted(
         &self,
         uid: &str,
         _params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<HashMap<String, HashSet<ObjectOperationType>>> {
+    ) -> KResult<HashMap<String, HashSet<KmipOperation>>> {
         list_accesses_(uid, &self.pool).await
     }
 
-    async fn grant_access(
+    async fn grant_operations(
         &self,
         uid: &str,
         user: &str,
-        operation_types: HashSet<ObjectOperationType>,
+        operation_types: HashSet<KmipOperation>,
         _params: Option<&ExtraDatabaseParams>,
     ) -> KResult<()> {
         if is_migration_in_progress_(&self.pool).await? {
@@ -377,11 +369,11 @@ impl PermissionsDatabase for PgPool {
         insert_access_(uid, user, operation_types, &self.pool).await
     }
 
-    async fn remove_access(
+    async fn remove_operations(
         &self,
         uid: &str,
         user: &str,
-        operation_types: HashSet<ObjectOperationType>,
+        operation_types: HashSet<KmipOperation>,
         _params: Option<&ExtraDatabaseParams>,
     ) -> KResult<()> {
         if is_migration_in_progress_(&self.pool).await? {
@@ -400,13 +392,13 @@ impl PermissionsDatabase for PgPool {
         is_object_owned_by_(uid, owner, &self.pool).await
     }
 
-    async fn list_user_access_rights_on_object(
+    async fn list_user_operations_on_object(
         &self,
         uid: &str,
         user: &str,
         no_inherited_access: bool,
         _params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<HashSet<ObjectOperationType>> {
+    ) -> KResult<HashSet<KmipOperation>> {
         list_user_access_rights_on_object_(uid, user, no_inherited_access, &self.pool).await
     }
 }
@@ -455,84 +447,18 @@ pub(crate) async fn create_(
     Ok(uid)
 }
 
-pub(crate) async fn retrieve_<'e, E>(
-    uid_or_tags: &str,
-    user: &str,
-    operation_type: ObjectOperationType,
-    executor: E,
-) -> KResult<HashMap<String, ObjectWithMetadata>>
+pub(crate) async fn retrieve_<'e, E>(uid: &str, executor: E) -> KResult<Option<ObjectWithMetadata>>
 where
     E: Executor<'e, Database = Postgres> + Copy,
 {
-    let rows: Vec<PgRow> = if uid_or_tags.starts_with('[') {
-        // deserialize the array to an HashSet
-        let tags: HashSet<String> = serde_json::from_str(uid_or_tags)
-            .with_context(|| format!("Invalid tags: {uid_or_tags}"))?;
-
-        // find the key(s) that matches the tags
-        // the user must be the owner or have decrypt permissions
-        // Build the raw tags params
-        let tags_params = tags
-            .iter()
-            .enumerate()
-            .map(|(i, _)| format!("${}", i + 1))
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        // Build the raw SQL query
-        let raw_sql = get_pgsql_query!("select-from-tags")
-            .replace("@TAGS", &tags_params)
-            .replace("@LEN", &format!("${}", tags.len() + 1))
-            .replace("@USER", &format!("${}", tags.len() + 2));
-
-        // Bind the tags params
-        let mut query = sqlx::query::<Postgres>(&raw_sql);
-        for tag in &tags {
-            query = query.bind(tag);
-        }
-        // Bind the tags len and the user
-        query = query.bind(i16::try_from(tags.len())?).bind(user);
-
-        // Execute the query
-        query.fetch_all(executor).await?
-    } else {
-        sqlx::query(get_pgsql_query!("select-object"))
-            .bind(uid_or_tags)
-            .bind(user)
-            .fetch_optional(executor)
-            .await?
-            .map_or(vec![], |row| vec![row])
-    };
-
-    // process the rows and find the tags
-    let mut res: HashMap<String, ObjectWithMetadata> = HashMap::new();
-    for row in rows {
-        let object_with_metadata = ObjectWithMetadata::try_from(&row)?;
-
-        // check if the user, who is not an owner, has the right permissions
-        if (user != object_with_metadata.owner())
-            && !object_with_metadata.permissions().contains(&operation_type)
-        {
-            continue
-        }
-
-        // check if the object is already in the result
-        // this can happen as permissions may have been granted
-        // to both this user and the wildcard user
-        match res.get_mut(object_with_metadata.id()) {
-            Some(existing_object) => {
-                // update the permissions
-                for permission in object_with_metadata.permissions() {
-                    existing_object.permissions_mut().insert(*permission);
-                }
-            }
-            None => {
-                // insert the object
-                res.insert(object_with_metadata.id().to_owned(), object_with_metadata);
-            }
-        };
+    let row = sqlx::query(get_pgsql_query!("select-object"))
+        .bind(uid)
+        .fetch_optional(executor)
+        .await?;
+    if let Some(row) = row {
+        return Ok(Some(ObjectWithMetadata::try_from(&row)?));
     }
-    Ok(res)
+    Ok(None)
 }
 
 async fn retrieve_tags_<'e, E>(uid: &str, executor: E) -> KResult<HashSet<String>>
@@ -714,7 +640,7 @@ where
 pub(crate) async fn list_accesses_<'e, E>(
     uid: &str,
     executor: E,
-) -> KResult<HashMap<String, HashSet<ObjectOperationType>>>
+) -> KResult<HashMap<String, HashSet<KmipOperation>>>
 where
     E: Executor<'e, Database = Postgres> + Copy,
 {
@@ -724,7 +650,7 @@ where
         .bind(uid)
         .fetch_all(executor)
         .await?;
-    let mut ids: HashMap<String, HashSet<ObjectOperationType>> = HashMap::with_capacity(list.len());
+    let mut ids: HashMap<String, HashSet<KmipOperation>> = HashMap::with_capacity(list.len());
     for row in list {
         ids.insert(
             // userid
@@ -740,7 +666,7 @@ where
 pub(crate) async fn list_user_granted_access_rights_<'e, E>(
     user: &str,
     executor: E,
-) -> KResult<HashMap<String, (String, StateEnumeration, HashSet<ObjectOperationType>)>>
+) -> KResult<HashMap<String, (String, StateEnumeration, HashSet<KmipOperation>)>>
 where
     E: Executor<'e, Database = Postgres> + Copy,
 {
@@ -749,7 +675,7 @@ where
         .bind(user)
         .fetch_all(executor)
         .await?;
-    let mut ids: HashMap<String, (String, StateEnumeration, HashSet<ObjectOperationType>)> =
+    let mut ids: HashMap<String, (String, StateEnumeration, HashSet<KmipOperation>)> =
         HashMap::with_capacity(list.len());
     for row in list {
         ids.insert(
@@ -773,7 +699,7 @@ pub(crate) async fn list_user_access_rights_on_object_<'e, E>(
     userid: &str,
     no_inherited_access: bool,
     executor: E,
-) -> KResult<HashSet<ObjectOperationType>>
+) -> KResult<HashSet<KmipOperation>>
 where
     E: Executor<'e, Database = Postgres> + Copy,
 {
@@ -785,7 +711,7 @@ where
     Ok(user_perms)
 }
 
-async fn perms<'e, E>(uid: &str, userid: &str, executor: E) -> KResult<HashSet<ObjectOperationType>>
+async fn perms<'e, E>(uid: &str, userid: &str, executor: E) -> KResult<HashSet<KmipOperation>>
 where
     E: Executor<'e, Database = Postgres> + Copy,
 {
@@ -808,7 +734,7 @@ where
 pub(crate) async fn insert_access_<'e, E>(
     uid: &str,
     userid: &str,
-    operation_types: HashSet<ObjectOperationType>,
+    operation_types: HashSet<KmipOperation>,
     executor: E,
 ) -> KResult<()>
 where
@@ -841,7 +767,7 @@ where
 pub(crate) async fn remove_access_<'e, E>(
     uid: &str,
     userid: &str,
-    operation_types: HashSet<ObjectOperationType>,
+    operation_types: HashSet<KmipOperation>,
     executor: E,
 ) -> KResult<()>
 where

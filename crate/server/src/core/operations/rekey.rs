@@ -3,7 +3,7 @@ use cosmian_kmip::kmip::{
     kmip_operations::{Create, ErrorReason, Import, ReKey, ReKeyResponse},
     kmip_types::{StateEnumeration, UniqueIdentifier},
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_client::access::KmipOperation;
 use tracing::{debug, trace};
 
 use crate::{
@@ -39,7 +39,7 @@ pub(crate) async fn rekey(
     // retrieve the symmetric key associated with the uid (the array MUST contain only one element)
     let mut owm_s = kms
         .store
-        .retrieve(uid_or_tags, owner, ObjectOperationType::Rekey, params)
+        .retrieve(uid_or_tags, owner, KmipOperation::Rekey, params)
         .await?
         .into_values()
         .filter(|owm| {

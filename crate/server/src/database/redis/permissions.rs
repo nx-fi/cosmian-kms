@@ -10,7 +10,7 @@ use cloudproof_findex::{
     parameters::MASTER_KEY_LENGTH,
     IndexedValue, Keyword, Location,
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_client::access::KmipOperation;
 
 use crate::{error::KmsError, result::KResult};
 
@@ -23,11 +23,11 @@ use crate::{error::KmsError, result::KResult};
 pub(crate) struct Triple {
     obj_uid: String,
     user_id: String,
-    permission: ObjectOperationType,
+    permission: KmipOperation,
 }
 
 impl Triple {
-    pub(crate) fn new(obj_uid: &str, user_id: &str, permission: ObjectOperationType) -> Self {
+    pub(crate) fn new(obj_uid: &str, user_id: &str, permission: KmipOperation) -> Self {
         Self {
             obj_uid: obj_uid.to_owned(),
             user_id: user_id.to_owned(),
@@ -45,7 +45,7 @@ impl Triple {
 
     pub(crate) fn permissions_per_user(
         list: HashSet<Self>,
-    ) -> HashMap<String, HashSet<ObjectOperationType>> {
+    ) -> HashMap<String, HashSet<KmipOperation>> {
         let mut map = HashMap::new();
         for triple in list {
             let entry = map.entry(triple.user_id).or_insert_with(HashSet::new);
@@ -56,7 +56,7 @@ impl Triple {
 
     pub(crate) fn permissions_per_object(
         list: HashSet<Self>,
-    ) -> HashMap<String, HashSet<ObjectOperationType>> {
+    ) -> HashMap<String, HashSet<KmipOperation>> {
         let mut map = HashMap::new();
         for triple in list {
             let entry = map.entry(triple.obj_uid).or_insert_with(HashSet::new);
@@ -157,7 +157,7 @@ impl PermissionsDB {
         &self,
         findex_key: &SymmetricKey<MASTER_KEY_LENGTH>,
         user_id: &str,
-    ) -> KResult<HashMap<String, HashSet<ObjectOperationType>>> {
+    ) -> KResult<HashMap<String, HashSet<KmipOperation>>> {
         Ok(Triple::permissions_per_object(
             self.search_one_keyword(findex_key, user_id).await?,
         ))
@@ -169,7 +169,7 @@ impl PermissionsDB {
         &self,
         findex_key: &SymmetricKey<MASTER_KEY_LENGTH>,
         obj_uid: &str,
-    ) -> KResult<HashMap<String, HashSet<ObjectOperationType>>> {
+    ) -> KResult<HashMap<String, HashSet<KmipOperation>>> {
         Ok(Triple::permissions_per_user(
             self.search_one_keyword(findex_key, obj_uid).await?,
         ))
@@ -182,13 +182,13 @@ impl PermissionsDB {
         obj_uid: &str,
         user_id: &str,
         no_inherited_access: bool,
-    ) -> KResult<HashSet<ObjectOperationType>> {
+    ) -> KResult<HashSet<KmipOperation>> {
         let mut user_perms = self
             .search_one_keyword(findex_key, &Triple::build_key(obj_uid, user_id))
             .await?
             .into_iter()
             .map(|triple| triple.permission)
-            .collect::<HashSet<ObjectOperationType>>();
+            .collect::<HashSet<KmipOperation>>();
         if no_inherited_access {
             return Ok(user_perms)
         }
@@ -197,7 +197,7 @@ impl PermissionsDB {
             .await?
             .into_iter()
             .map(|triple| triple.permission)
-            .collect::<HashSet<ObjectOperationType>>();
+            .collect::<HashSet<KmipOperation>>();
         user_perms.extend(wildcard_user_perms);
         Ok(user_perms)
     }
@@ -208,7 +208,7 @@ impl PermissionsDB {
         findex_key: &SymmetricKey<MASTER_KEY_LENGTH>,
         obj_uid: &str,
         user_id: &str,
-        permission: ObjectOperationType,
+        permission: KmipOperation,
     ) -> KResult<()> {
         // The strategy is the following:
         // 1. We add the userid::obj_uid --> Location(Triple) to the index
@@ -268,7 +268,7 @@ impl PermissionsDB {
         findex_key: &SymmetricKey<MASTER_KEY_LENGTH>,
         obj_uid: &str,
         user_id: &str,
-        permission: ObjectOperationType,
+        permission: KmipOperation,
     ) -> KResult<()> {
         // A delete in Findex is done by adding  a new entry with the same key bu stale
 

@@ -8,7 +8,7 @@ use cosmian_kmip::kmip::{
     kmip_operations::{Validate, ValidateResponse},
     kmip_types::{UniqueIdentifier, ValidityIndicator},
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_client::access::KmipOperation;
 use openssl::{
     asn1::Asn1Time,
     stack::Stack,
@@ -643,7 +643,7 @@ async fn certificate_by_uid(
 ) -> KResult<Vec<u8>> {
     let uid_owm = retrieve_object_for_operation(
         unique_identifier,
-        ObjectOperationType::Validate,
+        KmipOperation::Validate,
         kms,
         user,
         params,

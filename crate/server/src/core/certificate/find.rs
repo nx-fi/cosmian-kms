@@ -1,5 +1,5 @@
 use cosmian_kmip::kmip::kmip_types::{LinkType, LinkedObjectIdentifier};
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_client::access::KmipOperation;
 use tracing::trace;
 
 use crate::{
@@ -35,7 +35,7 @@ pub(crate) async fn retrieve_issuer_private_key_and_certificate(
         // Retrieve the certificate
         let certificate = retrieve_object_for_operation(
             certificate_id,
-            ObjectOperationType::Certify,
+            KmipOperation::Certify,
             kms,
             user,
             params,
@@ -43,7 +43,7 @@ pub(crate) async fn retrieve_issuer_private_key_and_certificate(
         .await?;
         let private_key = retrieve_object_for_operation(
             private_key_id,
-            ObjectOperationType::Certify,
+            KmipOperation::Certify,
             kms,
             user,
             params,
@@ -55,7 +55,7 @@ pub(crate) async fn retrieve_issuer_private_key_and_certificate(
     if let Some(private_key_id) = &private_key_id {
         let private_key = retrieve_object_for_operation(
             private_key_id,
-            ObjectOperationType::Certify,
+            KmipOperation::Certify,
             kms,
             user,
             params,
@@ -63,7 +63,7 @@ pub(crate) async fn retrieve_issuer_private_key_and_certificate(
         .await?;
         let certificate = retrieve_certificate_for_private_key(
             &private_key,
-            ObjectOperationType::Certify,
+            KmipOperation::Certify,
             kms,
             user,
             params,
@@ -76,7 +76,7 @@ pub(crate) async fn retrieve_issuer_private_key_and_certificate(
         // Retrieve the certificate
         let certificate = retrieve_object_for_operation(
             certificate_id,
-            ObjectOperationType::Certify,
+            KmipOperation::Certify,
             kms,
             user,
             params,
@@ -84,7 +84,7 @@ pub(crate) async fn retrieve_issuer_private_key_and_certificate(
         .await?;
         let private_key = retrieve_private_key_for_certificate(
             certificate_id,
-            ObjectOperationType::Certify,
+            KmipOperation::Certify,
             kms,
             user,
             params,
@@ -102,7 +102,7 @@ pub(crate) async fn retrieve_issuer_private_key_and_certificate(
 /// Retrieve the certificate associated to the given private key
 pub(crate) async fn retrieve_certificate_for_private_key(
     private_key: &ObjectWithMetadata,
-    operation_type: ObjectOperationType,
+    operation_type: KmipOperation,
     kms: &KMS,
     user: &str,
     params: Option<&ExtraDatabaseParams>,
@@ -166,7 +166,7 @@ pub(crate) async fn retrieve_certificate_for_private_key(
 /// Retrieve the certificate associated to the given private key
 pub(crate) async fn retrieve_private_key_for_certificate(
     certificate_uid_or_tags: &str,
-    operation_type: ObjectOperationType,
+    operation_type: KmipOperation,
     kms: &KMS,
     user: &str,
     params: Option<&ExtraDatabaseParams>,
@@ -177,7 +177,7 @@ pub(crate) async fn retrieve_private_key_for_certificate(
     );
     let owm = retrieve_object_for_operation(
         certificate_uid_or_tags,
-        ObjectOperationType::GetAttributes,
+        KmipOperation::GetAttributes,
         kms,
         user,
         params,
@@ -225,7 +225,7 @@ pub(crate) async fn retrieve_private_key_for_certificate(
 async fn find_link_in_public_key(
     link_type: LinkType,
     public_key_id: &LinkedObjectIdentifier,
-    operation_type: ObjectOperationType,
+    operation_type: KmipOperation,
     kms: &KMS,
     user: &str,
     params: Option<&ExtraDatabaseParams>,

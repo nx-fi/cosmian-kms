@@ -1,5 +1,5 @@
 use cosmian_kmip::kmip::kmip_types::StateEnumeration;
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_client::access::KmipOperation;
 use tracing::trace;
 
 use crate::{
@@ -20,7 +20,7 @@ use crate::{
 /// then it can also do any other operation with it.
 pub(crate) async fn retrieve_object_for_operation(
     uid_or_tags: &str,
-    operation_type: ObjectOperationType,
+    operation_type: KmipOperation,
     kms: &KMS,
     user: &str,
     params: Option<&ExtraDatabaseParams>,
@@ -32,7 +32,7 @@ pub(crate) async fn retrieve_object_for_operation(
             Ok(key) => key,
             Err(_) => {
                 // see if we can Get: in that case the user can always re-import the object and own it
-                _retrieve_object(uid_or_tags, ObjectOperationType::Get, kms, user, params).await?
+                _retrieve_object(uid_or_tags, KmipOperation::Get, kms, user, params).await?
             }
         },
     )
@@ -41,7 +41,7 @@ pub(crate) async fn retrieve_object_for_operation(
 /// Retrieve a single object - inner
 async fn _retrieve_object(
     uid_or_tags: &str,
-    operation_type: ObjectOperationType,
+    operation_type: KmipOperation,
     kms: &KMS,
     user: &str,
     params: Option<&ExtraDatabaseParams>,
@@ -63,7 +63,7 @@ async fn _retrieve_object(
         .await?
         .into_values()
         .filter(|owm| {
-            owm.state() == StateEnumeration::Active || operation_type == ObjectOperationType::Export
+            owm.state() == StateEnumeration::Active || operation_type == KmipOperation::Export
         })
         .collect();
     // there can only be one object

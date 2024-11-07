@@ -25,7 +25,7 @@ use cosmian_kmip::{
         ttlv::{deserializer::from_ttlv, TTLV},
     },
 };
-use cosmian_kms_client::access::{Access, ObjectOperationType, SuccessResponse};
+use cosmian_kms_client::access::{Access, KmipOperation, SuccessResponse};
 use cosmian_logger::log_utils::log_init;
 use openssl::{
     hash::MessageDigest,
@@ -115,11 +115,11 @@ where
         unique_identifier: Some(UniqueIdentifier::TextString(GOOGLE_CSE_ID.to_owned())),
         user_id: "*".to_owned(),
         operation_types: vec![
-            ObjectOperationType::Create,
-            ObjectOperationType::Destroy,
-            ObjectOperationType::Get,
-            ObjectOperationType::Encrypt,
-            ObjectOperationType::Decrypt,
+            KmipOperation::Create,
+            KmipOperation::Destroy,
+            KmipOperation::Get,
+            KmipOperation::Encrypt,
+            KmipOperation::Decrypt,
         ],
     };
 
@@ -771,11 +771,11 @@ async fn test_cse_rewrap_key() -> KResult<()> {
         )),
         user_id: "*".to_owned(),
         operation_types: vec![
-            ObjectOperationType::Create,
-            ObjectOperationType::Destroy,
-            ObjectOperationType::Get,
-            ObjectOperationType::Encrypt,
-            ObjectOperationType::Decrypt,
+            KmipOperation::Create,
+            KmipOperation::Destroy,
+            KmipOperation::Get,
+            KmipOperation::Encrypt,
+            KmipOperation::Decrypt,
         ],
     };
 

@@ -14,13 +14,12 @@ use cosmian_kmip::{
         },
     },
 };
-use cosmian_kms_client::access::ObjectOperationType;
 use uuid::Uuid;
 
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
+    core::extra_database_params::ExtraDatabaseParams,
     database::{ObjectsDatabase, PermissionsDatabase},
-    kms_bail,
+    kms_error,
     result::KResult,
 };
 
@@ -56,20 +55,12 @@ pub(crate) async fn json_access<DB: ObjectsDatabase + PermissionsDatabase>(
     assert!(db.is_object_owned_by(&uid, owner, db_params).await?);
 
     // Retrieve object with valid owner with `Get` operation type - OK
-    let objs_ = db
-        .retrieve(&uid, owner, ObjectOperationType::Get, db_params)
+    let obj = db
+        .retrieve(&uid, db_params)
         .await?
-        .into_values()
-        .collect::<Vec<ObjectWithMetadata>>();
-
-    assert!(!objs_.is_empty());
-    match objs_.len() {
-        1 => {
-            assert_eq!(StateEnumeration::Active, objs_[0].state());
-            assert!(&symmetric_key == objs_[0].object());
-        }
-        _ => kms_bail!("There should be one object"),
-    }
+        .ok_or_else(|| kms_error!("Object not found"))?;
+    assert_eq!(StateEnumeration::Active, obj.state());
+    assert!(&symmetric_key == obj.object());
 
     // Find with crypto algo attribute
 

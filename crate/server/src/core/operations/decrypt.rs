@@ -24,7 +24,7 @@ use cosmian_kmip::{
     },
     openssl::kmip_private_key_to_openssl,
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_client::access::KmipOperation;
 use openssl::pkey::{Id, PKey, Private};
 use tracing::{debug, trace};
 use zeroize::Zeroizing;
@@ -100,7 +100,7 @@ async fn get_key(
     // retrieve from tags or use passed identifier
     let mut owm_s = kms
         .store
-        .retrieve(uid_or_tags, user, ObjectOperationType::Decrypt, params)
+        .retrieve(uid_or_tags, user, KmipOperation::Decrypt, params)
         .await?
         .into_values()
         .filter(|owm| {

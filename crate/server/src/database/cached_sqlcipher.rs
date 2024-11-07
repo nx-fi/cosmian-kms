@@ -14,7 +14,7 @@ use cosmian_kmip::{
         kmip_types::{Attributes, StateEnumeration},
     },
 };
-use cosmian_kms_client::access::{IsWrapped, ObjectOperationType};
+use cosmian_kms_client::access::{IsWrapped, KmipOperation};
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
     ConnectOptions, Pool, Row, Sqlite,
@@ -218,13 +218,12 @@ impl ObjectsDatabase for CachedSqlCipher {
 
     async fn retrieve(
         &self,
-        uid_or_tags: &str,
-        user: &str,
+        uid: &str,
         params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<HashMap<String, ObjectWithMetadata>> {
+    ) -> KResult<Option<ObjectWithMetadata>> {
         if let Some(params) = params {
             let pool = self.pre_query(params.group_id, &params.key).await?;
-            let ret = retrieve_(uid_or_tags, user, &*pool).await;
+            let ret = retrieve_(uid, &*pool).await;
             self.post_query(params.group_id)?;
             return ret
         }
@@ -442,11 +441,11 @@ impl ObjectsDatabase for CachedSqlCipher {
 }
 #[async_trait(?Send)]
 impl PermissionsDatabase for CachedSqlCipher {
-    async fn list_user_granted_access_rights(
+    async fn list_user_operations_granted(
         &self,
         user: &str,
         params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<HashMap<String, (String, StateEnumeration, HashSet<ObjectOperationType>)>> {
+    ) -> KResult<HashMap<String, (String, StateEnumeration, HashSet<KmipOperation>)>> {
         if let Some(params) = params {
             let pool = self.pre_query(params.group_id, &params.key).await?;
             let ret = list_user_granted_access_rights_(user, &*pool).await;
@@ -457,11 +456,11 @@ impl PermissionsDatabase for CachedSqlCipher {
         kms_bail!("Missing group_id/key for opening SQLCipher")
     }
 
-    async fn list_object_accesses_granted(
+    async fn list_object_operations_granted(
         &self,
         uid: &str,
         params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<HashMap<String, HashSet<ObjectOperationType>>> {
+    ) -> KResult<HashMap<String, HashSet<KmipOperation>>> {
         if let Some(params) = params {
             let pool = self.pre_query(params.group_id, &params.key).await?;
             let ret = list_accesses_(uid, &*pool).await;
@@ -472,11 +471,11 @@ impl PermissionsDatabase for CachedSqlCipher {
         kms_bail!("Missing group_id/key for opening SQLCipher")
     }
 
-    async fn grant_access(
+    async fn grant_operations(
         &self,
         uid: &str,
         user: &str,
-        operation_types: HashSet<ObjectOperationType>,
+        operation_types: HashSet<KmipOperation>,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<()> {
         if let Some(params) = params {
@@ -492,11 +491,11 @@ impl PermissionsDatabase for CachedSqlCipher {
         kms_bail!("Missing group_id/key for opening SQLCipher")
     }
 
-    async fn remove_access(
+    async fn remove_operations(
         &self,
         uid: &str,
         user: &str,
-        operation_types: HashSet<ObjectOperationType>,
+        operation_types: HashSet<KmipOperation>,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<()> {
         if let Some(params) = params {
@@ -528,13 +527,13 @@ impl PermissionsDatabase for CachedSqlCipher {
         kms_bail!("Missing group_id/key for opening SQLCipher")
     }
 
-    async fn list_user_access_rights_on_object(
+    async fn list_user_operations_on_object(
         &self,
         uid: &str,
         user: &str,
         no_inherited_access: bool,
         params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<HashSet<ObjectOperationType>> {
+    ) -> KResult<HashSet<KmipOperation>> {
         use super::sqlite::list_user_access_rights_on_object_;
 
         if let Some(params) = params {

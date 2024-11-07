@@ -3,7 +3,7 @@ use cosmian_kmip::kmip::{
     kmip_operations::{SetAttribute, SetAttributeResponse},
     kmip_types::{Attribute, UniqueIdentifier},
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_client::access::KmipOperation;
 use tracing::{debug, trace};
 
 use crate::{
@@ -32,14 +32,8 @@ pub(crate) async fn set_attribute(
         .context("Set Attribute: the unique identifier must be a string")?;
 
     let mut owm: crate::core::object_with_metadata::ObjectWithMetadata =
-        retrieve_object_for_operation(
-            uid_or_tags,
-            ObjectOperationType::GetAttributes,
-            kms,
-            user,
-            params,
-        )
-        .await?;
+        retrieve_object_for_operation(uid_or_tags, KmipOperation::GetAttributes, kms, user, params)
+            .await?;
     trace!("Set Attribute: Retrieved object for: {}", owm.object());
 
     let mut attributes = owm.attributes_mut().clone();

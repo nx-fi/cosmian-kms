@@ -8,7 +8,7 @@ use cosmian_kmip::kmip::{
     kmip_objects::Object,
     kmip_types::{Attributes, StateEnumeration},
 };
-use cosmian_kms_client::access::{IsWrapped, ObjectOperationType};
+use cosmian_kms_client::access::{IsWrapped, KmipOperation};
 use tracing::trace;
 
 use crate::{
@@ -127,18 +127,38 @@ impl Store {
         &self,
         uid_or_tags: &str,
         user: &str,
-        permission: ObjectOperationType,
+        permission: KmipOperation,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<HashMap<String, ObjectWithMetadata>> {
-        let db = self.get_database(uid_or_tags).await?;
-        let objects = db.retrieve(uid_or_tags, user, permission, params).await?;
-        // check if we need to invalidate the cache wrapped objects
-        for owm in objects.values() {
-            self.unwrapped_cache
-                .validate_cache(owm.id(), owm.object())
-                .await;
+        let uids = if uid_or_tags.starts_with('[') {
+            // tags
+            let tags: HashSet<String> = serde_json::from_str(uid_or_tags)?;
+            self.list_uids_for_tags(&tags, params).await?
+        } else {
+            vec![uid_or_tags.to_owned()]
+        };
+
+        let mut results: HashMap<String, ObjectWithMetadata> = HashMap::new();
+        for uid in &uids {
+            let db = self.get_database(uid).await?;
+            let mut retrieve = self.is_object_owned_by(uid, user, params).await?;
+            // user is not the owner, check if the user has the permission
+            if !retrieve {
+                let operations = self
+                    .list_user_operations_on_object(uid, user, false, params)
+                    .await?;
+                retrieve = operations.contains(&permission);
+            }
+            if retrieve {
+                let owm = db.retrieve(uid, params).await?;
+                if let Some(owm) = owm {
+                    // check if we need to invalidate the cache wrapped objects
+                    self.unwrapped_cache.validate_cache(uid, owm.object()).await;
+                    results.insert(uid.to_owned(), owm);
+                }
+            }
         }
-        Ok(objects)
+        Ok(results)
     }
 
     /// Retrieve the tags of the object with the given `uid`
@@ -220,9 +240,9 @@ impl Store {
         tags: &HashSet<String>,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<Vec<String>> {
-        let map = self.objects.read().await;
+        let db_map = self.objects.read().await;
         let mut results: Vec<String> = Vec::new();
-        for (_prefix, db) in map.iter() {
+        for (_prefix, db) in db_map.iter() {
             results.extend(db.list_uids_for_tags(tags, params).await?);
         }
         Ok(results)
@@ -367,7 +387,7 @@ mod tests {
         crypto::symmetric::create_symmetric_key_kmip_object,
         kmip::kmip_types::CryptographicAlgorithm,
     };
-    use cosmian_kms_client::access::ObjectOperationType;
+    use cosmian_kms_client::access::KmipOperation;
     use cosmian_logger::log_utils::log_init;
     use tempfile::TempDir;
     use uuid::Uuid;
@@ -419,7 +439,7 @@ mod tests {
 
         // fetch the key
         let map = store
-            .retrieve(&uid, owner, ObjectOperationType::Get, db_params.as_ref())
+            .retrieve(&uid, owner, KmipOperation::Get, db_params.as_ref())
             .await?;
         assert_eq!(map.len(), 1);
         assert!(map.contains_key(&uid));

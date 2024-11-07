@@ -26,7 +26,7 @@ use cosmian_kmip::{
         kmip_certificate_to_openssl, kmip_private_key_to_openssl, openssl_certificate_to_kmip,
     },
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_client::access::KmipOperation;
 use openssl::{
     asn1::{Asn1Integer, Asn1Time},
     hash::MessageDigest,
@@ -293,7 +293,7 @@ async fn get_subject(
     let public_key = if let Some(request_id) = &request.unique_identifier {
         if let Ok(owm) = retrieve_object_for_operation(
             &request_id.to_string(),
-            ObjectOperationType::Certify,
+            KmipOperation::Certify,
             kms,
             user,
             params,
@@ -463,7 +463,7 @@ async fn fetch_object_from_attributes(
     if let Some(object_id) = attributes.get_link(link_type) {
         let object = retrieve_object_for_operation(
             &object_id.to_string(),
-            ObjectOperationType::Certify,
+            KmipOperation::Certify,
             kms,
             user,
             params,

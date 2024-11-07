@@ -14,13 +14,10 @@ use cosmian_kmip::{
         },
     },
 };
-use cosmian_kms_client::access::ObjectOperationType;
 use uuid::Uuid;
 
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
-    database::ObjectsDatabase,
-    kms_bail,
+    core::extra_database_params::ExtraDatabaseParams, database::ObjectsDatabase, kms_error,
     result::KResult,
 };
 
@@ -64,24 +61,16 @@ pub(crate) async fn find_attributes<DB: ObjectsDatabase>(
         .await?;
     assert_eq!(&uid, &uid_);
 
-    let objs_ = db
-        .retrieve(&uid, owner, ObjectOperationType::Get, db_params)
+    let obj = db
+        .retrieve(&uid, db_params)
         .await?
-        .into_values()
-        .collect::<Vec<ObjectWithMetadata>>();
-
-    assert_eq!(objs_.len(), 1);
-    match objs_.len() {
-        1 => {
-            assert_eq!(StateEnumeration::Active, objs_[0].state());
-            assert!(&symmetric_key == objs_[0].object());
-            assert_eq!(
-                objs_[0].object().attributes()?.link.as_ref().unwrap()[0].linked_object_identifier,
-                LinkedObjectIdentifier::TextString("foo".to_owned())
-            );
-        }
-        _ => kms_bail!("There should be one object"),
-    }
+        .ok_or_else(|| kms_error!("Object not found"))?;
+    assert_eq!(StateEnumeration::Active, obj.state());
+    assert!(&symmetric_key == obj.object());
+    assert_eq!(
+        obj.object().attributes()?.link.as_ref().unwrap()[0].linked_object_identifier,
+        LinkedObjectIdentifier::TextString("foo".to_owned())
+    );
 
     let researched_attributes = Some(Attributes {
         object_type: Some(ObjectType::SymmetricKey),

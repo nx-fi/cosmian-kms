@@ -14,7 +14,7 @@ use cosmian_kmip::{
     },
     KmipError,
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_client::access::KmipOperation;
 #[cfg(not(feature = "fips"))]
 use openssl::{hash::MessageDigest, nid::Nid};
 use openssl::{
@@ -47,7 +47,7 @@ use crate::{
 pub(crate) async fn export_get(
     kms: &KMS,
     request: impl Into<Export>,
-    operation_type: ObjectOperationType,
+    operation_type: KmipOperation,
     user: &str,
     params: Option<&ExtraDatabaseParams>,
 ) -> KResult<ExportResponse> {
@@ -63,7 +63,7 @@ pub(crate) async fn export_get(
     let mut owm =
         retrieve_object_for_operation(uid_or_tags, operation_type, kms, user, params).await?;
     let object_type = owm.object().object_type();
-    let export = operation_type == ObjectOperationType::Export;
+    let export = operation_type == KmipOperation::Export;
 
     // export based on the Object type
     match object_type {
@@ -192,7 +192,7 @@ pub(crate) async fn export_get(
 
 async fn post_process_private_key(
     kms: &KMS,
-    operation_type: ObjectOperationType,
+    operation_type: KmipOperation,
     user: &str,
     params: Option<&ExtraDatabaseParams>,
     request: &Export,
@@ -210,7 +210,7 @@ async fn post_process_private_key(
     #[cfg(feature = "fips")]
     let is_pkcs12 = request.key_format_type == Some(KeyFormatType::PKCS12);
     // according to the KMIP specs the KeyMaterial is not returned if the object is destroyed
-    if (operation_type == ObjectOperationType::Export)
+    if (operation_type == KmipOperation::Export)
         && (owm.state() == StateEnumeration::Destroyed
             || owm.state() == StateEnumeration::Destroyed_Compromised)
     {
@@ -321,7 +321,7 @@ async fn post_process_active_private_key(
         // wrap the key
         wrap_key(key_block, key_wrapping_specification, kms, user, params).await?;
         // reassign the wrapped key
-        object_with_metadata.set_object(object).await;
+        object_with_metadata.set_object(object);
         return Ok(())
     }
 
@@ -357,14 +357,14 @@ async fn post_process_active_private_key(
             *key_format_type,
             attributes.cryptographic_usage_mask,
         )?;
-        object_with_metadata.set_object(object).await;
+        object_with_metadata.set_object(object);
     } else {
         // No format type requested: export the private key to the default format
         let object = openssl_private_key_to_kmip_default_format(
             &openssl_key,
             attributes.cryptographic_usage_mask,
         )?;
-        object_with_metadata.set_object(object).await;
+        object_with_metadata.set_object(object);
     }
     // add the attributes back
     let key_block = object_with_metadata.object_mut().key_block_mut()?;
@@ -479,7 +479,7 @@ async fn process_public_key(
             &openssl_key,
             attributes.cryptographic_usage_mask,
         )?;
-        object_with_metadata.set_object(object).await;
+        object_with_metadata.set_object(object);
     }
 
     // add the attributes back
@@ -663,7 +663,7 @@ async fn process_symmetric_key(
 
 async fn build_pkcs12_for_private_key(
     kms: &KMS,
-    operation_type: ObjectOperationType,
+    operation_type: KmipOperation,
     user: &str,
     params: Option<&ExtraDatabaseParams>,
     request: &Export,
@@ -741,28 +741,26 @@ async fn build_pkcs12_for_private_key(
         .context("export: unable to build the PKCS12")?;
 
     // add the certificate to the private key
-    private_key_owm
-        .set_object(Object::PrivateKey {
-            key_block: KeyBlock {
-                key_format_type: KeyFormatType::PKCS12,
-                key_compression_type: None,
-                key_value: KeyValue {
-                    key_material: KeyMaterial::ByteString(Zeroizing::from(pkcs12.to_der()?)),
-                    // attributes are added later
-                    attributes: None,
-                },
-                cryptographic_algorithm: None,
-                cryptographic_length: None,
-                key_wrapping_data: None,
+    private_key_owm.set_object(Object::PrivateKey {
+        key_block: KeyBlock {
+            key_format_type: KeyFormatType::PKCS12,
+            key_compression_type: None,
+            key_value: KeyValue {
+                key_material: KeyMaterial::ByteString(Zeroizing::from(pkcs12.to_der()?)),
+                // attributes are added later
+                attributes: None,
             },
-        })
-        .await;
+            cryptographic_algorithm: None,
+            cryptographic_length: None,
+            key_wrapping_data: None,
+        },
+    });
     Ok(())
 }
 
 async fn post_process_pkcs7(
     kms: &KMS,
-    operation_type: ObjectOperationType,
+    operation_type: KmipOperation,
     user: &str,
     params: Option<&ExtraDatabaseParams>,
     owm: ObjectWithMetadata,
@@ -833,12 +831,10 @@ async fn post_process_pkcs7(
         )?;
 
         // Modify initial owm
-        cert_owm
-            .set_object(Object::Certificate {
-                certificate_type: CertificateType::PKCS7,
-                certificate_value: pkcs7.to_der()?,
-            })
-            .await;
+        cert_owm.set_object(Object::Certificate {
+            certificate_type: CertificateType::PKCS7,
+            certificate_value: pkcs7.to_der()?,
+        });
     }
 
     Ok(cert_owm)

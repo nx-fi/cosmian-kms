@@ -16,7 +16,7 @@ pub struct Access {
     /// User identifier, beneficiary of the access
     pub user_id: String,
     /// Operation types for the access
-    pub operation_types: Vec<ObjectOperationType>,
+    pub operation_types: Vec<KmipOperation>,
 }
 
 impl fmt::Display for Access {
@@ -37,7 +37,7 @@ impl fmt::Display for Access {
 /// These operations use `retrieve` or `get` methods.
 #[derive(Eq, PartialEq, Serialize, Deserialize, Copy, Clone, Hash, PartialOrd, Ord)]
 #[serde(rename_all = "lowercase")]
-pub enum ObjectOperationType {
+pub enum KmipOperation {
     Create,
     Certify,
     Decrypt,
@@ -53,13 +53,13 @@ pub enum ObjectOperationType {
     Validate,
 }
 
-impl fmt::Debug for ObjectOperationType {
+impl fmt::Debug for KmipOperation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{self}")
     }
 }
 
-impl fmt::Display for ObjectOperationType {
+impl fmt::Display for KmipOperation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let str = match self {
             Self::Create => "create",
@@ -83,7 +83,7 @@ impl fmt::Display for ObjectOperationType {
 // any error type implementing Display is acceptable.
 type ParseError = &'static str;
 
-impl FromStr for ObjectOperationType {
+impl FromStr for KmipOperation {
     type Err = ParseError;
 
     fn from_str(op: &str) -> Result<Self, Self::Err> {
@@ -108,7 +108,7 @@ impl FromStr for ObjectOperationType {
 pub struct UserAccessResponse {
     pub user_id: String,
     /// A `BTreeSet` is used to keep results sorted
-    pub operations: BTreeSet<ObjectOperationType>,
+    pub operations: BTreeSet<KmipOperation>,
 }
 pub type IsWrapped = bool;
 #[derive(Deserialize, Serialize, Debug)] // Debug is required by ok_json()
@@ -147,7 +147,7 @@ pub struct AccessRightsObtainedResponse {
     pub object_id: UniqueIdentifier,
     pub owner_id: String,
     pub state: StateEnumeration,
-    pub operations: HashSet<ObjectOperationType>,
+    pub operations: HashSet<KmipOperation>,
 }
 impl fmt::Display for AccessRightsObtainedResponse {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -158,18 +158,10 @@ impl fmt::Display for AccessRightsObtainedResponse {
         )
     }
 }
-impl
-    From<(
-        String,
-        (String, StateEnumeration, HashSet<ObjectOperationType>),
-    )> for AccessRightsObtainedResponse
+impl From<(String, (String, StateEnumeration, HashSet<KmipOperation>))>
+    for AccessRightsObtainedResponse
 {
-    fn from(
-        e: (
-            String,
-            (String, StateEnumeration, HashSet<ObjectOperationType>),
-        ),
-    ) -> Self {
+    fn from(e: (String, (String, StateEnumeration, HashSet<KmipOperation>))) -> Self {
         Self {
             object_id: UniqueIdentifier::TextString(e.0),
             owner_id: e.1.0,

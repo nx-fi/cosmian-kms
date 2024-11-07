@@ -7,7 +7,7 @@ use cosmian_kmip::{
         kmip_types::{CryptographicAlgorithm, KeyFormatType, StateEnumeration},
     },
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_client::access::KmipOperation;
 use tracing::trace;
 
 use crate::{
@@ -45,7 +45,7 @@ pub(crate) async fn rekey_keypair(
     // retrieve from tags or use passed identifier
     let mut owm_s = kms
         .store
-        .retrieve(uid_or_tags, user, ObjectOperationType::Rekey, params)
+        .retrieve(uid_or_tags, user, KmipOperation::Rekey, params)
         .await?
         .into_values()
         .filter(|owm| {

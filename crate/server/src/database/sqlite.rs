@@ -11,7 +11,7 @@ use cosmian_kmip::kmip::{
     kmip_operations::ErrorReason,
     kmip_types::{Attributes, StateEnumeration},
 };
-use cosmian_kms_client::access::{IsWrapped, ObjectOperationType};
+use cosmian_kms_client::access::{IsWrapped, KmipOperation};
 use serde_json::Value;
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqlitePoolOptions, SqliteRow},
@@ -60,15 +60,7 @@ impl TryFrom<&SqliteRow> for ObjectWithMetadata {
         let attributes = serde_json::from_value(raw_attributes)?;
         let owner = row.get::<String, _>(3);
         let state = state_from_string(&row.get::<String, _>(4))?;
-        let raw_permissions = row.get::<Vec<u8>, _>(5);
-        let permissions: HashSet<ObjectOperationType> = if raw_permissions.is_empty() {
-            HashSet::new()
-        } else {
-            serde_json::from_slice(&raw_permissions)
-                .context("failed deserializing the permissions")
-                .reason(ErrorReason::Internal_Server_Error)?
-        };
-        Ok(Self::new(id, object, owner, state, permissions, attributes))
+        Ok(Self::new(id, object, owner, state, attributes))
     }
 }
 
@@ -193,11 +185,10 @@ impl ObjectsDatabase for SqlitePool {
 
     async fn retrieve(
         &self,
-        uid_or_tags: &str,
-        user: &str,
+        uid: &str,
         _params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<HashMap<String, ObjectWithMetadata>> {
-        retrieve_(uid_or_tags, user, &self.pool).await
+    ) -> KResult<Option<ObjectWithMetadata>> {
+        retrieve_(uid, &self.pool).await
     }
 
     async fn retrieve_tags(
@@ -358,27 +349,27 @@ impl ObjectsDatabase for SqlitePool {
 
 #[async_trait(?Send)]
 impl PermissionsDatabase for SqlitePool {
-    async fn list_user_granted_access_rights(
+    async fn list_user_operations_granted(
         &self,
         user: &str,
         _params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<HashMap<String, (String, StateEnumeration, HashSet<ObjectOperationType>)>> {
+    ) -> KResult<HashMap<String, (String, StateEnumeration, HashSet<KmipOperation>)>> {
         list_user_granted_access_rights_(user, &self.pool).await
     }
 
-    async fn list_object_accesses_granted(
+    async fn list_object_operations_granted(
         &self,
         uid: &str,
         _params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<HashMap<String, HashSet<ObjectOperationType>>> {
+    ) -> KResult<HashMap<String, HashSet<KmipOperation>>> {
         list_accesses_(uid, &self.pool).await
     }
 
-    async fn grant_access(
+    async fn grant_operations(
         &self,
         uid: &str,
         user: &str,
-        operation_types: HashSet<ObjectOperationType>,
+        operation_types: HashSet<KmipOperation>,
         _params: Option<&ExtraDatabaseParams>,
     ) -> KResult<()> {
         if is_migration_in_progress_(&self.pool).await? {
@@ -388,11 +379,11 @@ impl PermissionsDatabase for SqlitePool {
         insert_access_(uid, user, operation_types, &self.pool).await
     }
 
-    async fn remove_access(
+    async fn remove_operations(
         &self,
         uid: &str,
         user: &str,
-        operation_types: HashSet<ObjectOperationType>,
+        operation_types: HashSet<KmipOperation>,
         _params: Option<&ExtraDatabaseParams>,
     ) -> KResult<()> {
         if is_migration_in_progress_(&self.pool).await? {
@@ -411,13 +402,13 @@ impl PermissionsDatabase for SqlitePool {
         is_object_owned_by_(uid, owner, &self.pool).await
     }
 
-    async fn list_user_access_rights_on_object(
+    async fn list_user_operations_on_object(
         &self,
         uid: &str,
         user: &str,
         no_inherited_access: bool,
         _params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<HashSet<ObjectOperationType>> {
+    ) -> KResult<HashSet<KmipOperation>> {
         list_user_access_rights_on_object_(uid, user, no_inherited_access, &self.pool).await
     }
 }
@@ -466,40 +457,18 @@ pub(crate) async fn create_(
     Ok(uid)
 }
 
-pub(crate) async fn retrieve_<'e, E>(
-    uid_or_tags: &str,
-    user: &str,
-    executor: E,
-) -> KResult<HashMap<String, ObjectWithMetadata>>
+pub(crate) async fn retrieve_<'e, E>(uid: &str, executor: E) -> KResult<Option<ObjectWithMetadata>>
 where
     E: Executor<'e, Database = Sqlite> + Copy,
 {
-    let uids = if uid_or_tags.starts_with('[') {
-        // deserialize the array to an HashSet
-        let tags: HashSet<String> = serde_json::from_str(uid_or_tags)
-            .with_context(|| format!("Invalid tags: {uid_or_tags}"))?;
-        list_uids_for_tags_(&tags, executor).await?
-    } else {
-        HashSet::from([uid_or_tags.to_string()])
-    };
-
-    let mut res: HashMap<String, ObjectWithMetadata> = HashMap::new();
-    for uid in uids {
-        let row: Option<SqliteRow> = sqlx::query(get_sqlite_query!("select-object"))
-            .bind(&uid)
-            .bind(user)
-            .fetch_optional(executor)
-            .await?;
-
-        if row.is_none() {
-            continue
-        }
-
-        let object_with_metadata = ObjectWithMetadata::try_from(&row.unwrap())?;
-        res.insert(object_with_metadata.id().to_owned(), object_with_metadata);
+    let row: Option<SqliteRow> = sqlx::query(get_sqlite_query!("select-object"))
+        .bind(&uid)
+        .fetch_optional(executor)
+        .await?;
+    if let Some(row) = row {
+        return Ok(Some(ObjectWithMetadata::try_from(&row)?))
     }
-
-    Ok(res)
+    Ok(None)
 }
 
 pub(crate) async fn retrieve_tags_<'e, E>(uid: &str, executor: E) -> KResult<HashSet<String>>
@@ -684,7 +653,7 @@ where
 pub(crate) async fn list_accesses_<'e, E>(
     uid: &str,
     executor: E,
-) -> KResult<HashMap<String, HashSet<ObjectOperationType>>>
+) -> KResult<HashMap<String, HashSet<KmipOperation>>>
 where
     E: Executor<'e, Database = Sqlite> + Copy,
 {
@@ -693,7 +662,7 @@ where
         .bind(uid)
         .fetch_all(executor)
         .await?;
-    let mut ids: HashMap<String, HashSet<ObjectOperationType>> = HashMap::with_capacity(list.len());
+    let mut ids: HashMap<String, HashSet<KmipOperation>> = HashMap::with_capacity(list.len());
     for row in list {
         ids.insert(
             // userid
@@ -709,7 +678,7 @@ where
 pub(crate) async fn list_user_granted_access_rights_<'e, E>(
     user: &str,
     executor: E,
-) -> KResult<HashMap<String, (String, StateEnumeration, HashSet<ObjectOperationType>)>>
+) -> KResult<HashMap<String, (String, StateEnumeration, HashSet<KmipOperation>)>>
 where
     E: Executor<'e, Database = Sqlite> + Copy,
 {
@@ -718,7 +687,7 @@ where
         .bind(user)
         .fetch_all(executor)
         .await?;
-    let mut ids: HashMap<String, (String, StateEnumeration, HashSet<ObjectOperationType>)> =
+    let mut ids: HashMap<String, (String, StateEnumeration, HashSet<KmipOperation>)> =
         HashMap::with_capacity(list.len());
     for row in list {
         ids.insert(
@@ -739,7 +708,7 @@ pub(crate) async fn list_user_access_rights_on_object_<'e, E>(
     userid: &str,
     no_inherited_access: bool,
     executor: E,
-) -> KResult<HashSet<ObjectOperationType>>
+) -> KResult<HashSet<KmipOperation>>
 where
     E: Executor<'e, Database = Sqlite> + Copy,
 {
@@ -751,7 +720,7 @@ where
     Ok(user_perms)
 }
 
-async fn perms<'e, E>(uid: &str, userid: &str, executor: E) -> KResult<HashSet<ObjectOperationType>>
+async fn perms<'e, E>(uid: &str, userid: &str, executor: E) -> KResult<HashSet<KmipOperation>>
 where
     E: Executor<'e, Database = Sqlite> + Copy,
 {
@@ -761,7 +730,7 @@ where
         .fetch_optional(executor)
         .await?;
 
-    row.map_or(Ok(HashSet::<ObjectOperationType>::new()), |row| {
+    row.map_or(Ok(HashSet::<KmipOperation>::new()), |row| {
         let perms_raw = row.get::<Vec<u8>, _>(0);
         serde_json::from_slice(&perms_raw)
             .context("failed deserializing the permissions")
@@ -772,7 +741,7 @@ where
 pub(crate) async fn insert_access_<'e, E>(
     uid: &str,
     userid: &str,
-    operation_types: HashSet<ObjectOperationType>,
+    operation_types: HashSet<KmipOperation>,
     executor: E,
 ) -> KResult<()>
 where
@@ -806,7 +775,7 @@ where
 pub(crate) async fn remove_access_<'e, E>(
     uid: &str,
     userid: &str,
-    operation_types: HashSet<ObjectOperationType>,
+    operation_types: HashSet<KmipOperation>,
     executor: E,
 ) -> KResult<()>
 where

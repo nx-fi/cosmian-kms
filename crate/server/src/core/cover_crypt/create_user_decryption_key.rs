@@ -13,7 +13,7 @@ use cosmian_kmip::{
         kmip_types::{Attributes, KeyFormatType, StateEnumeration, UniqueIdentifier},
     },
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_client::access::KmipOperation;
 
 use super::KMS;
 use crate::{
@@ -68,7 +68,7 @@ async fn create_user_decryption_key_(
     // retrieve from tags or use passed identifier
     let mut owm_s = kms
         .store
-        .retrieve(&msk_uid_or_tag, user, ObjectOperationType::Get, params)
+        .retrieve(&msk_uid_or_tag, user, KmipOperation::Get, params)
         .await?
         .into_values()
         .filter(|owm| {

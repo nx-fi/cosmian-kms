@@ -9,7 +9,7 @@ use cosmian_kmip::kmip::{
         UniqueIdentifier,
     },
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_client::access::KmipOperation;
 use tracing::debug;
 
 use crate::{
@@ -71,7 +71,7 @@ pub(crate) async fn recursively_revoke_key(
     // retrieve from tags or use passed identifier
     let owm_s = kms
         .store
-        .retrieve(uid_or_tags, user, ObjectOperationType::Revoke, params)
+        .retrieve(uid_or_tags, user, KmipOperation::Revoke, params)
         .await?
         .into_values()
         .filter(|owm| {

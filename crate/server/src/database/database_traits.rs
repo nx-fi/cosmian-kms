@@ -8,7 +8,7 @@ use cosmian_kmip::kmip::{
     kmip_objects::Object,
     kmip_types::{Attributes, StateEnumeration},
 };
-use cosmian_kms_client::access::{IsWrapped, ObjectOperationType};
+use cosmian_kms_client::access::{IsWrapped, KmipOperation};
 
 use crate::{
     core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
@@ -74,16 +74,12 @@ pub(crate) trait ObjectsDatabase {
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<String>;
 
-    /// Retrieve objects from the database.
-    ///
-    /// The `uid_or_tags` parameter can be either an ` uid ` or a comma-separated list of tags
-    /// in a JSON array.
+    /// Retrieve an object from the database.
     async fn retrieve(
         &self,
-        uid_or_tags: &str,
-        user: &str,
+        uid: &str,
         params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<HashMap<String, ObjectWithMetadata>>;
+    ) -> KResult<Option<ObjectWithMetadata>>;
 
     /// Retrieve the tags of the object with the given `uid`
     async fn retrieve_tags(
@@ -168,42 +164,42 @@ pub(crate) trait ObjectsDatabase {
 /// Trait that the database must implement to store permissions
 #[async_trait(?Send)]
 pub(crate) trait PermissionsDatabase {
-    /// List all the access rights granted to the `user`
+    /// List all the KMIP operations granted to the `user`
     /// on all the objects in the database
     /// (i.e. the objects for which `user` is not the owner)
     /// The result is a list of tuples (uid, owner, state, operations, is_wrapped)
     /// where `operations` is a list of operations that `user` can perform on the object
-    async fn list_user_granted_access_rights(
+    async fn list_user_operations_granted(
         &self,
         user: &str,
         params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<HashMap<String, (String, StateEnumeration, HashSet<ObjectOperationType>)>>;
+    ) -> KResult<HashMap<String, (String, StateEnumeration, HashSet<KmipOperation>)>>;
 
-    /// List all the accessed granted per `user`
+    /// List all the KMIP operations granted per `user`
     /// This is called by the owner only
-    async fn list_object_accesses_granted(
+    async fn list_object_operations_granted(
         &self,
         uid: &str,
         params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<HashMap<String, HashSet<ObjectOperationType>>>;
+    ) -> KResult<HashMap<String, HashSet<KmipOperation>>>;
 
-    /// Grant the access right to `user` to perform the `operation_type`
+    /// Grant to `user` the ability to perform the KMIP `operations`
     /// on the object identified by its `uid`
-    async fn grant_access(
+    async fn grant_operations(
         &self,
         uid: &str,
         user: &str,
-        operation_types: HashSet<ObjectOperationType>,
+        operations: HashSet<KmipOperation>,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<()>;
 
-    /// Remove the access right to `user` to perform the `operation_type`
+    /// Remove to `user` the ability to perform the KMIP `operations`
     /// on the object identified by its `uid`
-    async fn remove_access(
+    async fn remove_operations(
         &self,
         uid: &str,
         user: &str,
-        operation_types: HashSet<ObjectOperationType>,
+        operations: HashSet<KmipOperation>,
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<()>;
 
@@ -215,16 +211,15 @@ pub(crate) trait PermissionsDatabase {
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<bool>;
 
-    /// List all the access rights that have been granted to a user on an object
+    /// List all the KMIP operations that have been granted to a user on an object
     ///
-    /// These access rights may have been directly granted or via the wildcard user
+    /// These operations may have been directly granted or via the wildcard user
     /// unless `no_inherited_access` is set to `true`
-    #[allow(dead_code)]
-    async fn list_user_access_rights_on_object(
+    async fn list_user_operations_on_object(
         &self,
         uid: &str,
         user: &str,
         no_inherited_access: bool,
         params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<HashSet<ObjectOperationType>>;
+    ) -> KResult<HashSet<KmipOperation>>;
 }

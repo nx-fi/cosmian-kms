@@ -2,7 +2,7 @@ use cosmian_kmip::{
     crypto::wrap::unwrap_key_block,
     kmip::{kmip_data_structures::KeyBlock, kmip_objects::ObjectType, kmip_types::LinkType},
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_client::access::KmipOperation;
 use tracing::{debug, trace};
 
 use crate::{
@@ -45,7 +45,7 @@ pub(crate) async fn unwrap_key(
     // fetch the unwrapping key
     let unwrapping_key = retrieve_object_for_operation(
         &unwrapping_key_uid,
-        ObjectOperationType::Decrypt,
+        KmipOperation::Decrypt,
         kms,
         user,
         params,
@@ -70,7 +70,7 @@ pub(crate) async fn unwrap_key(
             // fetch the private key
             retrieve_object_for_operation(
                 &private_key_uid.to_string(),
-                ObjectOperationType::Decrypt,
+                KmipOperation::Decrypt,
                 kms,
                 user,
                 params,

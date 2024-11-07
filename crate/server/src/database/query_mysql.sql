@@ -78,11 +78,9 @@ INSERT INTO objects (id, object, attributes, state, owner)
 VALUES (?, ?, ?, ?, ?);
 
 -- name: select-object
-SELECT objects.id, objects.object, objects.attributes, objects.owner, objects.state, read_access.permissions
-FROM objects
-         LEFT JOIN read_access
-                   ON objects.id = read_access.id AND (read_access.userid = ? OR read_access.userid = '*')
-WHERE objects.id = ?;
+SELECT objects.id, objects.object, objects.attributes, objects.owner, objects.state
+    FROM objects
+    WHERE objects.id = ?;
 
 -- name: update-object-with-object
 UPDATE objects

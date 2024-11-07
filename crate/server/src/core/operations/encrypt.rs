@@ -25,7 +25,7 @@ use cosmian_kmip::{
     openssl::kmip_public_key_to_openssl,
     KmipError,
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_client::access::KmipOperation;
 use openssl::{
     pkey::{Id, PKey, Public},
     x509::X509,
@@ -175,7 +175,7 @@ async fn get_key(
     // retrieve from tags or use passed identifier
     let mut owm_s = kms
         .store
-        .retrieve(&uid_or_tags, user, ObjectOperationType::Encrypt, params)
+        .retrieve(&uid_or_tags, user, KmipOperation::Encrypt, params)
         .await?
         .into_values()
         .filter(|owm| {

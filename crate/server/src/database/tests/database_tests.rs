@@ -10,12 +10,11 @@ use cosmian_kmip::{
         CryptographicAlgorithm, Link, LinkType, LinkedObjectIdentifier, StateEnumeration,
     },
 };
-use cosmian_kms_client::access::ObjectOperationType;
 use cosmian_logger::log_utils::log_init;
 use uuid::Uuid;
 
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
+    core::extra_database_params::ExtraDatabaseParams,
     database::{database_traits::AtomicOperation, ObjectsDatabase},
     error::KmsError,
     kms_bail,
@@ -90,18 +89,10 @@ pub(crate) async fn tx_and_list<DB: ObjectsDatabase>(
     db.delete(&uid_1, owner, db_params).await?;
     db.delete(&uid_2, owner, db_params).await?;
 
-    if !db
-        .retrieve(&uid_1, owner, ObjectOperationType::Get, db_params)
-        .await?
-        .is_empty()
-    {
+    if db.retrieve(&uid_1, db_params).await?.is_some() {
         kms_bail!("The object 1 should have been deleted");
     }
-    if !db
-        .retrieve(&uid_2, owner, ObjectOperationType::Get, db_params)
-        .await?
-        .is_empty()
-    {
+    if db.retrieve(&uid_2, db_params).await?.is_some() {
         kms_bail!("The object 2 should have been deleted");
     }
 
@@ -153,16 +144,8 @@ pub(crate) async fn atomic<DB: ObjectsDatabase>(
         db_params,
     )
     .await?;
-    assert!(
-        !db.retrieve(&uid_1, owner, ObjectOperationType::Get, db_params)
-            .await?
-            .is_empty()
-    );
-    assert!(
-        !db.retrieve(&uid_2, owner, ObjectOperationType::Get, db_params)
-            .await?
-            .is_empty()
-    );
+    assert!(db.retrieve(&uid_1, db_params).await?.is_some());
+    assert!(db.retrieve(&uid_2, db_params).await?.is_some());
 
     // create the uid 1 twice. This should fail
     let atomic = db
@@ -211,18 +194,16 @@ pub(crate) async fn atomic<DB: ObjectsDatabase>(
     .await?;
 
     assert_eq!(
-        db.retrieve(&uid_1, owner, ObjectOperationType::Get, db_params)
+        db.retrieve(&uid_1, db_params)
             .await?
-            .get(&uid_1)
             .expect("uid_1 should be in the db")
             .state(),
         StateEnumeration::Deactivated
     );
     assert_eq!(
-        db.retrieve(&uid_2, owner, ObjectOperationType::Get, db_params)
+        db.retrieve(&uid_2, db_params)
             .await?
-            .get(&uid_2)
-            .expect("uid_1 should be in the db")
+            .expect("uid_2 should be in the db")
             .state(),
         StateEnumeration::Deactivated
     );
@@ -259,18 +240,12 @@ pub(crate) async fn upsert<DB: ObjectsDatabase>(
     )
     .await?;
 
-    let objs_ = db
-        .retrieve(&uid, owner, ObjectOperationType::Get, db_params)
+    let obj = db
+        .retrieve(&uid, db_params)
         .await?
-        .into_values()
-        .collect::<Vec<ObjectWithMetadata>>();
-    match objs_.len() {
-        1 => {
-            assert_eq!(StateEnumeration::Active, objs_[0].state());
-            assert!(&symmetric_key == objs_[0].object());
-        }
-        _ => kms_bail!("There should be only one object"),
-    }
+        .expect("uid should be in the db");
+    assert_eq!(StateEnumeration::Active, obj.state());
+    assert!(&symmetric_key == obj.object());
 
     let attributes = symmetric_key.attributes_mut()?;
     attributes.link = Some(vec![Link {
@@ -289,38 +264,23 @@ pub(crate) async fn upsert<DB: ObjectsDatabase>(
     )
     .await?;
 
-    let objs_ = db
-        .retrieve(&uid, owner, ObjectOperationType::Get, db_params)
+    let obj = db
+        .retrieve(&uid, db_params)
         .await?
-        .into_values()
-        .collect::<Vec<ObjectWithMetadata>>();
-    match objs_.len() {
-        1 => {
-            assert_eq!(StateEnumeration::PreActive, objs_[0].state());
-            assert_eq!(
-                objs_[0]
-                    .object()
-                    .attributes()?
-                    .link
-                    .as_ref()
-                    .ok_or_else(|| KmsError::ServerError("links should not be empty".to_owned()))?
-                    [0]
-                .linked_object_identifier,
-                LinkedObjectIdentifier::TextString("foo".to_owned())
-            );
-        }
-        _ => kms_bail!("There should be only one object"),
-    }
+        .expect("uid should be in the db");
+    assert_eq!(StateEnumeration::PreActive, obj.state());
+    assert_eq!(
+        obj.object()
+            .attributes()?
+            .link
+            .as_ref()
+            .ok_or_else(|| KmsError::ServerError("links should not be empty".to_owned()))?[0]
+            .linked_object_identifier,
+        LinkedObjectIdentifier::TextString("foo".to_owned())
+    );
 
     db.delete(&uid, owner, db_params).await?;
-
-    if !db
-        .retrieve(&uid, owner, ObjectOperationType::Get, db_params)
-        .await?
-        .is_empty()
-    {
-        kms_bail!("The object should have been deleted");
-    }
+    assert!(db.retrieve(&uid, db_params).await?.is_none());
 
     Ok(())
 }
@@ -336,16 +296,11 @@ pub(crate) async fn crud<DB: ObjectsDatabase>(
 
     let owner = "eyJhbGciOiJSUzI1Ni";
 
-    // test non existent row (with very high probability)
-    if !db
-        .retrieve(
-            &Uuid::new_v4().to_string(),
-            owner,
-            ObjectOperationType::Get,
-            db_params,
-        )
+    // test non-existent row (with very high probability)
+    if db
+        .retrieve(&Uuid::new_v4().to_string(), db_params)
         .await?
-        .is_empty()
+        .is_some()
     {
         kms_bail!("There should be no object");
     }
@@ -370,19 +325,12 @@ pub(crate) async fn crud<DB: ObjectsDatabase>(
         .await?;
     assert_eq!(&uid, &uid_);
 
-    let objs_ = db
-        .retrieve(&uid, owner, ObjectOperationType::Get, db_params)
+    let obj = db
+        .retrieve(&uid, db_params)
         .await?
-        .into_values()
-        .collect::<Vec<ObjectWithMetadata>>();
-
-    match objs_.len() {
-        1 => {
-            assert_eq!(StateEnumeration::Active, objs_[0].state());
-            assert!(&symmetric_key == objs_[0].object());
-        }
-        _ => kms_bail!("There should be only one object. Found {}", objs_.len()),
-    }
+        .expect("uid should be in the db");
+    assert_eq!(StateEnumeration::Active, obj.state());
+    assert!(&symmetric_key == obj.object());
 
     let attributes = symmetric_key.attributes_mut()?;
     attributes.link = Some(vec![Link {
@@ -399,54 +347,34 @@ pub(crate) async fn crud<DB: ObjectsDatabase>(
     )
     .await?;
 
-    let objs_ = db
-        .retrieve(&uid, owner, ObjectOperationType::Get, db_params)
+    let obj = db
+        .retrieve(&uid, db_params)
         .await?
-        .into_values()
-        .collect::<Vec<ObjectWithMetadata>>();
-
-    match objs_.len() {
-        1 => {
-            assert_eq!(StateEnumeration::Active, objs_[0].state());
-            assert_eq!(
-                objs_[0]
-                    .object()
-                    .attributes()?
-                    .link
-                    .as_ref()
-                    .ok_or_else(|| KmsError::ServerError("links should not be empty".to_owned()))?
-                    [0]
-                .linked_object_identifier,
-                LinkedObjectIdentifier::TextString("foo".to_owned())
-            );
-        }
-        _ => kms_bail!("There should be only one object"),
-    }
+        .expect("uid should be in the db");
+    assert_eq!(StateEnumeration::Active, obj.state());
+    assert_eq!(
+        obj.object()
+            .attributes()?
+            .link
+            .as_ref()
+            .ok_or_else(|| KmsError::ServerError("links should not be empty".to_owned()))?[0]
+            .linked_object_identifier,
+        LinkedObjectIdentifier::TextString("foo".to_owned())
+    );
 
     db.update_state(&uid, StateEnumeration::Deactivated, db_params)
         .await?;
 
-    let objs_ = db
-        .retrieve(&uid, owner, ObjectOperationType::Get, db_params)
+    let obj = db
+        .retrieve(&uid, db_params)
         .await?
-        .into_values()
-        .collect::<Vec<ObjectWithMetadata>>();
-
-    match objs_.len() {
-        1 => {
-            assert_eq!(StateEnumeration::Deactivated, objs_[0].state());
-            assert!(&symmetric_key == objs_[0].object());
-        }
-        _ => kms_bail!("There should be only one object"),
-    }
+        .expect("uid should be in the db");
+    assert_eq!(StateEnumeration::Deactivated, obj.state());
+    assert!(&symmetric_key == obj.object());
 
     db.delete(&uid, owner, db_params).await?;
 
-    if !db
-        .retrieve(&uid, owner, ObjectOperationType::Get, db_params)
-        .await?
-        .is_empty()
-    {
+    if db.retrieve(&uid, db_params).await?.is_some() {
         kms_bail!("The object should have been deleted");
     }
 

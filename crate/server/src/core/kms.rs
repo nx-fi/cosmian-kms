@@ -590,7 +590,7 @@ impl KMS {
         }
 
         self.store
-            .grant_access(
+            .grant_operations(
                 uid,
                 &access.user_id,
                 HashSet::from_iter(access.operation_types.clone()),
@@ -632,7 +632,7 @@ impl KMS {
         }
 
         self.store
-            .remove_access(
+            .remove_operations(
                 uid,
                 &access.user_id,
                 HashSet::from_iter(access.operation_types.clone()),
@@ -667,7 +667,7 @@ impl KMS {
 
         let list = self
             .store
-            .list_object_accesses_granted(object_id, params)
+            .list_object_operations_granted(object_id, params)
             .await?;
         let ids = list
             .into_iter()
@@ -699,7 +699,7 @@ impl KMS {
     ) -> KResult<Vec<AccessRightsObtainedResponse>> {
         let list = self
             .store
-            .list_user_granted_access_rights(user, params)
+            .list_user_operations_granted(user, params)
             .await?;
         let ids = list
             .into_iter()
