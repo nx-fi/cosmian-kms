@@ -27,11 +27,13 @@ use super::{
     permissions::PermissionsDB,
 };
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
+    core::{extra_database_params::ExtraStoreParams, object_with_metadata::ObjectWithMetadata},
     database::{
-        database_traits::{AtomicOperation, PermissionsDatabase},
-        redis::objects_db::RedisOperation,
-        ObjectsDatabase,
+        stores::{
+            redis::objects_db::RedisOperation,
+            store_traits::{ObjectsStore, PermissionsStore},
+        },
+        AtomicOperation,
     },
     error::KmsError,
     kms_bail, kms_error,
@@ -120,7 +122,7 @@ impl RedisWithFindex {
         attributes: &Attributes,
         tags: Option<&HashSet<String>>,
         state: StateEnumeration,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> Result<RedisDbObject, KmsError> {
         // additions to the index
         let mut index_additions = HashMap::new();
@@ -237,12 +239,12 @@ impl RedisWithFindex {
 }
 
 #[async_trait(?Send)]
-impl ObjectsDatabase for RedisWithFindex {
+impl ObjectsStore for RedisWithFindex {
     fn filename(&self, _group_id: u128) -> Option<PathBuf> {
         None
     }
 
-    async fn migrate(&self, _params: Option<&ExtraDatabaseParams>) -> KResult<()> {
+    async fn migrate(&self, _params: Option<&ExtraStoreParams>) -> KResult<()> {
         unimplemented!("Redis-with-Findex does not support migrate operation");
     }
 
@@ -258,7 +260,7 @@ impl ObjectsDatabase for RedisWithFindex {
         object: &Object,
         attributes: &Attributes,
         tags: &HashSet<String>,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<String> {
         let (uid, db_object) = self
             .prepare_object_for_create(uid, owner, object, attributes, tags)
@@ -277,7 +279,7 @@ impl ObjectsDatabase for RedisWithFindex {
     async fn retrieve(
         &self,
         uid: &str,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<Option<ObjectWithMetadata>> {
         self.objects_db.object_get(uid).await.map(|o| {
             o.map(|o| {
@@ -296,7 +298,7 @@ impl ObjectsDatabase for RedisWithFindex {
     async fn retrieve_tags(
         &self,
         uid: &str,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<HashSet<String>> {
         Ok(self
             .objects_db
@@ -315,7 +317,7 @@ impl ObjectsDatabase for RedisWithFindex {
         object: &Object,
         attributes: &Attributes,
         tags: Option<&HashSet<String>>,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         let db_object = self
             .prepare_object_for_update(uid, object, attributes, tags)
@@ -328,7 +330,7 @@ impl ObjectsDatabase for RedisWithFindex {
         &self,
         uid: &str,
         state: StateEnumeration,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         let db_object = self.prepare_object_for_state_update(uid, state).await?;
         self.objects_db.object_upsert(uid, &db_object).await?;
@@ -346,7 +348,7 @@ impl ObjectsDatabase for RedisWithFindex {
         attributes: &Attributes,
         tags: Option<&HashSet<String>>,
         state: StateEnumeration,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         let db_object = self
             .prepare_object_for_upsert(uid, user, object, attributes, tags, state, params)
@@ -362,7 +364,7 @@ impl ObjectsDatabase for RedisWithFindex {
         &self,
         uid: &str,
         user: &str,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         if let Some(db_object) = self.objects_db.object_get(uid).await? {
             if db_object.owner != user {
@@ -377,7 +379,7 @@ impl ObjectsDatabase for RedisWithFindex {
         &self,
         user: &str,
         operations: &[AtomicOperation],
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         let mut redis_operations: Vec<RedisOperation> = Vec::with_capacity(operations.len());
         for operation in operations {
@@ -432,7 +434,7 @@ impl ObjectsDatabase for RedisWithFindex {
     async fn list_uids_for_tags(
         &self,
         tags: &HashSet<String>,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<HashSet<String>> {
         let keywords = tags
             .iter()
@@ -462,7 +464,7 @@ impl ObjectsDatabase for RedisWithFindex {
         state: Option<StateEnumeration>,
         user: &str,
         user_must_be_owner: bool,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<Vec<(String, StateEnumeration, Attributes, IsWrapped)>> {
         let mut keywords = {
             researched_attributes.map_or_else(HashSet::new, |attributes| {
@@ -542,11 +544,11 @@ impl ObjectsDatabase for RedisWithFindex {
 }
 
 #[async_trait(?Send)]
-impl PermissionsDatabase for RedisWithFindex {
+impl PermissionsStore for RedisWithFindex {
     async fn list_user_operations_granted(
         &self,
         user: &str,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<HashMap<String, (String, StateEnumeration, HashSet<KmipOperation>)>> {
         let permissions = self
             .permissions_db
@@ -577,7 +579,7 @@ impl PermissionsDatabase for RedisWithFindex {
     async fn list_object_operations_granted(
         &self,
         uid: &str,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<HashMap<String, HashSet<KmipOperation>>> {
         self.permissions_db
             .list_object_permissions(&self.findex_key, uid)
@@ -591,7 +593,7 @@ impl PermissionsDatabase for RedisWithFindex {
         uid: &str,
         user: &str,
         operation_types: HashSet<KmipOperation>,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         for operation in &operation_types {
             self.permissions_db
@@ -608,7 +610,7 @@ impl PermissionsDatabase for RedisWithFindex {
         uid: &str,
         user: &str,
         operation_types: HashSet<KmipOperation>,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         for operation in &operation_types {
             self.permissions_db
@@ -623,7 +625,7 @@ impl PermissionsDatabase for RedisWithFindex {
         &self,
         uid: &str,
         owner: &str,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<bool> {
         let object = self
             .objects_db
@@ -638,7 +640,7 @@ impl PermissionsDatabase for RedisWithFindex {
         uid: &str,
         user: &str,
         no_inherited_access: bool,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<HashSet<KmipOperation>> {
         Ok(self
             .permissions_db

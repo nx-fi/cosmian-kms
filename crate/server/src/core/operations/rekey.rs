@@ -8,7 +8,7 @@ use tracing::{debug, trace};
 
 use crate::{
     core::{
-        extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata,
+        extra_database_params::ExtraStoreParams, object_with_metadata::ObjectWithMetadata,
         operations::import::process_symmetric_key, KMS,
     },
     error::KmsError,
@@ -20,7 +20,7 @@ pub(crate) async fn rekey(
     kms: &KMS,
     request: ReKey,
     owner: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<ReKeyResponse> {
     trace!("ReKey: {}", serde_json::to_string(&request)?);
 

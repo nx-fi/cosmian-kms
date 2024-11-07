@@ -14,19 +14,22 @@ use cosmian_kmip::kmip::{
 use cosmian_kms_client::access::{IsWrapped, KmipOperation};
 use serde_json::Value;
 use sqlx::{
-    postgres::{PgConnectOptions, PgPoolOptions, PgRow},
-    ConnectOptions, Executor, Pool, Postgres, Row, Transaction,
+    mysql::{MySqlConnectOptions, MySqlPoolOptions, MySqlRow},
+    ConnectOptions, Executor, MySql, Pool, Row, Transaction,
 };
 use tracing::{debug, trace};
 use uuid::Uuid;
 
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
+    core::{extra_database_params::ExtraStoreParams, object_with_metadata::ObjectWithMetadata},
     database::{
-        database_traits::{AtomicOperation, PermissionsDatabase},
         migrate::do_migration,
-        query_from_attributes, state_from_string, DBObject, ObjectsDatabase, PgSqlPlaceholder,
-        KMS_VERSION_BEFORE_MIGRATION_SUPPORT, PGSQL_QUERIES,
+        state_from_string,
+        stores::{
+            locate_query::{query_from_attributes, MySqlPlaceholder},
+            store_traits::{ObjectsStore, PermissionsStore},
+        },
+        AtomicOperation, DBObject, KMS_VERSION_BEFORE_MIGRATION_SUPPORT, MYSQL_QUERIES,
     },
     error::KmsError,
     kms_bail, kms_error,
@@ -34,23 +37,23 @@ use crate::{
 };
 
 #[macro_export]
-macro_rules! get_pgsql_query {
+macro_rules! get_mysql_query {
     ($name:literal) => {
-        PGSQL_QUERIES
+        MYSQL_QUERIES
             .get($name)
             .ok_or_else(|| kms_error!("{} SQL query can't be found", $name))?
     };
     ($name:expr) => {
-        PGSQL_QUERIES
+        MYSQL_QUERIES
             .get($name)
             .ok_or_else(|| kms_error!("{} SQL query can't be found", $name))?
     };
 }
 
-impl TryFrom<&PgRow> for ObjectWithMetadata {
+impl TryFrom<&MySqlRow> for ObjectWithMetadata {
     type Error = KmsError;
 
-    fn try_from(row: &PgRow) -> Result<Self, Self::Error> {
+    fn try_from(row: &MySqlRow) -> Result<Self, Self::Error> {
         let id = row.get::<String, _>(0);
         let db_object: DBObject = serde_json::from_value(row.get::<Value, _>(1))
             .context("failed deserializing the object")
@@ -65,37 +68,37 @@ impl TryFrom<&PgRow> for ObjectWithMetadata {
     }
 }
 
+/// The `MySQL` connector is also compatible to connect a `MariaDB`
+/// see: <https://mariadb.com/kb/en/mariadb-vs-mysql-compatibility>/
 #[derive(Clone)]
-pub(crate) struct PgPool {
-    pool: Pool<Postgres>,
+pub(crate) struct MySqlPool {
+    pool: Pool<MySql>,
 }
 
-impl PgPool {
-    /// Instantiate a new `Postgres` database
-    /// and create the appropriate table(s) if need be
+impl MySqlPool {
     pub(crate) async fn instantiate(connection_url: &str, clear_database: bool) -> KResult<Self> {
-        let options = PgConnectOptions::from_str(connection_url)?
+        let options = MySqlConnectOptions::from_str(connection_url)?
             // disable logging of each query
             .disable_statement_logging();
 
-        let pool = PgPoolOptions::new()
+        let pool = MySqlPoolOptions::new()
             .max_connections(5)
             .connect_with(options)
             .await?;
 
-        sqlx::query(get_pgsql_query!("create-table-objects"))
+        sqlx::query(get_mysql_query!("create-table-context"))
             .execute(&pool)
             .await?;
 
-        sqlx::query(get_pgsql_query!("create-table-context"))
+        sqlx::query(get_mysql_query!("create-table-objects"))
             .execute(&pool)
             .await?;
 
-        sqlx::query(get_pgsql_query!("create-table-read_access"))
+        sqlx::query(get_mysql_query!("create-table-read_access"))
             .execute(&pool)
             .await?;
 
-        sqlx::query(get_pgsql_query!("create-table-tags"))
+        sqlx::query(get_mysql_query!("create-table-tags"))
             .execute(&pool)
             .await?;
 
@@ -103,22 +106,22 @@ impl PgPool {
             clear_database_(&pool).await?;
         }
 
-        let pgsql_pool = Self { pool };
-        pgsql_pool.migrate(None).await?;
-        Ok(pgsql_pool)
+        let mysql_pool = Self { pool };
+        mysql_pool.migrate(None).await?;
+        Ok(mysql_pool)
     }
 }
 
 #[async_trait(?Send)]
-impl ObjectsDatabase for PgPool {
+impl ObjectsStore for MySqlPool {
     fn filename(&self, _group_id: u128) -> Option<PathBuf> {
         None
     }
 
-    async fn migrate(&self, _params: Option<&ExtraDatabaseParams>) -> KResult<()> {
+    async fn migrate(&self, _params: Option<&ExtraStoreParams>) -> KResult<()> {
         trace!("Migrate database");
         // Get the context rows
-        match sqlx::query(get_pgsql_query!("select-context"))
+        match sqlx::query(get_mysql_query!("select-context"))
             .fetch_optional(&self.pool)
             .await?
         {
@@ -160,7 +163,7 @@ impl ObjectsDatabase for PgPool {
         object: &Object,
         attributes: &Attributes,
         tags: &HashSet<String>,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<String> {
         if is_migration_in_progress_(&self.pool).await? {
             kms_bail!("Migration in progress. Please retry later");
@@ -181,7 +184,7 @@ impl ObjectsDatabase for PgPool {
     async fn retrieve(
         &self,
         uid: &str,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<Option<ObjectWithMetadata>> {
         retrieve_(uid, &self.pool).await
     }
@@ -189,7 +192,7 @@ impl ObjectsDatabase for PgPool {
     async fn retrieve_tags(
         &self,
         uid: &str,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<HashSet<String>> {
         retrieve_tags_(uid, &self.pool).await
     }
@@ -200,7 +203,7 @@ impl ObjectsDatabase for PgPool {
         object: &Object,
         attributes: &Attributes,
         tags: Option<&HashSet<String>>,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         let mut tx = self.pool.begin().await?;
         match update_object_(uid, object, attributes, tags, &mut tx).await {
@@ -219,7 +222,7 @@ impl ObjectsDatabase for PgPool {
         &self,
         uid: &str,
         state: StateEnumeration,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         if is_migration_in_progress_(&self.pool).await? {
             kms_bail!("Migration in progress. Please retry later");
@@ -245,7 +248,7 @@ impl ObjectsDatabase for PgPool {
         attributes: &Attributes,
         tags: Option<&HashSet<String>>,
         state: StateEnumeration,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         if is_migration_in_progress_(&self.pool).await? {
             kms_bail!("Migration in progress. Please retry later");
@@ -268,7 +271,7 @@ impl ObjectsDatabase for PgPool {
         &self,
         uid: &str,
         user: &str,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         if is_migration_in_progress_(&self.pool).await? {
             kms_bail!("Migration in progress. Please retry later");
@@ -291,7 +294,7 @@ impl ObjectsDatabase for PgPool {
         &self,
         user: &str,
         operations: &[AtomicOperation],
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         if is_migration_in_progress_(&self.pool).await? {
             kms_bail!("Migration in progress. Please retry later");
@@ -313,9 +316,9 @@ impl ObjectsDatabase for PgPool {
     async fn list_uids_for_tags(
         &self,
         tags: &HashSet<String>,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<HashSet<String>> {
-        list_uids_from_tags_(tags, &self.pool).await
+        list_uids_for_tags_(tags, &self.pool).await
     }
 
     async fn find(
@@ -324,7 +327,7 @@ impl ObjectsDatabase for PgPool {
         state: Option<StateEnumeration>,
         user: &str,
         user_must_be_owner: bool,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<Vec<(String, StateEnumeration, Attributes, IsWrapped)>> {
         find_(
             researched_attributes,
@@ -338,11 +341,11 @@ impl ObjectsDatabase for PgPool {
 }
 
 #[async_trait(?Send)]
-impl PermissionsDatabase for PgPool {
+impl PermissionsStore for MySqlPool {
     async fn list_user_operations_granted(
         &self,
         user: &str,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<HashMap<String, (String, StateEnumeration, HashSet<KmipOperation>)>> {
         list_user_granted_access_rights_(user, &self.pool).await
     }
@@ -350,7 +353,7 @@ impl PermissionsDatabase for PgPool {
     async fn list_object_operations_granted(
         &self,
         uid: &str,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<HashMap<String, HashSet<KmipOperation>>> {
         list_accesses_(uid, &self.pool).await
     }
@@ -360,7 +363,7 @@ impl PermissionsDatabase for PgPool {
         uid: &str,
         user: &str,
         operation_types: HashSet<KmipOperation>,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         if is_migration_in_progress_(&self.pool).await? {
             kms_bail!("Migration in progress. Please retry later");
@@ -374,7 +377,7 @@ impl PermissionsDatabase for PgPool {
         uid: &str,
         user: &str,
         operation_types: HashSet<KmipOperation>,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         if is_migration_in_progress_(&self.pool).await? {
             kms_bail!("Migration in progress. Please retry later");
@@ -387,7 +390,7 @@ impl PermissionsDatabase for PgPool {
         &self,
         uid: &str,
         owner: &str,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<bool> {
         is_object_owned_by_(uid, owner, &self.pool).await
     }
@@ -397,7 +400,7 @@ impl PermissionsDatabase for PgPool {
         uid: &str,
         user: &str,
         no_inherited_access: bool,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<HashSet<KmipOperation>> {
         list_user_access_rights_on_object_(uid, user, no_inherited_access, &self.pool).await
     }
@@ -409,7 +412,7 @@ pub(crate) async fn create_(
     object: &Object,
     attributes: &Attributes,
     tags: &HashSet<String>,
-    executor: &mut Transaction<'_, Postgres>,
+    executor: &mut Transaction<'_, MySql>,
 ) -> KResult<String> {
     let object_json = serde_json::to_value(DBObject {
         object_type: object.object_type(),
@@ -425,7 +428,7 @@ pub(crate) async fn create_(
     // If the uid is not provided, generate a new one
     let uid = uid.unwrap_or_else(|| Uuid::new_v4().to_string());
 
-    sqlx::query(get_pgsql_query!("insert-objects"))
+    sqlx::query(get_mysql_query!("insert-objects"))
         .bind(uid.clone())
         .bind(object_json)
         .bind(attributes_json)
@@ -436,7 +439,7 @@ pub(crate) async fn create_(
 
     // Insert the tags
     for tag in tags {
-        sqlx::query(get_pgsql_query!("insert-tags"))
+        sqlx::query(get_mysql_query!("insert-tags"))
             .bind(uid.clone())
             .bind(tag)
             .execute(&mut **executor)
@@ -449,12 +452,13 @@ pub(crate) async fn create_(
 
 pub(crate) async fn retrieve_<'e, E>(uid: &str, executor: E) -> KResult<Option<ObjectWithMetadata>>
 where
-    E: Executor<'e, Database = Postgres> + Copy,
+    E: Executor<'e, Database = MySql> + Copy,
 {
-    let row = sqlx::query(get_pgsql_query!("select-object"))
+    let row = sqlx::query(get_mysql_query!("select-object"))
         .bind(uid)
         .fetch_optional(executor)
         .await?;
+
     if let Some(row) = row {
         return Ok(Some(ObjectWithMetadata::try_from(&row)?));
     }
@@ -463,9 +467,9 @@ where
 
 async fn retrieve_tags_<'e, E>(uid: &str, executor: E) -> KResult<HashSet<String>>
 where
-    E: Executor<'e, Database = Postgres> + Copy,
+    E: Executor<'e, Database = MySql> + Copy,
 {
-    let rows: Vec<PgRow> = sqlx::query(get_pgsql_query!("select-tags"))
+    let rows: Vec<MySqlRow> = sqlx::query(get_mysql_query!("select-tags"))
         .bind(uid)
         .fetch_all(executor)
         .await?;
@@ -480,7 +484,7 @@ pub(crate) async fn update_object_(
     object: &Object,
     attributes: &Attributes,
     tags: Option<&HashSet<String>>,
-    executor: &mut Transaction<'_, Postgres>,
+    executor: &mut Transaction<'_, MySql>,
 ) -> KResult<()> {
     let object_json = serde_json::to_value(DBObject {
         object_type: object.object_type(),
@@ -493,7 +497,7 @@ pub(crate) async fn update_object_(
         .context("failed serializing the attributes to JSON")
         .reason(ErrorReason::Internal_Server_Error)?;
 
-    sqlx::query(get_pgsql_query!("update-object-with-object"))
+    sqlx::query(get_mysql_query!("update-object-with-object"))
         .bind(object_json)
         .bind(attributes_json)
         .bind(uid)
@@ -503,13 +507,13 @@ pub(crate) async fn update_object_(
     // Insert the new tags if any
     if let Some(tags) = tags {
         // delete the existing tags
-        sqlx::query(get_pgsql_query!("delete-tags"))
+        sqlx::query(get_mysql_query!("delete-tags"))
             .bind(uid)
             .execute(&mut **executor)
             .await?;
 
         for tag in tags {
-            sqlx::query(get_pgsql_query!("insert-tags"))
+            sqlx::query(get_mysql_query!("insert-tags"))
                 .bind(uid)
                 .bind(tag)
                 .execute(&mut **executor)
@@ -524,9 +528,9 @@ pub(crate) async fn update_object_(
 pub(crate) async fn update_state_(
     uid: &str,
     state: StateEnumeration,
-    executor: &mut Transaction<'_, Postgres>,
+    executor: &mut Transaction<'_, MySql>,
 ) -> KResult<()> {
-    sqlx::query(get_pgsql_query!("update-object-with-state"))
+    sqlx::query(get_mysql_query!("update-object-with-state"))
         .bind(state.to_string())
         .bind(uid)
         .execute(&mut **executor)
@@ -538,17 +542,17 @@ pub(crate) async fn update_state_(
 pub(crate) async fn delete_(
     uid: &str,
     owner: &str,
-    executor: &mut Transaction<'_, Postgres>,
+    executor: &mut Transaction<'_, MySql>,
 ) -> KResult<()> {
     // delete the object
-    sqlx::query(get_pgsql_query!("delete-object"))
+    sqlx::query(get_mysql_query!("delete-object"))
         .bind(uid)
         .bind(owner)
         .execute(&mut **executor)
         .await?;
 
     // delete the tags
-    sqlx::query(get_pgsql_query!("delete-tags"))
+    sqlx::query(get_mysql_query!("delete-tags"))
         .bind(uid)
         .execute(&mut **executor)
         .await?;
@@ -564,7 +568,7 @@ pub(crate) async fn upsert_(
     attributes: &Attributes,
     tags: Option<&HashSet<String>>,
     state: StateEnumeration,
-    executor: &mut Transaction<'_, Postgres>,
+    executor: &mut Transaction<'_, MySql>,
 ) -> KResult<()> {
     let object_json = serde_json::to_value(DBObject {
         object_type: object.object_type(),
@@ -577,7 +581,7 @@ pub(crate) async fn upsert_(
         .context("failed serializing the attributes to JSON")
         .reason(ErrorReason::Internal_Server_Error)?;
 
-    sqlx::query(get_pgsql_query!("upsert-object"))
+    sqlx::query(get_mysql_query!("upsert-object"))
         .bind(uid)
         .bind(object_json)
         .bind(attributes_json)
@@ -589,13 +593,13 @@ pub(crate) async fn upsert_(
     // Insert the new tags if present
     if let Some(tags) = tags {
         // delete the existing tags
-        sqlx::query(get_pgsql_query!("delete-tags"))
+        sqlx::query(get_mysql_query!("delete-tags"))
             .bind(uid)
             .execute(&mut **executor)
             .await?;
         // insert the new ones
         for tag in tags {
-            sqlx::query(get_pgsql_query!("insert-tags"))
+            sqlx::query(get_mysql_query!("insert-tags"))
                 .bind(uid)
                 .bind(tag)
                 .execute(&mut **executor)
@@ -607,31 +611,26 @@ pub(crate) async fn upsert_(
     Ok(())
 }
 
-pub(crate) async fn list_uids_from_tags_<'e, E>(
+pub(crate) async fn list_uids_for_tags_<'e, E>(
     tags: &HashSet<String>,
     executor: E,
 ) -> KResult<HashSet<String>>
 where
-    E: Executor<'e, Database = Postgres> + Copy,
+    E: Executor<'e, Database = MySql> + Copy,
 {
-    let tags_params = tags
-        .iter()
-        .enumerate()
-        .map(|(i, _)| format!("${}", i + 1))
-        .collect::<Vec<_>>()
-        .join(", ");
+    let tags_params = tags.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
 
-    let raw_sql = get_pgsql_query!("select-uids-from-tags")
-        .replace("@TAGS", &tags_params)
-        .replace("@LEN", &format!("${}", tags.len() + 1));
+    // Build the raw SQL query
+    let raw_sql = get_mysql_query!("select-uids-from-tags").replace("@TAGS", &tags_params);
 
-    let mut query = sqlx::query::<Postgres>(&raw_sql);
+    // Bind the tags paramss
+    let mut query = sqlx::query::<MySql>(&raw_sql);
     for tag in tags {
         query = query.bind(tag);
     }
-    // Bind the tags len and the user
-    query = query.bind(i16::try_from(tags.len())?);
 
+    // Bind the tags len
+    query = query.bind(i16::try_from(tags.len())?);
     let rows = query.fetch_all(executor).await?;
     let uids = rows.iter().map(|r| r.get(0)).collect::<HashSet<String>>();
     Ok(uids)
@@ -642,11 +641,11 @@ pub(crate) async fn list_accesses_<'e, E>(
     executor: E,
 ) -> KResult<HashMap<String, HashSet<KmipOperation>>>
 where
-    E: Executor<'e, Database = Postgres> + Copy,
+    E: Executor<'e, Database = MySql> + Copy,
 {
     debug!("Uid = {}", uid);
 
-    let list = sqlx::query(get_pgsql_query!("select-rows-read_access-with-object-id"))
+    let list = sqlx::query(get_mysql_query!("select-rows-read_access-with-object-id"))
         .bind(uid)
         .fetch_all(executor)
         .await?;
@@ -668,10 +667,10 @@ pub(crate) async fn list_user_granted_access_rights_<'e, E>(
     executor: E,
 ) -> KResult<HashMap<String, (String, StateEnumeration, HashSet<KmipOperation>)>>
 where
-    E: Executor<'e, Database = Postgres> + Copy,
+    E: Executor<'e, Database = MySql> + Copy,
 {
     debug!("Owner = {}", user);
-    let list = sqlx::query(get_pgsql_query!("select-objects-access-obtained"))
+    let list = sqlx::query(get_mysql_query!("select-objects-access-obtained"))
         .bind(user)
         .fetch_all(executor)
         .await?;
@@ -701,7 +700,7 @@ pub(crate) async fn list_user_access_rights_on_object_<'e, E>(
     executor: E,
 ) -> KResult<HashSet<KmipOperation>>
 where
-    E: Executor<'e, Database = Postgres> + Copy,
+    E: Executor<'e, Database = MySql> + Copy,
 {
     let mut user_perms = perms(uid, userid, executor).await?;
     if no_inherited_access || userid == "*" {
@@ -713,19 +712,17 @@ where
 
 async fn perms<'e, E>(uid: &str, userid: &str, executor: E) -> KResult<HashSet<KmipOperation>>
 where
-    E: Executor<'e, Database = Postgres> + Copy,
+    E: Executor<'e, Database = MySql> + Copy,
 {
-    let row: Option<PgRow> = sqlx::query(get_pgsql_query!("select-user-accesses-for-object"))
+    let row: Option<MySqlRow> = sqlx::query(get_mysql_query!("select-user-accesses-for-object"))
         .bind(uid)
         .bind(userid)
         .fetch_optional(executor)
         .await?;
 
     row.map_or(Ok(HashSet::new()), |row| {
-        let perms_value = row
-            .try_get::<Value, _>(0)
-            .context("failed deserializing the permissions")?;
-        serde_json::from_value(perms_value)
+        let perms_raw = row.get::<Vec<u8>, _>(0);
+        serde_json::from_slice(&perms_raw)
             .context("failed deserializing the permissions")
             .reason(ErrorReason::Internal_Server_Error)
     })
@@ -738,7 +735,7 @@ pub(crate) async fn insert_access_<'e, E>(
     executor: E,
 ) -> KResult<()>
 where
-    E: Executor<'e, Database = Postgres> + Copy,
+    E: Executor<'e, Database = MySql> + Copy,
 {
     // Retrieve existing permissions if any
     let mut perms = list_user_access_rights_on_object_(uid, userid, false, executor).await?;
@@ -754,7 +751,7 @@ where
         .reason(ErrorReason::Internal_Server_Error)?;
 
     // Upsert the DB
-    sqlx::query(get_pgsql_query!("upsert-row-read_access"))
+    sqlx::query(get_mysql_query!("upsert-row-read_access"))
         .bind(uid)
         .bind(userid)
         .bind(json)
@@ -771,7 +768,7 @@ pub(crate) async fn remove_access_<'e, E>(
     executor: E,
 ) -> KResult<()>
 where
-    E: Executor<'e, Database = Postgres> + Copy,
+    E: Executor<'e, Database = MySql> + Copy,
 {
     // Retrieve existing permissions if any
     let perms = list_user_access_rights_on_object_(uid, userid, true, executor)
@@ -782,7 +779,7 @@ where
 
     // No remaining permissions, delete the row
     if perms.is_empty() {
-        sqlx::query(get_pgsql_query!("delete-rows-read_access"))
+        sqlx::query(get_mysql_query!("delete-rows-read_access"))
             .bind(uid)
             .bind(userid)
             .execute(executor)
@@ -796,21 +793,20 @@ where
         .reason(ErrorReason::Internal_Server_Error)?;
 
     // Update the DB
-    sqlx::query(get_pgsql_query!("update-rows-read_access-with-permission"))
+    sqlx::query(get_mysql_query!("update-rows-read_access-with-permission"))
+        .bind(json)
         .bind(uid)
         .bind(userid)
-        .bind(json)
         .execute(executor)
         .await?;
-    trace!("Deleted in DB: {uid} / {userid}");
     Ok(())
 }
 
 pub(crate) async fn is_object_owned_by_<'e, E>(uid: &str, owner: &str, executor: E) -> KResult<bool>
 where
-    E: Executor<'e, Database = Postgres> + Copy,
+    E: Executor<'e, Database = MySql> + Copy,
 {
-    let row: Option<PgRow> = sqlx::query(get_pgsql_query!("has-row-objects"))
+    let row: Option<MySqlRow> = sqlx::query(get_mysql_query!("has-row-objects"))
         .bind(uid)
         .bind(owner)
         .fetch_optional(executor)
@@ -826,9 +822,9 @@ pub(crate) async fn find_<'e, E>(
     executor: E,
 ) -> KResult<Vec<(String, StateEnumeration, Attributes, IsWrapped)>>
 where
-    E: Executor<'e, Database = Postgres> + Copy,
+    E: Executor<'e, Database = MySql> + Copy,
 {
-    let query = query_from_attributes::<PgSqlPlaceholder>(
+    let query = query_from_attributes::<MySqlPlaceholder>(
         researched_attributes,
         state,
         user,
@@ -843,15 +839,17 @@ where
 
 /// Convert a list of rows into a list of qualified uids
 fn to_qualified_uids(
-    rows: &[PgRow],
+    rows: &[MySqlRow],
 ) -> KResult<Vec<(String, StateEnumeration, Attributes, IsWrapped)>> {
     let mut uids = Vec::with_capacity(rows.len());
     for row in rows {
-        let attrs: Attributes = match row.try_get::<Value, _>(2) {
-            Err(_) => return Err(KmsError::DatabaseError("no attributes found".to_owned())),
-            Ok(v) => serde_json::from_value(v)
-                .context("failed deserializing the attributes")
-                .map_err(|e| KmsError::DatabaseError(e.to_string()))?,
+        let raw = row.get::<Vec<u8>, _>(2);
+        let attrs = if raw.is_empty() {
+            Attributes::default()
+        } else {
+            let attrs: Attributes =
+                serde_json::from_slice(&raw).context("failed deserializing attributes")?;
+            attrs
         };
 
         uids.push((
@@ -866,22 +864,22 @@ fn to_qualified_uids(
 
 async fn clear_database_<'e, E>(executor: E) -> KResult<()>
 where
-    E: Executor<'e, Database = Postgres> + Copy,
+    E: Executor<'e, Database = MySql> + Copy,
 {
     // Erase `context` table
-    sqlx::query(get_pgsql_query!("clean-table-context"))
+    sqlx::query(get_mysql_query!("clean-table-context"))
         .execute(executor)
         .await?;
     // Erase `objects` table
-    sqlx::query(get_pgsql_query!("clean-table-objects"))
+    sqlx::query(get_mysql_query!("clean-table-objects"))
         .execute(executor)
         .await?;
     // Erase `read_access` table
-    sqlx::query(get_pgsql_query!("clean-table-read_access"))
+    sqlx::query(get_mysql_query!("clean-table-read_access"))
         .execute(executor)
         .await?;
     // Erase `tags` table
-    sqlx::query(get_pgsql_query!("clean-table-tags"))
+    sqlx::query(get_mysql_query!("clean-table-tags"))
         .execute(executor)
         .await?;
     Ok(())
@@ -890,7 +888,7 @@ where
 pub(crate) async fn atomic_(
     owner: &str,
     operations: &[AtomicOperation],
-    tx: &mut Transaction<'_, Postgres>,
+    tx: &mut Transaction<'_, MySql>,
 ) -> KResult<()> {
     for operation in operations {
         match operation {
@@ -930,9 +928,9 @@ pub(crate) async fn atomic_(
 
 pub(crate) async fn is_migration_in_progress_<'e, E>(executor: E) -> KResult<bool>
 where
-    E: Executor<'e, Database = Postgres> + Copy,
+    E: Executor<'e, Database = MySql> + Copy,
 {
-    (sqlx::query(get_pgsql_query!("select-context"))
+    (sqlx::query(get_mysql_query!("select-context"))
         .fetch_optional(executor)
         .await?)
         .map_or(Ok(false), |context_row| {
@@ -942,12 +940,12 @@ where
 }
 
 pub(crate) async fn migrate_(
-    executor: &Pool<Postgres>,
+    executor: &Pool<MySql>,
     last_version_run: &str,
     query_name: &str,
 ) -> KResult<()> {
     trace!("Set status to upgrading and last version run: {last_version_run}");
-    let upsert_context = get_pgsql_query!(query_name);
+    let upsert_context = get_mysql_query!(query_name);
     trace!("{query_name}: {upsert_context}");
     match query_name {
         "insert-context" => {
@@ -980,7 +978,7 @@ pub(crate) async fn migrate_(
 
     // Set the current running version
     trace!("Set status to ready and last version run: {current_kms_version}");
-    sqlx::query(get_pgsql_query!("update-context"))
+    sqlx::query(get_mysql_query!("update-context"))
         .bind(current_kms_version)
         .bind("ready")
         .bind("upgrading")
@@ -992,11 +990,11 @@ pub(crate) async fn migrate_(
 
 /// Before the version 4.13.0, the KMIP attributes were stored in the objects table (via the objects themselves).
 /// The new column attributes allows to store the KMIP attributes in a dedicated column even for KMIP objects that do not have KMIP attributes (such as Certificates).
-pub(crate) async fn migrate_from_4_12_0_to_4_13_0(executor: &Pool<Postgres>) -> KResult<()> {
+pub(crate) async fn migrate_from_4_12_0_to_4_13_0(executor: &Pool<MySql>) -> KResult<()> {
     trace!("Migrating from 4.12.0 to 4.13.0");
 
     // Add the column attributes to the objects table
-    if (sqlx::query(get_pgsql_query!("has-column-attributes"))
+    if (sqlx::query(get_mysql_query!("has-column-attributes"))
         .execute(executor)
         .await)
         .is_ok()
@@ -1006,7 +1004,7 @@ pub(crate) async fn migrate_from_4_12_0_to_4_13_0(executor: &Pool<Postgres>) -> 
     }
 
     trace!("Column attributes does not exist, adding it");
-    sqlx::query(get_pgsql_query!("add-column-attributes"))
+    sqlx::query(get_mysql_query!("add-column-attributes"))
         .execute(executor)
         .await?;
 

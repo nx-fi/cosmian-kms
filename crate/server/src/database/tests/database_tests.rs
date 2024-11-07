@@ -14,15 +14,15 @@ use cosmian_logger::log_utils::log_init;
 use uuid::Uuid;
 
 use crate::{
-    core::extra_database_params::ExtraDatabaseParams,
-    database::{database_traits::AtomicOperation, ObjectsDatabase},
+    core::extra_database_params::ExtraStoreParams,
+    database::{stores::ObjectsStore, AtomicOperation},
     error::KmsError,
     kms_bail,
     result::KResult,
 };
 
-pub(crate) async fn tx_and_list<DB: ObjectsDatabase>(
-    db_and_params: &(DB, Option<ExtraDatabaseParams>),
+pub(crate) async fn tx_and_list<DB: ObjectsStore>(
+    db_and_params: &(DB, Option<ExtraStoreParams>),
 ) -> KResult<()> {
     log_init(None);
     let db = &db_and_params.0;
@@ -99,8 +99,8 @@ pub(crate) async fn tx_and_list<DB: ObjectsDatabase>(
     Ok(())
 }
 
-pub(crate) async fn atomic<DB: ObjectsDatabase>(
-    db_and_params: &(DB, Option<ExtraDatabaseParams>),
+pub(crate) async fn atomic<DB: ObjectsStore>(
+    db_and_params: &(DB, Option<ExtraStoreParams>),
 ) -> KResult<()> {
     log_init(None);
     let db = &db_and_params.0;
@@ -210,8 +210,8 @@ pub(crate) async fn atomic<DB: ObjectsDatabase>(
     Ok(())
 }
 
-pub(crate) async fn upsert<DB: ObjectsDatabase>(
-    db_and_params: &(DB, Option<ExtraDatabaseParams>),
+pub(crate) async fn upsert<DB: ObjectsStore>(
+    db_and_params: &(DB, Option<ExtraStoreParams>),
 ) -> KResult<()> {
     log_init(None);
     let db = &db_and_params.0;
@@ -285,8 +285,8 @@ pub(crate) async fn upsert<DB: ObjectsDatabase>(
     Ok(())
 }
 
-pub(crate) async fn crud<DB: ObjectsDatabase>(
-    db_and_params: &(DB, Option<ExtraDatabaseParams>),
+pub(crate) async fn crud<DB: ObjectsStore>(
+    db_and_params: &(DB, Option<ExtraStoreParams>),
 ) -> KResult<()> {
     log_init(None);
     let db = &db_and_params.0;

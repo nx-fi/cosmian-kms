@@ -7,7 +7,7 @@ use tracing::{debug, trace};
 
 use crate::{
     core::{
-        extra_database_params::ExtraDatabaseParams,
+        extra_database_params::ExtraStoreParams,
         retrieve_object_utils::retrieve_object_for_operation, KMS,
     },
     kms_bail,
@@ -29,7 +29,7 @@ pub(crate) async fn unwrap_key(
     object_key_block: &mut KeyBlock,
     kms: &KMS,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<()> {
     let unwrapping_key_uid = match &object_key_block.key_wrapping_data {
         Some(kwd) => match &kwd.encryption_key_information {

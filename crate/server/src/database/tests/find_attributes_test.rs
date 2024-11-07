@@ -17,12 +17,12 @@ use cosmian_kmip::{
 use uuid::Uuid;
 
 use crate::{
-    core::extra_database_params::ExtraDatabaseParams, database::ObjectsDatabase, kms_error,
+    core::extra_database_params::ExtraStoreParams, database::stores::ObjectsStore, kms_error,
     result::KResult,
 };
 
-pub(crate) async fn find_attributes<DB: ObjectsDatabase>(
-    db_and_params: &(DB, Option<ExtraDatabaseParams>),
+pub(crate) async fn find_attributes<DB: ObjectsStore>(
+    db_and_params: &(DB, Option<ExtraStoreParams>),
 ) -> KResult<()> {
     cosmian_logger::log_utils::log_init(None);
     let db = &db_and_params.0;

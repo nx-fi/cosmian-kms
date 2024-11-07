@@ -38,7 +38,7 @@ use tracing::{debug, info, trace};
 use crate::{
     core::{
         certificate::retrieve_issuer_private_key_and_certificate,
-        extra_database_params::ExtraDatabaseParams,
+        extra_database_params::ExtraStoreParams,
         object_with_metadata::ObjectWithMetadata,
         operations::{
             certify::{
@@ -68,7 +68,7 @@ pub(crate) async fn certify(
     kms: &KMS,
     request: Certify,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<CertifyResponse> {
     trace!("Certify: {}", serde_json::to_string(&request)?);
     if request.protection_storage_masks.is_some() {
@@ -265,7 +265,7 @@ async fn get_subject(
     kms: &KMS,
     request: &Certify,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<Subject> {
     // Did the user provide a CSR?
     if let Some(pkcs10_bytes) = request.certificate_request_value.as_ref() {
@@ -417,7 +417,7 @@ async fn get_issuer<'a>(
     kms: &KMS,
     request: &Certify,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<Issuer<'a>> {
     let (issuer_certificate_id, issuer_private_key_id) =
         request
@@ -458,7 +458,7 @@ async fn fetch_object_from_attributes(
     kms: &KMS,
     attributes: &Attributes,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<Option<ObjectWithMetadata>> {
     if let Some(object_id) = attributes.get_link(link_type) {
         let object = retrieve_object_for_operation(
@@ -478,7 +478,7 @@ async fn issuer_for_self_signed_certificate<'a>(
     subject: &'a Subject,
     kms: &KMS,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<Issuer<'a>> {
     match subject {
         Subject::X509Req(_, _) => {

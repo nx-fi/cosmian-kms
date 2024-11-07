@@ -22,17 +22,13 @@ use tracing::{debug, trace};
 use zeroize::Zeroizing;
 
 use super::{
-    cover_crypt::create_user_decryption_key, extra_database_params::ExtraDatabaseParams, KMS,
+    cover_crypt::create_user_decryption_key, extra_database_params::ExtraStoreParams, KMS,
 };
 use crate::{
     config::{DbParams, ServerParams},
     database::{
-        cached_sqlcipher::CachedSqlCipher,
-        mysql::MySqlPool,
-        pgsql::PgPool,
-        redis::{RedisWithFindex, REDIS_WITH_FINDEX_MASTER_KEY_LENGTH},
-        sqlite::SqlitePool,
-        store::Store,
+        CachedSqlCipher, Database, MySqlPool, PgPool, RedisWithFindex, SqlitePool,
+        REDIS_WITH_FINDEX_MASTER_KEY_LENGTH,
     },
     error::KmsError,
     kms_bail,
@@ -72,7 +68,7 @@ impl KMS {
         })
     }
 
-    async fn get_store(server_params: &ServerParams) -> KResult<Store> {
+    async fn get_store(server_params: &ServerParams) -> KResult<Database> {
         let db_params = server_params.db_params.as_ref().ok_or_else(|| {
             KmsError::InvalidRequest(
                 "Fatal: no database configuration provided. Stopping.".to_owned(),
@@ -87,26 +83,26 @@ impl KMS {
                     )
                     .await?,
                 );
-                Store::new(db.clone(), db)
+                Database::new(db.clone(), db)
             }
             DbParams::SqliteEnc(db_path) => {
                 let db = Arc::new(CachedSqlCipher::instantiate(
                     db_path,
                     server_params.clear_db_on_start,
                 )?);
-                Store::new(db.clone(), db)
+                Database::new(db.clone(), db)
             }
             DbParams::Postgres(url) => {
                 let db = Arc::new(
                     PgPool::instantiate(url.as_str(), server_params.clear_db_on_start).await?,
                 );
-                Store::new(db.clone(), db)
+                Database::new(db.clone(), db)
             }
             DbParams::Mysql(url) => {
                 let db = Arc::new(
                     MySqlPool::instantiate(url.as_str(), server_params.clear_db_on_start).await?,
                 );
-                Store::new(db.clone(), db)
+                Database::new(db.clone(), db)
             }
             DbParams::RedisFindex(url, master_key, label) => {
                 // There is no reason to keep a copy of the key in the shared config
@@ -121,7 +117,7 @@ impl KMS {
                 let db = Arc::new(
                     RedisWithFindex::instantiate(url.as_str(), new_master_key, label).await?,
                 );
-                Store::new(db.clone(), db)
+                Database::new(db.clone(), db)
             }
         })
     }
@@ -202,7 +198,7 @@ impl KMS {
         &self,
         create_request: &Create,
         owner: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<(Option<String>, Object, HashSet<String>)> {
         trace!("Internal create private key");
         let attributes = &create_request.attributes;

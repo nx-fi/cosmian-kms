@@ -4,7 +4,7 @@ use cosmian_kmip::kmip::kmip_types::{RevocationReason, StateEnumeration};
 
 use super::locate_user_decryption_keys;
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, operations::recursively_revoke_key, KMS},
+    core::{extra_database_params::ExtraStoreParams, operations::recursively_revoke_key, KMS},
     result::KResult,
 };
 
@@ -15,7 +15,7 @@ pub(crate) async fn revoke_user_decryption_keys(
     compromise_occurrence_date: Option<u64>,
     kms: &KMS,
     owner: &str,
-    params: Option<&ExtraDatabaseParams>, // keys that should be skipped
+    params: Option<&ExtraStoreParams>, // keys that should be skipped
     ids_to_skip: HashSet<String>,
 ) -> KResult<()> {
     if let Some(ids) = locate_user_decryption_keys(

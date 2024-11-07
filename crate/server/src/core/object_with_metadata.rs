@@ -6,7 +6,7 @@ use cosmian_kmip::kmip::{
 };
 
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, KMS},
+    core::{extra_database_params::ExtraStoreParams, KMS},
     result::KResult,
 };
 
@@ -87,7 +87,7 @@ impl ObjectWithMetadata {
         &self,
         kms: &KMS,
         user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<Object> {
         kms.store
             .get_unwrapped(self.id(), self.object(), kms, user, params)
@@ -101,7 +101,7 @@ impl ObjectWithMetadata {
         &mut self,
         kms: &KMS,
         user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         self.object = self.unwrapped(kms, user, params).await?;
         Ok(())

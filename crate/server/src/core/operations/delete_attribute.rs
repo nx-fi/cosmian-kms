@@ -7,7 +7,7 @@ use tracing::trace;
 
 use crate::{
     core::{
-        extra_database_params::ExtraDatabaseParams,
+        extra_database_params::ExtraStoreParams,
         retrieve_object_utils::retrieve_object_for_operation, KMS,
     },
     error::KmsError,
@@ -18,7 +18,7 @@ pub(crate) async fn delete_attribute(
     kms: &KMS,
     request: DeleteAttribute,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<DeleteAttributeResponse> {
     trace!("Delete attribute: {}", serde_json::to_string(&request)?);
 

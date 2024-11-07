@@ -7,7 +7,7 @@ use cosmian_kmip::kmip::{
 use tracing::trace;
 
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, operations::dispatch, KMS},
+    core::{extra_database_params::ExtraStoreParams, operations::dispatch, KMS},
     error::KmsError,
     result::KResult,
 };
@@ -23,7 +23,7 @@ pub(crate) async fn message(
     kms: &KMS,
     request: Message,
     owner: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<MessageResponse> {
     trace!("Entering message KMIP operation: {request}");
 

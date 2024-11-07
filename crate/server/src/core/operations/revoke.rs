@@ -14,7 +14,7 @@ use tracing::debug;
 
 use crate::{
     core::{
-        cover_crypt::revoke_user_decryption_keys, extra_database_params::ExtraDatabaseParams,
+        cover_crypt::revoke_user_decryption_keys, extra_database_params::ExtraStoreParams,
         object_with_metadata::ObjectWithMetadata, KMS,
     },
     error::KmsError,
@@ -26,7 +26,7 @@ pub(crate) async fn revoke_operation(
     kms: &KMS,
     request: Revoke,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<RevokeResponse> {
     // there must be an identifier
     let uid_or_tags = request
@@ -64,7 +64,7 @@ pub(crate) async fn recursively_revoke_key(
     compromise_occurrence_date: Option<u64>,
     kms: &KMS,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
     // keys that should be skipped
     mut ids_to_skip: HashSet<String>,
 ) -> KResult<()> {
@@ -202,7 +202,7 @@ async fn revoke_key_core(
     revocation_reason: RevocationReason,
     compromise_occurrence_date: Option<u64>,
     kms: &KMS,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<()> {
     let state = match revocation_reason {
         RevocationReason::Enumeration(e) => match e {

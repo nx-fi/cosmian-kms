@@ -7,8 +7,7 @@ use url::Url;
 
 use super::workspace::WorkspaceConfig;
 use crate::{
-    config::params::DbParams, database::redis::RedisWithFindex, kms_bail, kms_error,
-    result::KResult,
+    config::params::DbParams, database::RedisWithFindex, kms_bail, kms_error, result::KResult,
 };
 
 pub const DEFAULT_SQLITE_PATH: &str = "./sqlite-data";

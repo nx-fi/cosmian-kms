@@ -4,7 +4,7 @@ use tracing::trace;
 
 use crate::{
     core::{
-        extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata,
+        extra_database_params::ExtraStoreParams, object_with_metadata::ObjectWithMetadata,
         retrieve_object_utils::retrieve_object_for_operation, KMS,
     },
     error::KmsError,
@@ -24,7 +24,7 @@ pub(crate) async fn retrieve_issuer_private_key_and_certificate(
     certificate_id: Option<String>,
     kms: &KMS,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<(ObjectWithMetadata, ObjectWithMetadata)> {
     trace!(
         "Retrieving issuer private key and certificate: private_key_id: {:?}, certificate_id: {:?}",
@@ -105,7 +105,7 @@ pub(crate) async fn retrieve_certificate_for_private_key(
     operation_type: KmipOperation,
     kms: &KMS,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> Result<ObjectWithMetadata, KmsError> {
     trace!(
         "Retrieving certificate for private key: {}",
@@ -169,7 +169,7 @@ pub(crate) async fn retrieve_private_key_for_certificate(
     operation_type: KmipOperation,
     kms: &KMS,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> Result<ObjectWithMetadata, KmsError> {
     trace!(
         "Retrieving private key for certificate: certificate_uid_or_tags: {:?}",
@@ -228,7 +228,7 @@ async fn find_link_in_public_key(
     operation_type: KmipOperation,
     kms: &KMS,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> Result<LinkedObjectIdentifier, KmsError> {
     // TODO: retrieve only the attributes when #88 is fixed
     let public_key_owm = retrieve_object_for_operation(

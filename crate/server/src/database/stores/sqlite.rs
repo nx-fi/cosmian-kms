@@ -21,12 +21,15 @@ use tracing::{debug, trace};
 use uuid::Uuid;
 
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
+    core::{extra_database_params::ExtraStoreParams, object_with_metadata::ObjectWithMetadata},
     database::{
-        database_traits::{AtomicOperation, PermissionsDatabase},
         migrate::do_migration,
-        query_from_attributes, state_from_string, DBObject, ObjectsDatabase, SqlitePlaceholder,
-        KMS_VERSION_BEFORE_MIGRATION_SUPPORT, SQLITE_QUERIES,
+        state_from_string,
+        stores::{
+            locate_query::{query_from_attributes, SqlitePlaceholder},
+            store_traits::{ObjectsStore, PermissionsStore},
+        },
+        AtomicOperation, DBObject, KMS_VERSION_BEFORE_MIGRATION_SUPPORT, SQLITE_QUERIES,
     },
     error::KmsError,
     kms_bail, kms_error,
@@ -116,12 +119,12 @@ impl SqlitePool {
 }
 
 #[async_trait(?Send)]
-impl ObjectsDatabase for SqlitePool {
+impl ObjectsStore for SqlitePool {
     fn filename(&self, _group_id: u128) -> Option<PathBuf> {
         None
     }
 
-    async fn migrate(&self, _params: Option<&ExtraDatabaseParams>) -> KResult<()> {
+    async fn migrate(&self, _params: Option<&ExtraStoreParams>) -> KResult<()> {
         trace!("Migrate database");
         // Get the context rows
         match sqlx::query(get_sqlite_query!("select-context"))
@@ -166,7 +169,7 @@ impl ObjectsDatabase for SqlitePool {
         object: &Object,
         attributes: &Attributes,
         tags: &HashSet<String>,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<String> {
         if is_migration_in_progress_(&self.pool).await? {
             kms_bail!("Migration in progress. Please retry later");
@@ -186,7 +189,7 @@ impl ObjectsDatabase for SqlitePool {
     async fn retrieve(
         &self,
         uid: &str,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<Option<ObjectWithMetadata>> {
         retrieve_(uid, &self.pool).await
     }
@@ -194,7 +197,7 @@ impl ObjectsDatabase for SqlitePool {
     async fn retrieve_tags(
         &self,
         uid: &str,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<HashSet<String>> {
         retrieve_tags_(uid, &self.pool).await
     }
@@ -205,7 +208,7 @@ impl ObjectsDatabase for SqlitePool {
         object: &Object,
         attributes: &Attributes,
         tags: Option<&HashSet<String>>,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         if is_migration_in_progress_(&self.pool).await? {
             kms_bail!("Migration in progress. Please retry later");
@@ -228,7 +231,7 @@ impl ObjectsDatabase for SqlitePool {
         &self,
         uid: &str,
         state: StateEnumeration,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         if is_migration_in_progress_(&self.pool).await? {
             kms_bail!("Migration in progress. Please retry later");
@@ -255,7 +258,7 @@ impl ObjectsDatabase for SqlitePool {
         attributes: &Attributes,
         tags: Option<&HashSet<String>>,
         state: StateEnumeration,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         if is_migration_in_progress_(&self.pool).await? {
             kms_bail!("Migration in progress. Please retry later");
@@ -278,7 +281,7 @@ impl ObjectsDatabase for SqlitePool {
         &self,
         uid: &str,
         user: &str,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         if is_migration_in_progress_(&self.pool).await? {
             kms_bail!("Migration in progress. Please retry later");
@@ -301,7 +304,7 @@ impl ObjectsDatabase for SqlitePool {
         &self,
         user: &str,
         operations: &[AtomicOperation],
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         if is_migration_in_progress_(&self.pool).await? {
             kms_bail!("Migration in progress. Please retry later");
@@ -323,7 +326,7 @@ impl ObjectsDatabase for SqlitePool {
     async fn list_uids_for_tags(
         &self,
         tags: &HashSet<String>,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<HashSet<String>> {
         list_uids_for_tags_(tags, &self.pool).await
     }
@@ -334,7 +337,7 @@ impl ObjectsDatabase for SqlitePool {
         state: Option<StateEnumeration>,
         user: &str,
         user_must_be_owner: bool,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<Vec<(String, StateEnumeration, Attributes, IsWrapped)>> {
         find_(
             researched_attributes,
@@ -348,11 +351,11 @@ impl ObjectsDatabase for SqlitePool {
 }
 
 #[async_trait(?Send)]
-impl PermissionsDatabase for SqlitePool {
+impl PermissionsStore for SqlitePool {
     async fn list_user_operations_granted(
         &self,
         user: &str,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<HashMap<String, (String, StateEnumeration, HashSet<KmipOperation>)>> {
         list_user_granted_access_rights_(user, &self.pool).await
     }
@@ -360,7 +363,7 @@ impl PermissionsDatabase for SqlitePool {
     async fn list_object_operations_granted(
         &self,
         uid: &str,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<HashMap<String, HashSet<KmipOperation>>> {
         list_accesses_(uid, &self.pool).await
     }
@@ -370,7 +373,7 @@ impl PermissionsDatabase for SqlitePool {
         uid: &str,
         user: &str,
         operation_types: HashSet<KmipOperation>,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         if is_migration_in_progress_(&self.pool).await? {
             kms_bail!("Migration in progress. Please retry later");
@@ -384,7 +387,7 @@ impl PermissionsDatabase for SqlitePool {
         uid: &str,
         user: &str,
         operation_types: HashSet<KmipOperation>,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         if is_migration_in_progress_(&self.pool).await? {
             kms_bail!("Migration in progress. Please retry later");
@@ -397,7 +400,7 @@ impl PermissionsDatabase for SqlitePool {
         &self,
         uid: &str,
         owner: &str,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<bool> {
         is_object_owned_by_(uid, owner, &self.pool).await
     }
@@ -407,7 +410,7 @@ impl PermissionsDatabase for SqlitePool {
         uid: &str,
         user: &str,
         no_inherited_access: bool,
-        _params: Option<&ExtraDatabaseParams>,
+        _params: Option<&ExtraStoreParams>,
     ) -> KResult<HashSet<KmipOperation>> {
         list_user_access_rights_on_object_(uid, user, no_inherited_access, &self.pool).await
     }

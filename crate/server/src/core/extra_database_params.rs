@@ -2,12 +2,12 @@ use cosmian_kmip::crypto::{secret::Secret, symmetric::symmetric_ciphers::AES_256
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
-pub struct ExtraDatabaseParams {
+pub struct ExtraStoreParams {
     pub group_id: u128,
     pub key: Secret<AES_256_GCM_KEY_LENGTH>,
 }
 
-impl Serialize for ExtraDatabaseParams {
+impl Serialize for ExtraStoreParams {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -20,7 +20,7 @@ impl Serialize for ExtraDatabaseParams {
     }
 }
 
-impl<'de> Deserialize<'de> for ExtraDatabaseParams {
+impl<'de> Deserialize<'de> for ExtraStoreParams {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,

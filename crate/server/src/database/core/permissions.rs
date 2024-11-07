@@ -3,12 +3,10 @@ use std::collections::{HashMap, HashSet};
 use cosmian_kmip::kmip::kmip_types::StateEnumeration;
 use cosmian_kms_client::access::KmipOperation;
 
-use crate::{
-    core::extra_database_params::ExtraDatabaseParams, database::store::Store, result::KResult,
-};
+use crate::{core::extra_database_params::ExtraStoreParams, database::Database, result::KResult};
 
 /// Methods that manipulate permissions
-impl Store {
+impl Database {
     /// List all the KMIP operations granted to the `user`
     /// on all the objects in the database
     /// (i.e. the objects for which `user` is not the owner)
@@ -17,7 +15,7 @@ impl Store {
     pub(crate) async fn list_user_operations_granted(
         &self,
         user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<HashMap<String, (String, StateEnumeration, HashSet<KmipOperation>)>> {
         self.permissions
             .list_user_operations_granted(user, params)
@@ -29,7 +27,7 @@ impl Store {
     pub(crate) async fn list_object_operations_granted(
         &self,
         uid: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<HashMap<String, HashSet<KmipOperation>>> {
         self.permissions
             .list_object_operations_granted(uid, params)
@@ -43,7 +41,7 @@ impl Store {
         uid: &str,
         user: &str,
         operations: HashSet<KmipOperation>,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         self.permissions
             .grant_operations(uid, user, operations, params)
@@ -57,7 +55,7 @@ impl Store {
         uid: &str,
         user: &str,
         operations: HashSet<KmipOperation>,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         self.permissions
             .remove_operations(uid, user, operations, params)
@@ -69,7 +67,7 @@ impl Store {
         &self,
         uid: &str,
         owner: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<bool> {
         self.permissions
             .is_object_owned_by(uid, owner, params)
@@ -86,7 +84,7 @@ impl Store {
         uid: &str,
         user: &str,
         no_inherited_access: bool,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<HashSet<KmipOperation>> {
         self.permissions
             .list_user_operations_on_object(uid, user, no_inherited_access, params)

@@ -31,7 +31,7 @@ use zeroize::Zeroizing;
 
 use crate::{
     core::{
-        extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata, KMS,
+        extra_database_params::ExtraStoreParams, object_with_metadata::ObjectWithMetadata, KMS,
     },
     error::KmsError,
     kms_bail,
@@ -44,7 +44,7 @@ pub(crate) async fn decrypt(
     kms: &KMS,
     request: Decrypt,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<DecryptResponse> {
     trace!("decrypt: {}", serde_json::to_string(&request)?);
 
@@ -86,7 +86,7 @@ async fn get_key(
     kms: &KMS,
     request: &Decrypt,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<ObjectWithMetadata> {
     // there must be an identifier
     let uid_or_tags = request

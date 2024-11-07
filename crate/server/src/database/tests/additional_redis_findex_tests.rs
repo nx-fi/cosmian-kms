@@ -20,7 +20,7 @@ use tracing::trace;
 
 use crate::{
     database::{
-        redis::{
+        stores::redis::{
             objects_db::{ObjectsDB, RedisDbObject},
             permissions::PermissionsDB,
         },

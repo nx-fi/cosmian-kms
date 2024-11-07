@@ -44,26 +44,20 @@ use serde::{Deserialize, Serialize};
 
 use crate::{kms_bail, result::KResult};
 
-pub(crate) mod cached_sqlcipher;
-pub(crate) mod cached_sqlite_struct;
-mod database_traits;
-pub(crate) mod mysql;
-pub(crate) mod pgsql;
-pub(crate) mod redis;
-pub(crate) mod sqlite;
-pub(crate) use database_traits::{AtomicOperation, ObjectsDatabase, PermissionsDatabase};
-mod locate_query;
-mod migrate;
-pub(crate) mod store;
-pub(crate) mod unwrapped_cache;
-pub(crate) use locate_query::{
-    query_from_attributes, MySqlPlaceholder, PgSqlPlaceholder, SqlitePlaceholder,
+mod stores;
+pub(crate) use stores::{
+    AtomicOperation, CachedSqlCipher, MySqlPool, PgPool, RedisWithFindex, SqlitePool,
+    REDIS_WITH_FINDEX_MASTER_KEY_LENGTH,
 };
+mod core;
+pub(crate) use core::Database;
+mod migrate;
+pub(crate) mod unwrapped_cache;
 
 const KMS_VERSION_BEFORE_MIGRATION_SUPPORT: &str = "4.12.0";
-const PGSQL_FILE_QUERIES: &str = include_str!("query.sql");
-const MYSQL_FILE_QUERIES: &str = include_str!("query_mysql.sql");
-const SQLITE_FILE_QUERIES: &str = include_str!("query.sql");
+const PGSQL_FILE_QUERIES: &str = include_str!("stores/query.sql");
+const MYSQL_FILE_QUERIES: &str = include_str!("stores/query_mysql.sql");
+const SQLITE_FILE_QUERIES: &str = include_str!("stores/query.sql");
 
 lazy_static! {
     static ref PGSQL_QUERIES: Loader =

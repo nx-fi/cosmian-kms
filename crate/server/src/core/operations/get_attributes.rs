@@ -16,7 +16,7 @@ use tracing::{debug, trace};
 
 use crate::{
     core::{
-        extra_database_params::ExtraDatabaseParams,
+        extra_database_params::ExtraStoreParams,
         operations::export_utils::{
             openssl_private_key_to_kmip_default_format, openssl_public_key_to_kmip_default_format,
         },
@@ -31,7 +31,7 @@ pub(crate) async fn get_attributes(
     kms: &KMS,
     request: GetAttributes,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<GetAttributesResponse> {
     trace!("Get attributes: {}", serde_json::to_string(&request)?);
 

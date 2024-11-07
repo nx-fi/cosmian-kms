@@ -29,7 +29,7 @@ use zeroize::Zeroizing;
 use crate::{
     core::{
         certificate::{retrieve_certificate_for_private_key, retrieve_private_key_for_certificate},
-        extra_database_params::ExtraDatabaseParams,
+        extra_database_params::ExtraStoreParams,
         object_with_metadata::ObjectWithMetadata,
         operations::import::upsert_imported_links_in_attributes,
         retrieve_object_utils::retrieve_object_for_operation,
@@ -49,7 +49,7 @@ pub(crate) async fn export_get(
     request: impl Into<Export>,
     operation_type: KmipOperation,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<ExportResponse> {
     let request: Export = request.into();
     trace!("export-get: {}", serde_json::to_string(&request)?);
@@ -194,7 +194,7 @@ async fn post_process_private_key(
     kms: &KMS,
     operation_type: KmipOperation,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
     request: &Export,
     owm: &mut ObjectWithMetadata,
 ) -> Result<(), KmsError> {
@@ -252,7 +252,7 @@ async fn post_process_active_private_key(
     key_wrapping_specification: &Option<KeyWrappingSpecification>,
     kms: &KMS,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<()> {
     // First perform any necessary unwrapping to the expected type
     transform_to_key_wrap_type(object_with_metadata, key_wrap_type, kms, user, params).await?;
@@ -379,7 +379,7 @@ async fn process_public_key(
     key_wrapping_specification: &Option<KeyWrappingSpecification>,
     kms: &KMS,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<()> {
     // perform any necessary unwrapping
     transform_to_key_wrap_type(object_with_metadata, key_wrap_type, kms, user, params).await?;
@@ -494,7 +494,7 @@ async fn transform_to_key_wrap_type(
     key_wrap_type: &Option<KeyWrapType>,
     kms: &KMS,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> Result<(), KmsError> {
     if let Some(key_wrap_type) = key_wrap_type {
         if *key_wrap_type == KeyWrapType::NotWrapped {
@@ -513,7 +513,7 @@ async fn process_covercrypt_key(
     key_format_type: &Option<KeyFormatType>,
     kms: &KMS,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<()> {
     // Wrapping is only available for KeyFormatType being the default (i.e. None)
     if let Some(key_wrapping_specification) = key_wrapping_specification {
@@ -582,7 +582,7 @@ async fn process_symmetric_key(
     key_wrapping_specification: &Option<KeyWrappingSpecification>,
     kms: &KMS,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<()> {
     trace!(
         "process_symmetric_key: object_with_metadata: {}",
@@ -665,7 +665,7 @@ async fn build_pkcs12_for_private_key(
     kms: &KMS,
     operation_type: KmipOperation,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
     request: &Export,
     private_key_owm: &mut ObjectWithMetadata,
 ) -> Result<(), KmsError> {
@@ -762,7 +762,7 @@ async fn post_process_pkcs7(
     kms: &KMS,
     operation_type: KmipOperation,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
     owm: ObjectWithMetadata,
 ) -> KResult<ObjectWithMetadata> {
     // convert the cert to openssl

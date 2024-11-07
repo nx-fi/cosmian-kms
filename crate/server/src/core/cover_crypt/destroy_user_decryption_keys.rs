@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use super::locate_user_decryption_keys;
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, operations::recursively_destroy_key, KMS},
+    core::{extra_database_params::ExtraStoreParams, operations::recursively_destroy_key, KMS},
     result::KResult,
 };
 
@@ -11,7 +11,7 @@ pub(crate) async fn destroy_user_decryption_keys(
     master_private_key_id: &str,
     kms: &KMS,
     owner: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
     // keys that should be skipped
     ids_to_skip: HashSet<String>,
 ) -> KResult<()> {

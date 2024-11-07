@@ -12,7 +12,7 @@ use cosmian_kmip::kmip::{
 use tracing::info;
 
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, operations::dispatch, KMS},
+    core::{extra_database_params::ExtraStoreParams, operations::dispatch, KMS},
     result::KResult,
 };
 
@@ -47,7 +47,7 @@ async fn handle_ttlv(
     kms: &KMS,
     ttlv: &TTLV,
     user: &str,
-    database_params: Option<&ExtraDatabaseParams>,
+    database_params: Option<&ExtraStoreParams>,
 ) -> KResult<TTLV> {
     if ttlv.tag.as_str() == "Message" {
         let req = from_ttlv::<Message>(ttlv)?;

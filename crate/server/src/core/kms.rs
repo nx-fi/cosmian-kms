@@ -32,8 +32,8 @@ use uuid::Uuid;
 
 use crate::{
     config::{DbParams, ServerParams},
-    core::{extra_database_params::ExtraDatabaseParams, operations},
-    database::store::Store,
+    core::{extra_database_params::ExtraStoreParams, operations},
+    database::Database,
     error::KmsError,
     kms_bail, kms_error,
     middlewares::{JwtAuthClaim, PeerCommonName},
@@ -50,7 +50,7 @@ pub struct KMS {
     ///    and store the cryptographic objects and their attributes.
     ///    Objects are spread across the underlying stores based on their ID prefix.
     /// - the permissions store that stores the permissions granted to users on the objects
-    pub(crate) store: Store,
+    pub(crate) store: Database,
     //TODO refactor this into ObjectStore
     pub(crate) hsm: Option<Box<dyn HSM + Sync + Send>>,
 }
@@ -85,7 +85,7 @@ impl KMS {
             };
 
             // Encode ExtraDatabaseParams
-            let params = ExtraDatabaseParams {
+            let params = ExtraStoreParams {
                 group_id: uid,
                 key: Secret::new_random()?,
             };
@@ -124,7 +124,7 @@ impl KMS {
         &self,
         request: Import,
         user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<ImportResponse> {
         operations::import(self, request, user, params).await
     }
@@ -156,7 +156,7 @@ impl KMS {
         &self,
         request: Certify,
         user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<CertifyResponse> {
         operations::certify(self, request, user, params).await
     }
@@ -173,7 +173,7 @@ impl KMS {
         &self,
         request: Create,
         user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<CreateResponse> {
         operations::create(self, request, user, params).await
     }
@@ -197,7 +197,7 @@ impl KMS {
         &self,
         request: CreateKeyPair,
         user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<CreateKeyPairResponse> {
         operations::create_key_pair(self, request, user, params).await
     }
@@ -224,7 +224,7 @@ impl KMS {
         &self,
         request: Decrypt,
         user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<DecryptResponse> {
         operations::decrypt(self, request, user, params).await
     }
@@ -238,7 +238,7 @@ impl KMS {
         &self,
         request: Destroy,
         user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<DestroyResponse> {
         operations::destroy_operation(self, request, user, params).await
     }
@@ -275,7 +275,7 @@ impl KMS {
         &self,
         request: Encrypt,
         user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<EncryptResponse> {
         operations::encrypt(self, request, user, params).await
     }
@@ -292,7 +292,7 @@ impl KMS {
         &self,
         request: Export,
         user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<ExportResponse> {
         operations::export(self, request, user, params).await
     }
@@ -322,7 +322,7 @@ impl KMS {
         &self,
         request: Get,
         user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<GetResponse> {
         operations::get(self, request, user, params).await
     }
@@ -341,7 +341,7 @@ impl KMS {
         &self,
         request: GetAttributes,
         user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<GetAttributesResponse> {
         operations::get_attributes(self, request, user, params).await
     }
@@ -351,7 +351,7 @@ impl KMS {
         &self,
         request: SetAttribute,
         user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<SetAttributeResponse> {
         operations::set_attribute(self, request, user, params).await
     }
@@ -361,7 +361,7 @@ impl KMS {
         &self,
         request: DeleteAttribute,
         user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<DeleteAttributeResponse> {
         operations::delete_attribute(self, request, user, params).await
     }
@@ -460,7 +460,7 @@ impl KMS {
         &self,
         request: Locate,
         user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<LocateResponse> {
         operations::locate(self, request, Some(StateEnumeration::Active), user, params).await
     }
@@ -495,7 +495,7 @@ impl KMS {
         &self,
         request: ReKeyKeyPair,
         user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<ReKeyKeyPairResponse> {
         operations::rekey_keypair(self, request, user, params).await
     }
@@ -513,7 +513,7 @@ impl KMS {
         &self,
         request: ReKey,
         user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<ReKeyResponse> {
         operations::rekey(self, request, user, params).await
     }
@@ -522,7 +522,7 @@ impl KMS {
         &self,
         request: Message,
         user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<MessageResponse> {
         // This is a large future, hence pinning
         Box::pin(operations::message(self, request, user, params)).await
@@ -532,7 +532,7 @@ impl KMS {
         &self,
         request: Validate,
         user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<ValidateResponse> {
         operations::validate_operation(self, request, user, params).await
     }
@@ -553,7 +553,7 @@ impl KMS {
         &self,
         request: Revoke,
         user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<RevokeResponse> {
         operations::revoke_operation(self, request, user, params).await
     }
@@ -565,7 +565,7 @@ impl KMS {
         &self,
         access: &Access,
         owner: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         let uid = access
             .unique_identifier
@@ -607,7 +607,7 @@ impl KMS {
         &self,
         access: &Access,
         owner: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         let uid = access
             .unique_identifier
@@ -648,7 +648,7 @@ impl KMS {
         &self,
         object_id: &UniqueIdentifier,
         owner: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<Vec<UserAccessResponse>> {
         let object_id = object_id
             .as_str()
@@ -684,7 +684,7 @@ impl KMS {
     pub(crate) async fn list_owned_objects(
         &self,
         owner: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<Vec<ObjectOwnedResponse>> {
         let list = self.store.find(None, None, owner, true, params).await?;
         let ids = list.into_iter().map(ObjectOwnedResponse::from).collect();
@@ -695,7 +695,7 @@ impl KMS {
     pub(crate) async fn list_access_rights_obtained(
         &self,
         user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<Vec<AccessRightsObtainedResponse>> {
         let list = self
             .store
@@ -741,7 +741,7 @@ impl KMS {
     pub(crate) fn get_sqlite_enc_secrets(
         &self,
         req_http: &HttpRequest,
-    ) -> KResult<Option<ExtraDatabaseParams>> {
+    ) -> KResult<Option<ExtraStoreParams>> {
         Ok(
             match self.params.db_params.as_ref().ok_or_else(|| {
                 kms_error!("Unexpected fatal error: no database configured on the KMS server")
@@ -764,7 +764,7 @@ impl KMS {
                     })?;
 
                     Some(
-                        serde_json::from_slice::<ExtraDatabaseParams>(&secrets).map_err(|e| {
+                        serde_json::from_slice::<ExtraStoreParams>(&secrets).map_err(|e| {
                             KmsError::Unauthorized(format!(
                                 "KmsDatabaseSecret header cannot be read: {e}"
                             ))

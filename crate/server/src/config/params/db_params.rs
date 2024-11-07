@@ -7,7 +7,7 @@ use cloudproof::reexport::crypto_core::SymmetricKey;
 use cloudproof_findex::Label;
 use url::Url;
 
-use crate::database::redis::REDIS_WITH_FINDEX_MASTER_KEY_LENGTH;
+use crate::database::REDIS_WITH_FINDEX_MASTER_KEY_LENGTH;
 
 pub enum DbParams {
     /// contains the dir of the sqlite db file (not the db file itself)

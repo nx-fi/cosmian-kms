@@ -17,7 +17,7 @@ use cosmian_kms_client::access::KmipOperation;
 
 use super::KMS;
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
+    core::{extra_database_params::ExtraStoreParams, object_with_metadata::ObjectWithMetadata},
     error::KmsError,
     kms_bail,
     result::KResult,
@@ -32,7 +32,7 @@ pub(crate) async fn create_user_decryption_key(
     cover_crypt: Covercrypt,
     create_request: &Create,
     owner: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<Object> {
     create_user_decryption_key_(
         kmip_server,
@@ -49,7 +49,7 @@ async fn create_user_decryption_key_(
     cover_crypt: Covercrypt,
     create_attributes: &Attributes,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<Object> {
     // Recover the access policy
     let access_policy = access_policy_from_attributes(create_attributes)?;
@@ -123,7 +123,7 @@ pub(crate) async fn create_user_decryption_key_pair(
     cover_crypt: Covercrypt,
     create_key_pair_request: &CreateKeyPair,
     owner: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<KeyPair> {
     // create user decryption key
     let private_key_attributes = create_key_pair_request

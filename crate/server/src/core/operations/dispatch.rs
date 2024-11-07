@@ -8,7 +8,7 @@ use cosmian_kmip::kmip::{
 };
 
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, KMS},
+    core::{extra_database_params::ExtraStoreParams, KMS},
     error::KmsError,
     kms_bail,
     result::KResult,
@@ -19,7 +19,7 @@ pub(crate) async fn dispatch(
     kms: &KMS,
     ttlv: &TTLV,
     user: &str,
-    database_params: Option<&ExtraDatabaseParams>,
+    database_params: Option<&ExtraStoreParams>,
 ) -> KResult<Operation> {
     Ok(match ttlv.tag.as_str() {
         "Certify" => {

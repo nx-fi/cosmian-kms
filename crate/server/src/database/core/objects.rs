@@ -13,40 +13,40 @@ use tracing::trace;
 
 use crate::{
     core::{
-        extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata,
+        extra_database_params::ExtraStoreParams, object_with_metadata::ObjectWithMetadata,
         wrapping::unwrap_key, KMS,
     },
     database::{
-        store::Store, unwrapped_cache::CachedUnwrappedObject, AtomicOperation, ObjectsDatabase,
+        stores::ObjectsStore, unwrapped_cache::CachedUnwrappedObject, AtomicOperation, Database,
     },
     error::KmsError,
     result::{KResult, KResultHelper},
 };
 
 /// Methods that manipulate Objects in the database(s)
-impl Store {
+impl Database {
     #[allow(dead_code)]
     /// Register an Objects Database for Objects uid starting with <prefix>::
-    pub(crate) async fn register_database(
+    pub(crate) async fn register_objects_store(
         &self,
         prefix: &str,
-        database: Arc<dyn ObjectsDatabase + Sync + Send>,
+        objects_store: Arc<dyn ObjectsStore + Sync + Send>,
     ) {
         let mut map = self.objects.write().await;
-        map.insert(prefix.to_owned(), database);
+        map.insert(prefix.to_owned(), objects_store);
     }
 
     #[allow(dead_code)]
     /// Unregister the default objects database or a database for the given prefix
-    pub(crate) async fn unregister_database(&self, prefix: Option<&str>) {
+    pub(crate) async fn unregister_object_store(&self, prefix: Option<&str>) {
         let mut map = self.objects.write().await;
         map.remove(prefix.unwrap_or(""));
     }
 
-    async fn get_database<'a>(
+    async fn get_object_store<'a>(
         &'a self,
         uid: &str,
-    ) -> KResult<Arc<dyn ObjectsDatabase + Sync + Send>> {
+    ) -> KResult<Arc<dyn ObjectsStore + Sync + Send>> {
         // split the uid on the first ::
         let splits = uid.split_once("::");
         Ok(match splits {
@@ -75,7 +75,7 @@ impl Store {
 
     /// Return the filename of the database or `None` if not supported
     pub(crate) async fn filename(&self, group_id: u128) -> Option<PathBuf> {
-        self.get_database("")
+        self.get_object_store("")
             .await
             .ok()
             .and_then(|db| db.filename(group_id))
@@ -83,7 +83,7 @@ impl Store {
 
     #[allow(dead_code)]
     /// Migrate all the databases to the latest version
-    pub(crate) async fn migrate(&self, params: Option<&ExtraDatabaseParams>) -> KResult<()> {
+    pub(crate) async fn migrate(&self, params: Option<&ExtraStoreParams>) -> KResult<()> {
         let map = self.objects.write().await;
         for (_prefix, db) in map.iter() {
             db.migrate(params).await?;
@@ -103,10 +103,10 @@ impl Store {
         object: &Object,
         attributes: &Attributes,
         tags: &HashSet<String>,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<String> {
         let db = self
-            .get_database(uid.clone().unwrap_or_default().as_str())
+            .get_object_store(uid.clone().unwrap_or_default().as_str())
             .await?;
         let uid = db
             .create(uid, owner, object, attributes, tags, params)
@@ -128,7 +128,7 @@ impl Store {
         uid_or_tags: &str,
         user: &str,
         permission: KmipOperation,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<HashMap<String, ObjectWithMetadata>> {
         let uids = if uid_or_tags.starts_with('[') {
             // tags
@@ -140,7 +140,7 @@ impl Store {
 
         let mut results: HashMap<String, ObjectWithMetadata> = HashMap::new();
         for uid in &uids {
-            let db = self.get_database(uid).await?;
+            let db = self.get_object_store(uid).await?;
             let mut retrieve = self.is_object_owned_by(uid, user, params).await?;
             // user is not the owner, check if the user has the permission
             if !retrieve {
@@ -165,9 +165,9 @@ impl Store {
     pub(crate) async fn retrieve_tags(
         &self,
         uid: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<HashSet<String>> {
-        let db = self.get_database(uid).await?;
+        let db = self.get_object_store(uid).await?;
         db.retrieve_tags(uid, params).await
     }
 
@@ -180,9 +180,9 @@ impl Store {
         object: &Object,
         attributes: &Attributes,
         tags: Option<&HashSet<String>>,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
-        let db = self.get_database(uid).await?;
+        let db = self.get_object_store(uid).await?;
         db.update_object(uid, object, attributes, tags, params)
             .await?;
         self.unwrapped_cache.validate_cache(uid, object).await;
@@ -194,9 +194,9 @@ impl Store {
         &self,
         uid: &str,
         state: StateEnumeration,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
-        let db = self.get_database(uid).await?;
+        let db = self.get_object_store(uid).await?;
         db.update_state(uid, state, params).await
     }
 
@@ -238,7 +238,7 @@ impl Store {
     pub(crate) async fn list_uids_for_tags(
         &self,
         tags: &HashSet<String>,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<Vec<String>> {
         let db_map = self.objects.read().await;
         let mut results: Vec<String> = Vec::new();
@@ -256,7 +256,7 @@ impl Store {
         state: Option<StateEnumeration>,
         user: &str,
         user_must_be_owner: bool,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<Vec<(String, StateEnumeration, Attributes, IsWrapped)>> {
         let map = self.objects.read().await;
         let mut results: Vec<(String, StateEnumeration, Attributes, IsWrapped)> = Vec::new();
@@ -283,14 +283,14 @@ impl Store {
         &self,
         user: &str,
         operations: &[AtomicOperation],
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         if operations.is_empty() {
             return Ok(())
         }
         let first_op = &operations[0];
         let first_uid = first_op.get_object_uid();
-        let db = self.get_database(first_uid).await?;
+        let db = self.get_object_store(first_uid).await?;
         db.atomic(user, operations, params).await?;
         // invalidate of clear cache for all operations
         for op in operations {
@@ -318,7 +318,7 @@ impl Store {
         object: &Object,
         kms: &KMS,
         user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<Object> {
         // Is this an unwrapped key?
         if object
@@ -393,7 +393,7 @@ mod tests {
     use uuid::Uuid;
 
     use crate::{
-        database::{sqlite::SqlitePool, store::Store},
+        database::{Database, SqlitePool},
         result::KResult,
     };
 
@@ -407,7 +407,7 @@ mod tests {
             std::fs::remove_file(&db_file)?;
         }
         let sqlite = Arc::new(SqlitePool::instantiate(&db_file, true).await?);
-        let store = Store::new(sqlite.clone(), sqlite);
+        let store = Database::new(sqlite.clone(), sqlite);
         let db_params = None;
 
         let mut rng = CsRng::from_entropy();

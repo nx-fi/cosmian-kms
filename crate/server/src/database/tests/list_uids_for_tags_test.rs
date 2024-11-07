@@ -11,13 +11,13 @@ use cosmian_kmip::{
 use uuid::Uuid;
 
 use crate::{
-    core::extra_database_params::ExtraDatabaseParams,
-    database::{ObjectsDatabase, PermissionsDatabase},
+    core::extra_database_params::ExtraStoreParams,
+    database::stores::{ObjectsStore, PermissionsStore},
     result::KResult,
 };
 
-pub(crate) async fn list_uids_for_tags_test<DB: ObjectsDatabase + PermissionsDatabase>(
-    db_and_params: &(DB, Option<ExtraDatabaseParams>),
+pub(crate) async fn list_uids_for_tags_test<DB: ObjectsStore + PermissionsStore>(
+    db_and_params: &(DB, Option<ExtraStoreParams>),
 ) -> KResult<()> {
     cosmian_logger::log_utils::log_init(None);
     let db = &db_and_params.0;

@@ -13,7 +13,7 @@ use zeroize::Zeroizing;
 
 use crate::{
     core::{
-        cover_crypt::destroy_user_decryption_keys, extra_database_params::ExtraDatabaseParams,
+        cover_crypt::destroy_user_decryption_keys, extra_database_params::ExtraStoreParams,
         object_with_metadata::ObjectWithMetadata, KMS,
     },
     error::KmsError,
@@ -26,7 +26,7 @@ pub(crate) async fn destroy_operation(
     kms: &KMS,
     request: Destroy,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<DestroyResponse> {
     // there must be an identifier
     let uid_or_tags = request
@@ -55,7 +55,7 @@ pub(crate) async fn recursively_destroy_key(
     uid_or_tags: &str,
     kms: &KMS,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
     // keys that should be skipped
     mut ids_to_skip: HashSet<String>,
 ) -> KResult<()> {
@@ -167,7 +167,7 @@ async fn destroy_key_core(
     object: &mut Object,
     state: StateEnumeration,
     kms: &KMS,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<()> {
     // map the state to the new state
     let new_state = match state {

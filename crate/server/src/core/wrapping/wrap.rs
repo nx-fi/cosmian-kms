@@ -10,7 +10,7 @@ use cosmian_kms_client::access::KmipOperation;
 
 use crate::{
     core::{
-        extra_database_params::ExtraDatabaseParams,
+        extra_database_params::ExtraStoreParams,
         retrieve_object_utils::retrieve_object_for_operation, KMS,
     },
     kms_bail,
@@ -34,7 +34,7 @@ pub(crate) async fn wrap_key(
     key_wrapping_specification: &KeyWrappingSpecification,
     kms: &KMS,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<()> {
     // recover the wrapping key uid
     let wrapping_key_uid = match &key_wrapping_specification.encryption_key_information {

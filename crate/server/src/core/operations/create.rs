@@ -7,7 +7,7 @@ use cosmian_kmip::kmip::{
 use tracing::{debug, trace};
 
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, KMS},
+    core::{extra_database_params::ExtraStoreParams, KMS},
     error::KmsError,
     kms_bail,
     result::KResult,
@@ -17,7 +17,7 @@ pub(crate) async fn create(
     kms: &KMS,
     request: Create,
     owner: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<CreateResponse> {
     trace!("Create: {}", serde_json::to_string(&request)?);
     if request.protection_storage_masks.is_some() {
@@ -54,7 +54,7 @@ async fn create_kms_key(
     kms: &KMS,
     request: &Create,
     owner: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<CreateResponse> {
     let (unique_identifier, object, tags) = match &request.object_type {
         ObjectType::SymmetricKey => KMS::create_symmetric_key_and_tags(request)?,

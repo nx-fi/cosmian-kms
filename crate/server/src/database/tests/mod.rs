@@ -16,14 +16,11 @@ use self::{
     tagging_tests::tags,
 };
 use super::{
-    cached_sqlcipher::CachedSqlCipher,
-    mysql::MySqlPool,
-    pgsql::PgPool,
-    redis::{RedisWithFindex, REDIS_WITH_FINDEX_MASTER_KEY_LENGTH},
-    sqlite::SqlitePool,
+    CachedSqlCipher, MySqlPool, PgPool, RedisWithFindex, SqlitePool,
+    REDIS_WITH_FINDEX_MASTER_KEY_LENGTH,
 };
 use crate::{
-    core::extra_database_params::ExtraDatabaseParams,
+    core::extra_database_params::ExtraStoreParams,
     database::tests::{database_tests::atomic, list_uids_for_tags_test::list_uids_for_tags_test},
     result::KResult,
 };
@@ -47,22 +44,22 @@ fn get_redis_url() -> String {
 fn get_sql_cipher(
     dir: &Path,
     db_key: &Secret<AES_256_GCM_KEY_LENGTH>,
-) -> KResult<(CachedSqlCipher, Option<ExtraDatabaseParams>)> {
+) -> KResult<(CachedSqlCipher, Option<ExtraStoreParams>)> {
     let db = CachedSqlCipher::instantiate(dir, true)?;
-    let params = ExtraDatabaseParams {
+    let params = ExtraStoreParams {
         group_id: 0,
         key: db_key.clone(),
     };
     Ok((db, Some(params)))
 }
 
-async fn get_sqlite(db_file: &Path) -> KResult<(SqlitePool, Option<ExtraDatabaseParams>)> {
+async fn get_sqlite(db_file: &Path) -> KResult<(SqlitePool, Option<ExtraStoreParams>)> {
     Ok((SqlitePool::instantiate(db_file, true).await?, None))
 }
 
 // To run local tests with a Postgres in Docker, run
 // docker run --name postgres -e POSTGRES_USER=kms -e POSTGRES_PASSWORD=kms -e POSTGRES_DB=kms -p 5432:5432  -d postgres
-async fn get_pgsql() -> KResult<(PgPool, Option<ExtraDatabaseParams>)> {
+async fn get_pgsql() -> KResult<(PgPool, Option<ExtraStoreParams>)> {
     let postgres_url =
         option_env!("KMS_POSTGRES_URL").unwrap_or("postgresql://kms:kms@127.0.0.1:5432/kms");
     let pg = PgPool::instantiate(postgres_url, true).await?;
@@ -71,7 +68,7 @@ async fn get_pgsql() -> KResult<(PgPool, Option<ExtraDatabaseParams>)> {
 
 // To run local tests with a MariaDB in Docker, run
 // docker run --name mariadb --env MARIADB_DATABASE=kms  --env MARIADB_USER=kms --env MARIADB_PASSWORD=kms --env MARIADB_ROOT_PASSWORD=cosmian -p 3306:3306 -d mariadb
-async fn get_mysql() -> KResult<(MySqlPool, Option<ExtraDatabaseParams>)> {
+async fn get_mysql() -> KResult<(MySqlPool, Option<ExtraStoreParams>)> {
     let mysql_url = option_env!("KMS_MYSQL_URL").unwrap_or("mysql://kms:kms@localhost:3306/kms");
     let my_sql = MySqlPool::instantiate(mysql_url, true).await?;
     Ok((my_sql, None))
@@ -79,7 +76,7 @@ async fn get_mysql() -> KResult<(MySqlPool, Option<ExtraDatabaseParams>)> {
 
 // To run local tests with a Redis in Docker (and local storage - needed for transactions), run
 // docker run --name redis -p 6379:6379 -d redis redis-server --save 60 1 --loglevel verbose
-async fn get_redis_with_findex() -> KResult<(RedisWithFindex, Option<ExtraDatabaseParams>)> {
+async fn get_redis_with_findex() -> KResult<(RedisWithFindex, Option<ExtraStoreParams>)> {
     let redis_url = get_redis_url();
     let redis_url = option_env!("KMS_REDIS_URL").unwrap_or(&redis_url);
     let master_key = Secret::<REDIS_WITH_FINDEX_MASTER_KEY_LENGTH>::new_random()?;

@@ -4,13 +4,13 @@ use cosmian_kms_client::access::KmipOperation;
 use uuid::Uuid;
 
 use crate::{
-    core::extra_database_params::ExtraDatabaseParams,
-    database::{ObjectsDatabase, PermissionsDatabase},
+    core::extra_database_params::ExtraStoreParams,
+    database::stores::{ObjectsStore, PermissionsStore},
     result::KResult,
 };
 
-pub(crate) async fn permissions<DB: ObjectsDatabase + PermissionsDatabase>(
-    db_and_params: &(DB, Option<ExtraDatabaseParams>),
+pub(crate) async fn permissions<DB: ObjectsStore + PermissionsStore>(
+    db_and_params: &(DB, Option<ExtraStoreParams>),
 ) -> KResult<()> {
     cosmian_logger::log_utils::log_init(None);
     permissions_users(db_and_params).await?;
@@ -18,8 +18,8 @@ pub(crate) async fn permissions<DB: ObjectsDatabase + PermissionsDatabase>(
     Ok(())
 }
 
-async fn permissions_users<DB: ObjectsDatabase + PermissionsDatabase>(
-    db_and_params: &(DB, Option<ExtraDatabaseParams>),
+async fn permissions_users<DB: ObjectsStore + PermissionsStore>(
+    db_and_params: &(DB, Option<ExtraStoreParams>),
 ) -> KResult<()> {
     cosmian_logger::log_utils::log_init(None);
     let db = &db_and_params.0;
@@ -132,8 +132,8 @@ async fn permissions_users<DB: ObjectsDatabase + PermissionsDatabase>(
     Ok(())
 }
 
-async fn permissions_wildcard<DB: ObjectsDatabase + PermissionsDatabase>(
-    db_and_params: &(DB, Option<ExtraDatabaseParams>),
+async fn permissions_wildcard<DB: ObjectsStore + PermissionsStore>(
+    db_and_params: &(DB, Option<ExtraStoreParams>),
 ) -> KResult<()> {
     let db = &db_and_params.0;
     let db_params = db_and_params.1.as_ref();

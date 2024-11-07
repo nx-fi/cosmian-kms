@@ -21,7 +21,7 @@ use tracing::{debug, trace, warn};
 
 use crate::{
     core::{
-        extra_database_params::ExtraDatabaseParams,
+        extra_database_params::ExtraStoreParams,
         retrieve_object_utils::retrieve_object_for_operation, KMS,
     },
     error::KmsError,
@@ -74,7 +74,7 @@ pub(crate) async fn validate_operation(
     kms: &KMS,
     request: Validate,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<ValidateResponse> {
     trace!("Validate: {}", request);
 
@@ -620,7 +620,7 @@ async fn certificates_by_uid(
     unique_identifiers: Vec<UniqueIdentifier>,
     kms: &KMS,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<Vec<Vec<u8>>> {
     debug!("certificates_by_uid: entering: {unique_identifiers:?}");
     let mut results = Vec::new();
@@ -639,7 +639,7 @@ async fn certificate_by_uid(
     unique_identifier: &str,
     kms: &KMS,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<Vec<u8>> {
     let uid_owm = retrieve_object_for_operation(
         unique_identifier,

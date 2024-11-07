@@ -8,7 +8,7 @@ use tracing::{debug, trace};
 
 use crate::{
     core::{
-        extra_database_params::ExtraDatabaseParams,
+        extra_database_params::ExtraStoreParams,
         retrieve_object_utils::retrieve_object_for_operation, KMS,
     },
     error::KmsError,
@@ -19,7 +19,7 @@ pub(crate) async fn set_attribute(
     kms: &KMS,
     request: SetAttribute,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<SetAttributeResponse> {
     trace!("Set attribute: {}", serde_json::to_string(&request)?);
 

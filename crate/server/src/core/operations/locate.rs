@@ -8,7 +8,7 @@ use cosmian_kmip::{
 use tracing::trace;
 
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, KMS},
+    core::{extra_database_params::ExtraStoreParams, KMS},
     result::KResult,
 };
 
@@ -17,7 +17,7 @@ pub(crate) async fn locate(
     request: Locate,
     state: Option<StateEnumeration>,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<LocateResponse> {
     trace!("Locate request: {}", request);
     // Find all the objects that match the attributes

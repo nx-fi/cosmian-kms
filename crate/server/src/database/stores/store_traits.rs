@@ -11,7 +11,7 @@ use cosmian_kmip::kmip::{
 use cosmian_kms_client::access::{IsWrapped, KmipOperation};
 
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
+    core::{extra_database_params::ExtraStoreParams, object_with_metadata::ObjectWithMetadata},
     result::KResult,
 };
 
@@ -50,14 +50,14 @@ impl AtomicOperation {
     }
 }
 
-/// Trait that must implement all databases, HSMs, etc. that store objects
+/// Trait that must implement all object stores (DBs, HSMs, etc.) that store objects
 #[async_trait(?Send)]
-pub(crate) trait ObjectsDatabase {
+pub(crate) trait ObjectsStore {
     /// Return the filename of the database or `None` if not supported
     fn filename(&self, group_id: u128) -> Option<PathBuf>;
 
     /// Migrate the database to the latest version
-    async fn migrate(&self, params: Option<&ExtraDatabaseParams>) -> KResult<()>;
+    async fn migrate(&self, params: Option<&ExtraStoreParams>) -> KResult<()>;
 
     /// Create the given Object in the database.
     ///
@@ -71,21 +71,21 @@ pub(crate) trait ObjectsDatabase {
         object: &Object,
         attributes: &Attributes,
         tags: &HashSet<String>,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<String>;
 
     /// Retrieve an object from the database.
     async fn retrieve(
         &self,
         uid: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<Option<ObjectWithMetadata>>;
 
     /// Retrieve the tags of the object with the given `uid`
     async fn retrieve_tags(
         &self,
         uid: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<HashSet<String>>;
 
     /// Update an object in the database.
@@ -97,7 +97,7 @@ pub(crate) trait ObjectsDatabase {
         object: &Object,
         attributes: &Attributes,
         tags: Option<&HashSet<String>>,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<()>;
 
     /// Update the state of an object in the database.
@@ -105,7 +105,7 @@ pub(crate) trait ObjectsDatabase {
         &self,
         uid: &str,
         state: StateEnumeration,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<()>;
 
     /// Upsert (update or create if does not exist)
@@ -121,17 +121,13 @@ pub(crate) trait ObjectsDatabase {
         attributes: &Attributes,
         tags: Option<&HashSet<String>>,
         state: StateEnumeration,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<()>;
 
     /// Delete an object from the database.
     #[allow(dead_code)]
-    async fn delete(
-        &self,
-        uid: &str,
-        user: &str,
-        params: Option<&ExtraDatabaseParams>,
-    ) -> KResult<()>;
+    async fn delete(&self, uid: &str, user: &str, params: Option<&ExtraStoreParams>)
+    -> KResult<()>;
 
     /// Perform an atomic set of operation on the database
     /// (typically in a transaction)
@@ -139,14 +135,14 @@ pub(crate) trait ObjectsDatabase {
         &self,
         user: &str,
         operations: &[AtomicOperation],
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<()>;
 
     /// List the `uid` of all the objects that have the given `tags`
     async fn list_uids_for_tags(
         &self,
         tags: &HashSet<String>,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<HashSet<String>>;
 
     /// Return uid, state and attributes of the object identified by its owner,
@@ -157,13 +153,13 @@ pub(crate) trait ObjectsDatabase {
         state: Option<StateEnumeration>,
         user: &str,
         user_must_be_owner: bool,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<Vec<(String, StateEnumeration, Attributes, IsWrapped)>>;
 }
 
-/// Trait that the database must implement to store permissions
+/// Trait that the stores must implement to store permissions
 #[async_trait(?Send)]
-pub(crate) trait PermissionsDatabase {
+pub(crate) trait PermissionsStore {
     /// List all the KMIP operations granted to the `user`
     /// on all the objects in the database
     /// (i.e. the objects for which `user` is not the owner)
@@ -172,7 +168,7 @@ pub(crate) trait PermissionsDatabase {
     async fn list_user_operations_granted(
         &self,
         user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<HashMap<String, (String, StateEnumeration, HashSet<KmipOperation>)>>;
 
     /// List all the KMIP operations granted per `user`
@@ -180,7 +176,7 @@ pub(crate) trait PermissionsDatabase {
     async fn list_object_operations_granted(
         &self,
         uid: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<HashMap<String, HashSet<KmipOperation>>>;
 
     /// Grant to `user` the ability to perform the KMIP `operations`
@@ -190,7 +186,7 @@ pub(crate) trait PermissionsDatabase {
         uid: &str,
         user: &str,
         operations: HashSet<KmipOperation>,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<()>;
 
     /// Remove to `user` the ability to perform the KMIP `operations`
@@ -200,7 +196,7 @@ pub(crate) trait PermissionsDatabase {
         uid: &str,
         user: &str,
         operations: HashSet<KmipOperation>,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<()>;
 
     /// Test if an object identified by its `uid` is currently owned by `owner`
@@ -208,7 +204,7 @@ pub(crate) trait PermissionsDatabase {
         &self,
         uid: &str,
         owner: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<bool>;
 
     /// List all the KMIP operations that have been granted to a user on an object
@@ -220,6 +216,6 @@ pub(crate) trait PermissionsDatabase {
         uid: &str,
         user: &str,
         no_inherited_access: bool,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<HashSet<KmipOperation>>;
 }

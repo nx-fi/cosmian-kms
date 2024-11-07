@@ -28,7 +28,7 @@ use tracing::{debug, trace};
 use uuid::Uuid;
 
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, wrapping::unwrap_key, KMS},
+    core::{extra_database_params::ExtraStoreParams, wrapping::unwrap_key, KMS},
     database::AtomicOperation,
     error::KmsError,
     kms_bail,
@@ -40,7 +40,7 @@ pub(crate) async fn import(
     kms: &KMS,
     request: Import,
     owner: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<ImportResponse> {
     trace!("Entering import KMIP operation: {}", request);
     // Unique identifiers starting with `[` are reserved for queries on tags
@@ -80,7 +80,7 @@ pub(crate) async fn process_symmetric_key(
     kms: &KMS,
     request: Import,
     owner: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> Result<(String, Vec<AtomicOperation>), KmsError> {
     // recover user tags
     let mut attributes = request.attributes;
@@ -198,7 +198,7 @@ async fn process_public_key(
     kms: &KMS,
     request: Import,
     owner: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> Result<(String, Vec<AtomicOperation>), KmsError> {
     // recover user tags
     let mut attributes = request.attributes;
@@ -276,7 +276,7 @@ async fn process_private_key(
     kms: &KMS,
     request: Import,
     owner: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> Result<(String, Vec<AtomicOperation>), KmsError> {
     // Recover user tags.
     let mut attributes = request.attributes;

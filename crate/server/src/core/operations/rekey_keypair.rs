@@ -12,7 +12,7 @@ use tracing::trace;
 
 use crate::{
     core::{
-        cover_crypt::rekey_keypair_cover_crypt, extra_database_params::ExtraDatabaseParams,
+        cover_crypt::rekey_keypair_cover_crypt, extra_database_params::ExtraStoreParams,
         object_with_metadata::ObjectWithMetadata, KMS,
     },
     error::KmsError,
@@ -24,7 +24,7 @@ pub(crate) async fn rekey_keypair(
     kms: &KMS,
     request: ReKeyKeyPair,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<ReKeyKeyPairResponse> {
     trace!("Internal rekey key pair");
 

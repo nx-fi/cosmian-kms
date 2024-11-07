@@ -4,7 +4,7 @@ use tracing::trace;
 
 use crate::{
     core::{
-        extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata, KMS,
+        extra_database_params::ExtraStoreParams, object_with_metadata::ObjectWithMetadata, KMS,
     },
     error::KmsError,
     hsm::get_hsm_object,
@@ -23,7 +23,7 @@ pub(crate) async fn retrieve_object_for_operation(
     operation_type: KmipOperation,
     kms: &KMS,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<ObjectWithMetadata> {
     //TODO: we could improve the retrieve() DB calls to support a list of Any(operation..)
     // https://github.com/Cosmian/kms/issues/93
@@ -44,7 +44,7 @@ async fn _retrieve_object(
     operation_type: KmipOperation,
     kms: &KMS,
     user: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<ObjectWithMetadata> {
     trace!(
         "get_key: key_uid_or_tags: {uid_or_tags:?}, user: {user}, operation_type: \

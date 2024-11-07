@@ -30,14 +30,16 @@ use super::{
     },
 };
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, object_with_metadata::ObjectWithMetadata},
+    core::{extra_database_params::ExtraStoreParams, object_with_metadata::ObjectWithMetadata},
     database::{
-        database_traits::{AtomicOperation, PermissionsDatabase},
         migrate::do_migration,
-        sqlite::{
-            atomic_, is_migration_in_progress_, list_uids_for_tags_, migrate_, retrieve_tags_,
+        stores::{
+            sqlite::{
+                atomic_, is_migration_in_progress_, list_uids_for_tags_, migrate_, retrieve_tags_,
+            },
+            store_traits::{AtomicOperation, ObjectsStore, PermissionsStore},
         },
-        ObjectsDatabase, KMS_VERSION_BEFORE_MIGRATION_SUPPORT, SQLITE_QUERIES,
+        KMS_VERSION_BEFORE_MIGRATION_SUPPORT, SQLITE_QUERIES,
     },
     get_sqlite_query, kms_bail, kms_error,
     result::{KResult, KResultHelper},
@@ -134,12 +136,12 @@ impl CachedSqlCipher {
 }
 
 #[async_trait(?Send)]
-impl ObjectsDatabase for CachedSqlCipher {
+impl ObjectsStore for CachedSqlCipher {
     fn filename(&self, group_id: u128) -> Option<PathBuf> {
         Some(self.path.join(format!("{group_id}.sqlite")))
     }
 
-    async fn migrate(&self, params: Option<&ExtraDatabaseParams>) -> KResult<()> {
+    async fn migrate(&self, params: Option<&ExtraStoreParams>) -> KResult<()> {
         if let Some(params) = params {
             let pool = self.pre_query(params.group_id, &params.key).await?;
 
@@ -190,7 +192,7 @@ impl ObjectsDatabase for CachedSqlCipher {
         object: &Object,
         attributes: &Attributes,
         tags: &HashSet<String>,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<String> {
         if let Some(params) = params {
             let pool = self.pre_query(params.group_id, &params.key).await?;
@@ -219,7 +221,7 @@ impl ObjectsDatabase for CachedSqlCipher {
     async fn retrieve(
         &self,
         uid: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<Option<ObjectWithMetadata>> {
         if let Some(params) = params {
             let pool = self.pre_query(params.group_id, &params.key).await?;
@@ -234,7 +236,7 @@ impl ObjectsDatabase for CachedSqlCipher {
     async fn retrieve_tags(
         &self,
         uid: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<HashSet<String>> {
         if let Some(params) = params {
             let pool = self.pre_query(params.group_id, &params.key).await?;
@@ -252,7 +254,7 @@ impl ObjectsDatabase for CachedSqlCipher {
         object: &Object,
         attributes: &Attributes,
         tags: Option<&HashSet<String>>,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         if let Some(params) = params {
             let pool = self.pre_query(params.group_id, &params.key).await?;
@@ -282,7 +284,7 @@ impl ObjectsDatabase for CachedSqlCipher {
         &self,
         uid: &str,
         state: StateEnumeration,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         if let Some(params) = params {
             let pool = self.pre_query(params.group_id, &params.key).await?;
@@ -315,7 +317,7 @@ impl ObjectsDatabase for CachedSqlCipher {
         attributes: &Attributes,
         tags: Option<&HashSet<String>>,
         state: StateEnumeration,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         if let Some(params) = params {
             let pool = self.pre_query(params.group_id, &params.key).await?;
@@ -344,7 +346,7 @@ impl ObjectsDatabase for CachedSqlCipher {
         &self,
         uid: &str,
         user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         if let Some(params) = params {
             let pool = self.pre_query(params.group_id, &params.key).await?;
@@ -373,7 +375,7 @@ impl ObjectsDatabase for CachedSqlCipher {
         &self,
         user: &str,
         operations: &[AtomicOperation],
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         if let Some(params) = params {
             let pool = self.pre_query(params.group_id, &params.key).await?;
@@ -400,7 +402,7 @@ impl ObjectsDatabase for CachedSqlCipher {
     async fn list_uids_for_tags(
         &self,
         tags: &HashSet<String>,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<HashSet<String>> {
         if let Some(params) = params {
             let pool = self.pre_query(params.group_id, &params.key).await?;
@@ -418,7 +420,7 @@ impl ObjectsDatabase for CachedSqlCipher {
         state: Option<StateEnumeration>,
         user: &str,
         user_must_be_owner: bool,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<Vec<(String, StateEnumeration, Attributes, IsWrapped)>> {
         trace!("cached sqlcipher: find: {:?}", researched_attributes);
         if let Some(params) = params {
@@ -440,11 +442,11 @@ impl ObjectsDatabase for CachedSqlCipher {
     }
 }
 #[async_trait(?Send)]
-impl PermissionsDatabase for CachedSqlCipher {
+impl PermissionsStore for CachedSqlCipher {
     async fn list_user_operations_granted(
         &self,
         user: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<HashMap<String, (String, StateEnumeration, HashSet<KmipOperation>)>> {
         if let Some(params) = params {
             let pool = self.pre_query(params.group_id, &params.key).await?;
@@ -459,7 +461,7 @@ impl PermissionsDatabase for CachedSqlCipher {
     async fn list_object_operations_granted(
         &self,
         uid: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<HashMap<String, HashSet<KmipOperation>>> {
         if let Some(params) = params {
             let pool = self.pre_query(params.group_id, &params.key).await?;
@@ -476,7 +478,7 @@ impl PermissionsDatabase for CachedSqlCipher {
         uid: &str,
         user: &str,
         operation_types: HashSet<KmipOperation>,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         if let Some(params) = params {
             let pool = self.pre_query(params.group_id, &params.key).await?;
@@ -496,7 +498,7 @@ impl PermissionsDatabase for CachedSqlCipher {
         uid: &str,
         user: &str,
         operation_types: HashSet<KmipOperation>,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<()> {
         if let Some(params) = params {
             let pool = self.pre_query(params.group_id, &params.key).await?;
@@ -515,7 +517,7 @@ impl PermissionsDatabase for CachedSqlCipher {
         &self,
         uid: &str,
         owner: &str,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<bool> {
         if let Some(params) = params {
             let pool = self.pre_query(params.group_id, &params.key).await?;
@@ -532,7 +534,7 @@ impl PermissionsDatabase for CachedSqlCipher {
         uid: &str,
         user: &str,
         no_inherited_access: bool,
-        params: Option<&ExtraDatabaseParams>,
+        params: Option<&ExtraStoreParams>,
     ) -> KResult<HashSet<KmipOperation>> {
         use super::sqlite::list_user_access_rights_on_object_;
 

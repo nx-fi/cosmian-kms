@@ -26,7 +26,7 @@ use tracing::{debug, trace};
 use uuid::Uuid;
 
 use crate::{
-    core::{extra_database_params::ExtraDatabaseParams, KMS},
+    core::{extra_database_params::ExtraStoreParams, KMS},
     database::AtomicOperation,
     error::KmsError,
     kms_bail,
@@ -37,7 +37,7 @@ pub(crate) async fn create_key_pair(
     kms: &KMS,
     request: CreateKeyPair,
     owner: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<CreateKeyPairResponse> {
     trace!("Create key pair: {}", serde_json::to_string(&request)?);
 
@@ -139,7 +139,7 @@ async fn create_kms_keypair(
     kms: &KMS,
     request: CreateKeyPair,
     owner: &str,
-    params: Option<&ExtraDatabaseParams>,
+    params: Option<&ExtraStoreParams>,
 ) -> KResult<CreateKeyPairResponse> {
     if request.common_protection_storage_masks.is_some()
         || request.private_protection_storage_masks.is_some()
