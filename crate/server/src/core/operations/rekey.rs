@@ -3,7 +3,7 @@ use cosmian_kmip::kmip::{
     kmip_operations::{Create, ErrorReason, Import, ReKey, ReKeyResponse},
     kmip_types::{StateEnumeration, UniqueIdentifier},
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_access::access::ObjectOperationType;
 use tracing::{debug, trace};
 
 use crate::{

@@ -2,7 +2,7 @@ use cosmian_kmip::kmip::{
     kmip_operations::{DeleteAttribute, DeleteAttributeResponse},
     kmip_types::{Attribute, AttributeReference, Tag, UniqueIdentifier},
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_access::access::ObjectOperationType;
 use tracing::trace;
 
 use crate::{

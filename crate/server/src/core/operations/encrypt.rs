@@ -25,7 +25,7 @@ use cosmian_kmip::{
     openssl::kmip_public_key_to_openssl,
     KmipError,
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_access::access::ObjectOperationType;
 use openssl::{
     pkey::{Id, PKey, Public},
     x509::X509,

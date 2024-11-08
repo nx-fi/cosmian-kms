@@ -17,7 +17,7 @@ use cosmian_kmip::{
         kmip_types::{Attributes, StateEnumeration},
     },
 };
-use cosmian_kms_client::access::{IsWrapped, ObjectOperationType};
+use cosmian_kms_access::access::{IsWrapped, ObjectOperationType};
 use redis::aio::ConnectionManager;
 use tracing::trace;
 use uuid::Uuid;

@@ -14,7 +14,7 @@ use cosmian_kmip::{
     kmip::kmip_types::{CryptographicAlgorithm, StateEnumeration},
     KmipResultHelper,
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_access::access::ObjectOperationType;
 use redis::aio::ConnectionManager;
 use tracing::trace;
 

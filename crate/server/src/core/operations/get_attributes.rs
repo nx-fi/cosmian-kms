@@ -10,7 +10,7 @@ use cosmian_kmip::{
     },
     openssl::{kmip_private_key_to_openssl, kmip_public_key_to_openssl},
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_access::access::ObjectOperationType;
 use strum::IntoEnumIterator;
 use tracing::{debug, trace};
 

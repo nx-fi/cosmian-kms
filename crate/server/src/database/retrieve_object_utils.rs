@@ -1,5 +1,5 @@
 use cosmian_kmip::kmip::kmip_types::StateEnumeration;
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_access::access::ObjectOperationType;
 use tracing::trace;
 
 use crate::{

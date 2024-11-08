@@ -7,7 +7,7 @@
 
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
-exclude: crate/cli/test_data|documentation/pandoc|documentation/overrides|enclave|crate/server/src/tests/test_utils.rs|crate/cli/src/tests/utils/test_utils.rs|crate/client/src/lib.rs|crate/cli/src/tests/certificates/openssl.rs|crate/client/src/kms_rest_client.rs|.pre-commit-config.yaml|crate/server/src/routes/google_cse/jwt.rs|crate/server/src/routes/google_cse/python/openssl|documentation/docs/google_cse|crate/pkcs11/sys|documentation/docs/drawings
+exclude: documentation/pandoc|documentation/overrides|crate/server/src/tests/test_utils.rs|.pre-commit-config.yaml|crate/server/src/routes/google_cse/jwt.rs|crate/server/src/routes/google_cse/python/openssl|documentation/docs/google_cse|crate/pkcs11/sys|documentation/docs/drawings|crate/kmip/test_data/certificates/openssl
 repos:
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v3.4.0
@@ -119,14 +119,14 @@ repos:
         args: [--skip-string-normalization]
 
   - repo: https://github.com/Cosmian/git-hooks.git
-    rev: v1.0.29
+    rev: v1.0.32
     hooks:
       - id: cargo-format
       # - id: dprint-toml-fix
       # - id: cargo-upgrade
       # - id: cargo-update
       - id: cargo-machete
-      - id: cargo-build-kms
+      - id: cargo-build-all
       - id: renew-kms-markdown
       - id: docker-compose-up
       - id: cargo-test

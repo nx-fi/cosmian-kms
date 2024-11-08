@@ -8,7 +8,7 @@ use cosmian_kmip::kmip::{
     kmip_objects::Object,
     kmip_types::{Attributes, StateEnumeration},
 };
-use cosmian_kms_client::access::{IsWrapped, ObjectOperationType};
+use cosmian_kms_access::access::{IsWrapped, ObjectOperationType};
 
 use super::object_with_metadata::ObjectWithMetadata;
 use crate::{core::extra_database_params::ExtraDatabaseParams, result::KResult};

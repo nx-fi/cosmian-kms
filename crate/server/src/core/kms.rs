@@ -23,7 +23,7 @@ use cosmian_kmip::{
         kmip_types::{StateEnumeration, UniqueIdentifier},
     },
 };
-use cosmian_kms_client::access::{
+use cosmian_kms_access::access::{
     Access, AccessRightsObtainedResponse, ObjectOwnedResponse, UserAccessResponse,
 };
 use tracing::debug;

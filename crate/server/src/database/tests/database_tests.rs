@@ -10,7 +10,7 @@ use cosmian_kmip::{
         CryptographicAlgorithm, Link, LinkType, LinkedObjectIdentifier, StateEnumeration,
     },
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_access::access::ObjectOperationType;
 use cosmian_logger::log_utils::log_init;
 use uuid::Uuid;
 

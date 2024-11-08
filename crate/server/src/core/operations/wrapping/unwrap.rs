@@ -2,7 +2,7 @@ use cosmian_kmip::{
     crypto::wrap::unwrap_key_block,
     kmip::{kmip_data_structures::KeyBlock, kmip_objects::ObjectType, kmip_types::LinkType},
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_access::access::ObjectOperationType;
 use tracing::debug;
 
 use crate::{

@@ -13,7 +13,7 @@ use cosmian_kmip::{
         kmip_types::{Attributes, KeyFormatType, StateEnumeration, UniqueIdentifier},
     },
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_access::access::ObjectOperationType;
 
 use super::KMS;
 use crate::{

@@ -14,7 +14,7 @@ use cosmian_kmip::{
         kmip_types::{Attributes, StateEnumeration},
     },
 };
-use cosmian_kms_client::access::{IsWrapped, ObjectOperationType};
+use cosmian_kms_access::access::{IsWrapped, ObjectOperationType};
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
     ConnectOptions, Pool, Row, Sqlite,

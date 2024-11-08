@@ -8,7 +8,7 @@ use cosmian_kmip::kmip::{
     kmip_operations::{Validate, ValidateResponse},
     kmip_types::{UniqueIdentifier, ValidityIndicator},
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_access::access::ObjectOperationType;
 use openssl::{
     asn1::Asn1Time,
     stack::Stack,

@@ -6,7 +6,7 @@ use cosmian_kmip::{
         kmip_types::LinkType,
     },
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_access::access::ObjectOperationType;
 
 use crate::{
     core::{extra_database_params::ExtraDatabaseParams, KMS},

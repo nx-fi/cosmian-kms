@@ -11,7 +11,7 @@ use base64::Engine;
 use cosmian_kmip::kmip::{
     kmip_objects::ObjectType, kmip_operations::ErrorReason, kmip_types::StateEnumeration,
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_access::access::ObjectOperationType;
 use tracing::{debug, error, trace};
 
 use crate::{

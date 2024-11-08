@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_access::access::ObjectOperationType;
 use uuid::Uuid;
 
 use crate::{

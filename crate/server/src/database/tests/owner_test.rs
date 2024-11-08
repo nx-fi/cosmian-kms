@@ -8,7 +8,7 @@ use cosmian_kmip::{
     crypto::symmetric::create_symmetric_key_kmip_object,
     kmip::kmip_types::{CryptographicAlgorithm, StateEnumeration},
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_access::access::ObjectOperationType;
 use uuid::Uuid;
 
 use crate::{

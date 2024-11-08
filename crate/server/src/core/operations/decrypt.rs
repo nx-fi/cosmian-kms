@@ -24,7 +24,7 @@ use cosmian_kmip::{
     },
     openssl::kmip_private_key_to_openssl,
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_access::access::ObjectOperationType;
 use openssl::pkey::{Id, PKey, Private};
 use tracing::{debug, trace};
 use zeroize::Zeroizing;

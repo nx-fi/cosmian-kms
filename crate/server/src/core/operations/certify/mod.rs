@@ -26,7 +26,7 @@ use cosmian_kmip::{
         kmip_certificate_to_openssl, kmip_private_key_to_openssl, openssl_certificate_to_kmip,
     },
 };
-use cosmian_kms_client::access::ObjectOperationType;
+use cosmian_kms_access::access::ObjectOperationType;
 use openssl::{
     asn1::{Asn1Integer, Asn1Time},
     hash::MessageDigest,
