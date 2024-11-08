@@ -4,11 +4,9 @@ use cosmian_kmip::kmip::{
     kmip_objects::Object,
     kmip_types::{Attributes, StateEnumeration},
 };
+use cosmian_kms_server_database::ExtraStoreParams;
 
-use crate::{
-    core::{extra_database_params::ExtraStoreParams, KMS},
-    result::KResult,
-};
+use crate::{core::KMS, result::KResult};
 
 /// An object with its metadata such as owner, permissions and state
 ///

@@ -15,14 +15,12 @@ use cosmian_kmip::{
         kmip_types::{LinkType, StateEnumeration, UniqueIdentifier},
     },
 };
+use cosmian_kms_server_database::ExtraStoreParams;
 use tracing::trace;
 
 use super::KMS;
 use crate::{
-    core::{cover_crypt::locate_user_decryption_keys, extra_database_params::ExtraStoreParams},
-    error::KmsError,
-    kms_bail,
-    result::KResult,
+    core::cover_crypt::locate_user_decryption_keys, error::KmsError, kms_bail, result::KResult,
 };
 
 /// KMIP `Re_key` for `CoverCrypt` master keys can be one of these actions:

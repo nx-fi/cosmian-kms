@@ -10,9 +10,10 @@ use cosmian_kmip::{
         },
     },
 };
+use cosmian_kms_server_database::ExtraStoreParams;
 
 use crate::{
-    core::{extra_database_params::ExtraStoreParams, operations, KMS},
+    core::{operations, KMS},
     result::KResult,
 };
 

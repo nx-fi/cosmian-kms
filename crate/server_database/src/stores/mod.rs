@@ -1,13 +1,13 @@
 mod store_traits;
 
+use cosmian_kmip::kmip::kmip_objects::{Object, ObjectType};
 use lazy_static::lazy_static;
 use rawsql::Loader;
 use serde::{Deserialize, Serialize};
 pub use store_traits::{AtomicOperation, ObjectsStore, PermissionsStore};
 
 mod cached_sqlcipher;
-pub(crate) use cached_sqlcipher::CachedSqlCipher;
-use cosmian_kmip::kmip::kmip_objects::{Object, ObjectType};
+pub use cached_sqlcipher::CachedSqlCipher;
 
 mod cached_sqlite_struct;
 
@@ -18,7 +18,8 @@ mod pgsql;
 pub(crate) use pgsql::PgPool;
 #[cfg(not(test))]
 mod redis;
-pub(crate) use redis::{RedisWithFindex, REDIS_WITH_FINDEX_MASTER_KEY_LENGTH};
+pub(crate) use redis::RedisWithFindex;
+pub use redis::{redis_master_key_from_password, REDIS_WITH_FINDEX_MASTER_KEY_LENGTH};
 mod extra_store_params;
 #[cfg(test)]
 pub(crate) mod redis;

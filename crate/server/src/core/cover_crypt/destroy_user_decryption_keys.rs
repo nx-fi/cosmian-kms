@@ -1,8 +1,10 @@
 use std::collections::HashSet;
 
+use cosmian_kms_server_database::ExtraStoreParams;
+
 use super::locate_user_decryption_keys;
 use crate::{
-    core::{extra_database_params::ExtraStoreParams, operations::recursively_destroy_key, KMS},
+    core::{operations::recursively_destroy_key, KMS},
     result::KResult,
 };
 

@@ -1,10 +1,11 @@
 use std::collections::HashSet;
 
 use cosmian_kmip::kmip::kmip_types::{RevocationReason, StateEnumeration};
+use cosmian_kms_server_database::ExtraStoreParams;
 
 use super::locate_user_decryption_keys;
 use crate::{
-    core::{extra_database_params::ExtraStoreParams, operations::recursively_revoke_key, KMS},
+    core::{operations::recursively_revoke_key, KMS},
     result::KResult,
 };
 

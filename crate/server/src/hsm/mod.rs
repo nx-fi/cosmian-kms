@@ -10,9 +10,9 @@ use cosmian_kmip::{
             Attributes, CryptographicAlgorithm, CryptographicUsageMask, KeyFormatType,
             StateEnumeration,
         },
+        KmipOperation,
     },
 };
-use cosmian_kms_client::access::KmipOperation;
 use num_bigint_dig::BigUint;
 use KmipKeyMaterial::TransparentRSAPublicKey;
 

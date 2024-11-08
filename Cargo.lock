@@ -1411,6 +1411,7 @@ dependencies = [
  "cosmian_hsm_traits",
  "cosmian_kmip",
  "cosmian_kms_client",
+ "cosmian_kms_server_database",
  "cosmian_logger",
  "dotenvy",
  "futures",
@@ -1446,6 +1447,39 @@ dependencies = [
  "uuid",
  "version-compare",
  "x509-parser",
+ "zeroize",
+]
+
+[[package]]
+name = "cosmian_kms_server_database"
+version = "4.19.1"
+dependencies = [
+ "async-trait",
+ "clap",
+ "cloudproof",
+ "cloudproof_findex 5.0.4",
+ "cosmian_hsm_traits",
+ "cosmian_kmip",
+ "cosmian_logger",
+ "hex",
+ "lazy_static",
+ "lru",
+ "num_cpus",
+ "rand_chacha 0.3.1",
+ "rawsql",
+ "redis",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tempfile",
+ "thiserror",
+ "tiny-keccak",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "uuid",
+ "version-compare",
  "zeroize",
 ]
 

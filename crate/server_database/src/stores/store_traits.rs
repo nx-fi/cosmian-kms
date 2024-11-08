@@ -7,12 +7,10 @@ use async_trait::async_trait;
 use cosmian_kmip::kmip::{
     kmip_objects::Object,
     kmip_types::{Attributes, StateEnumeration},
-};
-
-use crate::{
-    error::DbResult, object_with_metadata::ObjectWithMetadata, stores::ExtraStoreParams,
     KmipOperation,
 };
+
+use crate::{error::DbResult, object_with_metadata::ObjectWithMetadata, stores::ExtraStoreParams};
 
 /// An atomic operation on the objects database
 pub enum AtomicOperation {

@@ -4,15 +4,13 @@ use cosmian_kmip::{
         kmip_data_structures::{KeyBlock, KeyWrappingSpecification},
         kmip_objects::ObjectType,
         kmip_types::LinkType,
+        KmipOperation,
     },
 };
-use cosmian_kms_client::access::KmipOperation;
+use cosmian_kms_server_database::ExtraStoreParams;
 
 use crate::{
-    core::{
-        extra_database_params::ExtraStoreParams,
-        retrieve_object_utils::retrieve_object_for_operation, KMS,
-    },
+    core::{retrieve_object_utils::retrieve_object_for_operation, KMS},
     kms_bail,
     result::{KResult, KResultHelper},
 };

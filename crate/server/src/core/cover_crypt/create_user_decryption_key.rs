@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use cloudproof::reexport::cover_crypt::Covercrypt;
 use cosmian_kmip::{
     crypto::{
@@ -13,15 +15,10 @@ use cosmian_kmip::{
         kmip_types::{Attributes, KeyFormatType, StateEnumeration, UniqueIdentifier},
     },
 };
-use cosmian_kms_client::access::KmipOperation;
+use cosmian_kms_server_database::{ExtraStoreParams, StateFilter, UserFilter};
 
 use super::KMS;
-use crate::{
-    core::{extra_database_params::ExtraStoreParams, object_with_metadata::ObjectWithMetadata},
-    error::KmsError,
-    kms_bail,
-    result::KResult,
-};
+use crate::{error::KmsError, kms_bail, result::KResult};
 
 /// Create a User Decryption Key in the KMS
 ///
@@ -55,7 +52,7 @@ async fn create_user_decryption_key_(
     let access_policy = access_policy_from_attributes(create_attributes)?;
 
     // Recover private key
-    let msk_uid_or_tag = create_attributes
+    let msk_uid = create_attributes
         .get_parent_id()
         .ok_or_else(|| {
             KmsError::InvalidRequest(
@@ -66,43 +63,43 @@ async fn create_user_decryption_key_(
         .to_string();
 
     // retrieve from tags or use passed identifier
-    let mut owm_s = kms
+    let msk = kms
         .store
-        .retrieve(&msk_uid_or_tag, user, KmipOperation::Get, params)
+        .retrieve_object(
+            &msk_uid,
+            user,
+            UserFilter::None,
+            StateFilter::StateIn(HashSet::from([StateEnumeration::Active])),
+            params,
+        )
         .await?
-        .into_values()
-        .filter(|owm| {
-            if owm.state() != StateEnumeration::Active {
-                return false
-            }
-            if owm.object().object_type() != ObjectType::PrivateKey {
-                return false
-            }
+        .ok_or_else(|| KmsError::KmipError(ErrorReason::Item_Not_Found, msk_uid.clone()))?;
 
-            let Ok(attributes) = owm.object().attributes() else {
-                return false
-            };
-
-            if attributes.key_format_type != Some(KeyFormatType::CoverCryptSecretKey) {
-                return false
-            }
-            // a master key should have policies in the attributes
-            policy_from_attributes(attributes).is_ok()
-        })
-        .collect::<Vec<ObjectWithMetadata>>();
-
-    // there can only be one object
-    let owm = owm_s
-        .pop()
-        .ok_or_else(|| KmsError::KmipError(ErrorReason::Item_Not_Found, msk_uid_or_tag.clone()))?;
-
-    if !owm_s.is_empty() {
+    if msk.object().object_type() != ObjectType::PrivateKey {
         return Err(KmsError::InvalidRequest(format!(
-            "get: too many objects for master private key {msk_uid_or_tag}",
+            "get: the object {msk_uid} is not a private key",
         )))
     }
 
-    let master_private_key = owm.object();
+    let Ok(attributes) = msk.object().attributes() else {
+        return Err(KmsError::InvalidRequest(format!(
+            "get: the master private key {msk_uid} has no attributes",
+        )))
+    };
+
+    if attributes.key_format_type != Some(KeyFormatType::CoverCryptSecretKey) {
+        return Err(KmsError::InvalidRequest(format!(
+            "get: the master private key {msk_uid} is not a CoverCrypt secret key",
+        )))
+    }
+    // a master key should have policies in the attributes
+    policy_from_attributes(attributes).map_err(|_| {
+        KmsError::InvalidRequest(format!(
+            "get: the master private key {msk_uid} has no policy",
+        ))
+    })?;
+
+    let master_private_key = msk.object();
     if master_private_key.key_wrapping_data().is_some() {
         kms_bail!(KmsError::InconsistentOperation(
             "The server can't create a decryption key: the master private key is wrapped"
@@ -111,7 +108,7 @@ async fn create_user_decryption_key_(
     }
 
     UserDecryptionKeysHandler::instantiate(cover_crypt, master_private_key)?
-        .create_user_decryption_key_object(&access_policy, Some(create_attributes), owm.id())
+        .create_user_decryption_key_object(&access_policy, Some(create_attributes), msk.id())
         .map_err(Into::into)
 }
 

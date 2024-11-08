@@ -1,15 +1,13 @@
 use cosmian_kmip::kmip::{
     kmip_operations::{DeleteAttribute, DeleteAttributeResponse},
     kmip_types::{Attribute, AttributeReference, Tag, UniqueIdentifier},
+    KmipOperation,
 };
-use cosmian_kms_client::access::KmipOperation;
+use cosmian_kms_server_database::ExtraStoreParams;
 use tracing::trace;
 
 use crate::{
-    core::{
-        extra_database_params::ExtraStoreParams,
-        retrieve_object_utils::retrieve_object_for_operation, KMS,
-    },
+    core::{retrieve_object_utils::retrieve_object_for_operation, KMS},
     error::KmsError,
     result::{KResult, KResultHelper},
 };

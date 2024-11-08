@@ -2,13 +2,12 @@ use std::{fmt::Display, path::PathBuf};
 
 use clap::Args;
 use cloudproof_findex::Label;
+use cosmian_kms_server_database::{redis_master_key_from_password, DbParams};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
 use super::workspace::WorkspaceConfig;
-use crate::{
-    config::params::DbParams, database::RedisWithFindex, kms_bail, kms_error, result::KResult,
-};
+use crate::{kms_bail, kms_error, result::KResult};
 
 pub const DEFAULT_SQLITE_PATH: &str = "./sqlite-data";
 
@@ -175,8 +174,7 @@ impl DBConfig {
                         "KMS_REDIS_MASTER_PASSWORD",
                     )?;
                     // Generate the symmetric key from the master password
-                    let master_key =
-                        RedisWithFindex::master_key_from_password(&redis_master_password)?;
+                    let master_key = redis_master_key_from_password(&redis_master_password)?;
                     let redis_findex_label = ensure_value(
                         self.redis_findex_label.as_deref(),
                         "redis-findex-label",

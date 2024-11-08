@@ -10,8 +10,9 @@ use cloudproof_findex::{
     parameters::MASTER_KEY_LENGTH,
     IndexedValue, Keyword, Location,
 };
+use cosmian_kmip::kmip::KmipOperation;
 
-use crate::{DbError, DbResult, KmipOperation};
+use crate::{DbError, DbResult};
 
 /// The struct we store for each permission
 /// We store the permission itself as a Location

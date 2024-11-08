@@ -21,12 +21,13 @@ use cosmian_kmip::{
             Attributes, CertificateAttributes, CertificateRequestType, KeyFormatType, LinkType,
             LinkedObjectIdentifier, StateEnumeration, UniqueIdentifier,
         },
+        KmipOperation,
     },
     openssl::{
         kmip_certificate_to_openssl, kmip_private_key_to_openssl, openssl_certificate_to_kmip,
     },
 };
-use cosmian_kms_client::access::KmipOperation;
+use cosmian_kms_server_database::{AtomicOperation, ExtraStoreParams};
 use openssl::{
     asn1::{Asn1Integer, Asn1Time},
     hash::MessageDigest,
@@ -38,7 +39,6 @@ use tracing::{debug, info, trace};
 use crate::{
     core::{
         certificate::retrieve_issuer_private_key_and_certificate,
-        extra_database_params::ExtraStoreParams,
         object_with_metadata::ObjectWithMetadata,
         operations::{
             certify::{
@@ -50,7 +50,6 @@ use crate::{
         retrieve_object_utils::retrieve_object_for_operation,
         KMS,
     },
-    database::AtomicOperation,
     error::KmsError,
     kms_bail,
     result::{KResult, KResultHelper},

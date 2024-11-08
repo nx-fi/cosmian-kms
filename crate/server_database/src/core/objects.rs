@@ -7,13 +7,14 @@ use std::{
 use cosmian_kmip::kmip::{
     kmip_objects::Object,
     kmip_types::{Attributes, StateEnumeration},
+    KmipOperation,
 };
 
 use crate::{
     error::{DbError, DbResult},
     object_with_metadata::ObjectWithMetadata,
     stores::{ExtraStoreParams, ObjectsStore},
-    AtomicOperation, Database, KmipOperation,
+    AtomicOperation, Database,
 };
 
 /// Enum representing different user filters for object operations.
@@ -90,7 +91,7 @@ impl Database {
     /// let store = Arc::new(MyObjectsStore::new());
     /// database.register_objects_store("my_prefix", store).await;
     /// ```
-    pub(crate) async fn register_objects_store(
+    pub async fn register_objects_store(
         &self,
         prefix: &str,
         objects_store: Arc<dyn ObjectsStore + Sync + Send>,
@@ -101,7 +102,7 @@ impl Database {
 
     #[allow(dead_code)]
     /// Unregister the default objects store or a store for the given prefix
-    pub(crate) async fn unregister_object_store(&self, prefix: Option<&str>) {
+    pub async fn unregister_object_store(&self, prefix: Option<&str>) {
         let mut map = self.objects.write().await;
         map.remove(prefix.unwrap_or(""));
     }
@@ -154,7 +155,7 @@ impl Database {
     }
 
     /// Return the filename of the database or `None` if not supported
-    pub(crate) async fn filename(&self, group_id: u128) -> Option<PathBuf> {
+    pub async fn filename(&self, group_id: u128) -> Option<PathBuf> {
         self.get_object_store("")
             .await
             .ok()
@@ -163,7 +164,7 @@ impl Database {
 
     #[allow(dead_code)]
     /// Migrate all the databases to the latest version
-    pub(crate) async fn migrate(&self, params: Option<&ExtraStoreParams>) -> DbResult<()> {
+    pub async fn migrate(&self, params: Option<&ExtraStoreParams>) -> DbResult<()> {
         let map = self.objects.write().await;
         for (_prefix, db) in map.iter() {
             db.migrate(params).await?;
@@ -190,7 +191,7 @@ impl Database {
     /// A new UUID will be created if none is supplier.
     /// This method will fail if an ` uid ` is supplied
     /// and an object with the same id already exists
-    pub(crate) async fn create(
+    pub async fn create(
         &self,
         uid: Option<String>,
         owner: &str,
@@ -233,12 +234,9 @@ impl Database {
     /// # Returns
     ///
     /// * `DbResult<HashMap<String, ObjectWithMetadata>>` - A result containing a map of `uid`s to `ObjectWithMetadata`.
-    pub(crate) async fn retrieve_objects(
+    pub async fn retrieve_objects(
         &self,
         uid_or_tags: &str,
-        user: &str,
-        user_filter: UserFilter,
-        state_filter: StateFilter,
         params: Option<&ExtraStoreParams>,
     ) -> DbResult<HashMap<String, ObjectWithMetadata>> {
         let uids = if uid_or_tags.starts_with('[') {
@@ -246,13 +244,11 @@ impl Database {
             let tags: HashSet<String> = serde_json::from_str(uid_or_tags)?;
             self.list_uids_for_tags(&tags, params).await?
         } else {
-            vec![uid_or_tags.to_owned()]
+            HashSet::from([uid_or_tags.to_owned()])
         };
         let mut results: HashMap<String, ObjectWithMetadata> = HashMap::new();
         for uid in &uids {
-            let owm = self
-                .retrieve_object(uid, user, user_filter.clone(), state_filter.clone(), params)
-                .await?;
+            let owm = self.retrieve_object(uid, params).await?;
             if let Some(owm) = owm {
                 results.insert(uid.to_owned(), owm);
             }
@@ -278,74 +274,14 @@ impl Database {
     /// * `DbResult<Option<ObjectWithMetadata>>` - A result containing an optional `ObjectWithMetadata`.
     ///   If the object is found and passes the filters, it is returned wrapped in `Some`.
     ///   If the object is not found or does not pass the filters, `None` is returned.
-    pub(crate) async fn retrieve_object(
+    pub async fn retrieve_object(
         &self,
         uid: &str,
-        user: &str,
-        user_filter: UserFilter,
-        state_filter: StateFilter,
         params: Option<&ExtraStoreParams>,
     ) -> DbResult<Option<ObjectWithMetadata>> {
-        let retrieve = match user_filter {
-            UserFilter::None => true,
-            UserFilter::UserMustBeOwner => self.is_object_owned_by(uid, user, params).await?,
-            UserFilter::UserCanPerformAnyOperation(operations) => {
-                if self.is_object_owned_by(uid, user, params).await? {
-                    true
-                } else {
-                    let user_operations = self
-                        .list_user_operations_on_object(uid, user, false, params)
-                        .await?;
-                    let mut retrieve = false;
-                    for operation in operations {
-                        if user_operations.contains(&operation) {
-                            retrieve = true;
-                            break;
-                        }
-                    }
-                    retrieve
-                }
-            }
-            UserFilter::UserCanPerformAllOperations(operations) => {
-                let user_operations = self
-                    .list_user_operations_on_object(uid, user, false, params)
-                    .await?;
-                let mut retrieve = true;
-                for operation in operations {
-                    if !user_operations.contains(&operation) {
-                        retrieve = false;
-                        break;
-                    }
-                }
-                retrieve
-            }
-        };
-        if !retrieve {
-            return Ok(None);
-        }
         // retrieve the object
         let db = self.get_object_store(uid).await?;
-        let owm = db.retrieve(uid, params).await?;
-        owm.map_or_else(
-            || Ok(None),
-            |owm| match state_filter {
-                StateFilter::None => Ok(Some(owm)),
-                StateFilter::StateIn(states) => {
-                    if states.contains(&owm.state()) {
-                        Ok(Some(owm))
-                    } else {
-                        Ok(None)
-                    }
-                }
-                StateFilter::StateNotIn(states) => {
-                    if states.contains(&owm.state()) {
-                        Ok(None)
-                    } else {
-                        Ok(Some(owm))
-                    }
-                }
-            },
-        )
+        db.retrieve(uid, params).await
     }
 
     // /// Retrieve objects from the database.
@@ -355,7 +291,7 @@ impl Database {
     // ///
     // /// The `permission` allows additional filtering in the `access` table to see
     // /// if a `user` that is not an owner has the corresponding access granted
-    // pub(crate) async fn retrieve(
+    // pub async fn retrieve(
     //     &self,
     //     uid_or_tags: &str,
     //     user: &str,
@@ -394,7 +330,7 @@ impl Database {
     // }
 
     /// Retrieve the tags of the object with the given `uid`
-    pub(crate) async fn retrieve_tags(
+    pub async fn retrieve_tags(
         &self,
         uid: &str,
         params: Option<&ExtraStoreParams>,
@@ -422,7 +358,7 @@ impl Database {
     ///
     /// This function will return an error if the object store for the given `uid` cannot be found
     /// or if the update operation fails.
-    pub(crate) async fn update_object(
+    pub async fn update_object(
         &self,
         uid: &str,
         object: &Object,
@@ -438,7 +374,7 @@ impl Database {
     }
 
     /// Update the state of an object in the database.
-    pub(crate) async fn update_state(
+    pub async fn update_state(
         &self,
         uid: &str,
         state: StateEnumeration,
@@ -452,7 +388,7 @@ impl Database {
     // ///
     // /// If tags is `None`, the tags will not be updated.
     // #[allow(clippy::too_many_arguments)]
-    // pub(crate) async fn upsert(
+    // pub async fn upsert(
     //     &self,
     //     uid: &str,
     //     user: &str,
@@ -470,7 +406,7 @@ impl Database {
     // }
 
     // /// Delete an object from the database.
-    // pub(crate) async fn delete(
+    // pub async fn delete(
     //     &self,
     //     uid: &str,
     //     user: &str,
@@ -482,14 +418,13 @@ impl Database {
     //     Ok(())
     // }
 
-    #[allow(dead_code)]
-    pub(crate) async fn list_uids_for_tags(
+    pub async fn list_uids_for_tags(
         &self,
         tags: &HashSet<String>,
         params: Option<&ExtraStoreParams>,
-    ) -> DbResult<Vec<String>> {
+    ) -> DbResult<HashSet<String>> {
         let db_map = self.objects.read().await;
-        let mut results: Vec<String> = Vec::new();
+        let mut results = HashSet::new();
         for (_prefix, db) in db_map.iter() {
             results.extend(db.list_uids_for_tags(tags, params).await?);
         }
@@ -498,7 +433,7 @@ impl Database {
 
     /// Return uid, state and attributes of the object identified by its owner,
     /// and possibly by its attributes and/or its `state`
-    pub(crate) async fn find(
+    pub async fn find(
         &self,
         researched_attributes: Option<&Attributes>,
         state: Option<StateEnumeration>,
@@ -543,7 +478,7 @@ impl Database {
     ///
     /// This function will return an error if any of the operations fail or if the database
     /// cannot be accessed.
-    pub(crate) async fn atomic(
+    pub async fn atomic(
         &self,
         user: &str,
         operations: &[AtomicOperation],
@@ -576,7 +511,7 @@ impl Database {
     // /// Unwrap the object (if need be) and return the unwrapped object
     // /// The unwrapped object is cached in memory
     // //TODO refactor unwrap_key() to use the permissions store
-    // pub(crate) async fn get_unwrapped(
+    // pub async fn get_unwrapped(
     //     &self,
     //     uid: &str,
     //     object: &Object,
@@ -652,15 +587,10 @@ mod tests {
     use tempfile::TempDir;
     use uuid::Uuid;
 
-    use crate::{
-        core::objects::{StateFilter, UserFilter},
-        error::DbResult,
-        stores::SqlitePool,
-        Database,
-    };
+    use crate::{error::DbResult, stores::SqlitePool, Database};
 
     #[tokio::test]
-    pub(crate) async fn test_lru_cache() -> DbResult<()> {
+    pub async fn test_lru_cache() -> DbResult<()> {
         log_init(option_env!("RUST_LOG"));
 
         let dir = TempDir::new()?;
@@ -700,15 +630,7 @@ mod tests {
         assert!(store.unwrapped_cache.get_cache().await.peek(&uid).is_none());
 
         // fetch the key
-        let owm = store
-            .retrieve_object(
-                &uid,
-                owner,
-                UserFilter::None,
-                StateFilter::None,
-                db_params.as_ref(),
-            )
-            .await?;
+        let owm = store.retrieve_object(&uid, db_params.as_ref()).await?;
         assert!(owm.is_some());
         assert_eq!(owm.unwrap().id(), &uid);
         {

@@ -10,8 +10,8 @@ use actix_web::{
 use base64::Engine;
 use cosmian_kmip::kmip::{
     kmip_objects::ObjectType, kmip_operations::ErrorReason, kmip_types::StateEnumeration,
+    KmipOperation,
 };
-use cosmian_kms_client::access::KmipOperation;
 use tracing::{debug, error, trace};
 
 use crate::{

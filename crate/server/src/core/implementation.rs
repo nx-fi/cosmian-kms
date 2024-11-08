@@ -1,11 +1,10 @@
-use std::{collections::HashSet, sync::Arc};
+use std::collections::HashSet;
 
-use cloudproof::reexport::{cover_crypt::Covercrypt, crypto_core::FixedSizeCBytes};
+use cloudproof::reexport::cover_crypt::Covercrypt;
 use cosmian_hsm_traits::HSM;
 use cosmian_kmip::{
-    crypto::{
-        secret::Secret,
-        symmetric::{create_symmetric_key_kmip_object, symmetric_ciphers::AES_256_GCM_KEY_LENGTH},
+    crypto::symmetric::{
+        create_symmetric_key_kmip_object, symmetric_ciphers::AES_256_GCM_KEY_LENGTH,
     },
     kmip::{
         kmip_objects::Object,
@@ -13,6 +12,7 @@ use cosmian_kmip::{
         kmip_types::{Attributes, CryptographicAlgorithm, KeyFormatType},
     },
 };
+use cosmian_kms_server_database::{Database, ExtraStoreParams};
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 use log::info;
 use openssl::rand::rand_bytes;
@@ -21,23 +21,18 @@ use proteccio_pkcs11_loader::Proteccio;
 use tracing::{debug, trace};
 use zeroize::Zeroizing;
 
-use super::{
-    cover_crypt::create_user_decryption_key, extra_database_params::ExtraStoreParams, KMS,
-};
-use crate::{
-    config::{DbParams, ServerParams},
-    database::{
-        CachedSqlCipher, Database, MySqlPool, PgPool, RedisWithFindex, SqlitePool,
-        REDIS_WITH_FINDEX_MASTER_KEY_LENGTH,
-    },
-    error::KmsError,
-    kms_bail,
-    result::KResult,
-};
+use super::{cover_crypt::create_user_decryption_key, KMS};
+use crate::{config::ServerParams, error::KmsError, kms_bail, result::KResult};
 
 impl KMS {
     pub(crate) async fn instantiate(server_params: ServerParams) -> KResult<Self> {
-        let store = Self::get_store(&server_params).await?;
+        let store = Database::instantiate(
+            server_params.db_params.as_ref().ok_or_else(|| {
+                KmsError::InvalidRequest("The database parameters are not specified".to_owned())
+            })?,
+            server_params.clear_db_on_start,
+        )
+        .await?;
 
         // Check if we have Proteccio HSM
         let hsm: Option<Box<dyn HSM + Sync + Send>> =
@@ -65,60 +60,6 @@ impl KMS {
             params: server_params,
             store,
             hsm,
-        })
-    }
-
-    async fn get_store(server_params: &ServerParams) -> KResult<Database> {
-        let db_params = server_params.db_params.as_ref().ok_or_else(|| {
-            KmsError::InvalidRequest(
-                "Fatal: no database configuration provided. Stopping.".to_owned(),
-            )
-        })?;
-        Ok(match db_params {
-            DbParams::Sqlite(db_path) => {
-                let db = Arc::new(
-                    SqlitePool::instantiate(
-                        &db_path.join("kms.db"),
-                        server_params.clear_db_on_start,
-                    )
-                    .await?,
-                );
-                Database::new(db.clone(), db)
-            }
-            DbParams::SqliteEnc(db_path) => {
-                let db = Arc::new(CachedSqlCipher::instantiate(
-                    db_path,
-                    server_params.clear_db_on_start,
-                )?);
-                Database::new(db.clone(), db)
-            }
-            DbParams::Postgres(url) => {
-                let db = Arc::new(
-                    PgPool::instantiate(url.as_str(), server_params.clear_db_on_start).await?,
-                );
-                Database::new(db.clone(), db)
-            }
-            DbParams::Mysql(url) => {
-                let db = Arc::new(
-                    MySqlPool::instantiate(url.as_str(), server_params.clear_db_on_start).await?,
-                );
-                Database::new(db.clone(), db)
-            }
-            DbParams::RedisFindex(url, master_key, label) => {
-                // There is no reason to keep a copy of the key in the shared config
-                // So we are going to create a "zeroizable" copy which will be passed to Redis with Findex
-                // and zeroize the one in the shared config
-                let new_master_key =
-                    Secret::<REDIS_WITH_FINDEX_MASTER_KEY_LENGTH>::from_unprotected_bytes(
-                        &mut master_key.to_bytes(),
-                    );
-                // `master_key` implements ZeroizeOnDrop so there is no need
-                // to manually zeroize.
-                let db = Arc::new(
-                    RedisWithFindex::instantiate(url.as_str(), new_master_key, label).await?,
-                );
-                Database::new(db.clone(), db)
-            }
         })
     }
 

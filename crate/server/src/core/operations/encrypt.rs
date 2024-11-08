@@ -21,11 +21,12 @@ use cosmian_kmip::{
             CryptographicAlgorithm, CryptographicParameters, CryptographicUsageMask, KeyFormatType,
             PaddingMethod, StateEnumeration, UniqueIdentifier,
         },
+        KmipOperation,
     },
     openssl::kmip_public_key_to_openssl,
     KmipError,
 };
-use cosmian_kms_client::access::KmipOperation;
+use cosmian_kms_server_database::ExtraStoreParams;
 use openssl::{
     pkey::{Id, PKey, Public},
     x509::X509,
@@ -34,9 +35,7 @@ use tracing::{debug, trace};
 use zeroize::Zeroizing;
 
 use crate::{
-    core::{
-        extra_database_params::ExtraStoreParams, object_with_metadata::ObjectWithMetadata, KMS,
-    },
+    core::{object_with_metadata::ObjectWithMetadata, KMS},
     error::KmsError,
     kms_bail,
     result::{KResult, KResultHelper},

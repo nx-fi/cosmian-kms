@@ -9,6 +9,7 @@ use clap::crate_version;
 use cosmian_kmip::kmip::{
     kmip_objects::Object,
     kmip_types::{Attributes, StateEnumeration},
+    KmipOperation,
 };
 use serde_json::Value;
 use sqlx::{
@@ -28,7 +29,7 @@ use crate::{
         store_traits::{ObjectsStore, PermissionsStore},
         DBObject, ExtraStoreParams, MYSQL_QUERIES,
     },
-    AtomicOperation, KmipOperation, KMS_VERSION_BEFORE_MIGRATION_SUPPORT,
+    AtomicOperation, KMS_VERSION_BEFORE_MIGRATION_SUPPORT,
 };
 
 #[macro_export]

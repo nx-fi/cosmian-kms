@@ -8,14 +8,14 @@ use cosmian_kmip::kmip::{
         KeyFormatType, LinkType, RevocationReason, RevocationReasonEnumeration, StateEnumeration,
         UniqueIdentifier,
     },
+    KmipOperation,
 };
-use cosmian_kms_client::access::KmipOperation;
+use cosmian_kms_server_database::ExtraStoreParams;
 use tracing::debug;
 
 use crate::{
     core::{
-        cover_crypt::revoke_user_decryption_keys, extra_database_params::ExtraStoreParams,
-        object_with_metadata::ObjectWithMetadata, KMS,
+        cover_crypt::revoke_user_decryption_keys, object_with_metadata::ObjectWithMetadata, KMS,
     },
     error::KmsError,
     kms_bail,

@@ -6,13 +6,9 @@ use cosmian_kmip::kmip::{
     },
     ttlv::{deserializer::from_ttlv, TTLV},
 };
+use cosmian_kms_server_database::ExtraStoreParams;
 
-use crate::{
-    core::{extra_database_params::ExtraStoreParams, KMS},
-    error::KmsError,
-    kms_bail,
-    result::KResult,
-};
+use crate::{core::KMS, error::KmsError, kms_bail, result::KResult};
 
 /// Dispatch operation depending on the TTLV tag
 pub(crate) async fn dispatch(

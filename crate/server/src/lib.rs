@@ -57,8 +57,7 @@
 
 pub mod config;
 pub mod core;
-#[allow(clippy::expect_used)]
-pub mod database;
+
 pub mod error;
 pub mod hsm;
 pub mod kms_server;

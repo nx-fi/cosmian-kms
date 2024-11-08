@@ -7,8 +7,9 @@ use cosmian_kmip::kmip::{
     kmip_objects::Object,
     kmip_operations::{Validate, ValidateResponse},
     kmip_types::{UniqueIdentifier, ValidityIndicator},
+    KmipOperation,
 };
-use cosmian_kms_client::access::KmipOperation;
+use cosmian_kms_server_database::ExtraStoreParams;
 use openssl::{
     asn1::Asn1Time,
     stack::Stack,
@@ -20,10 +21,7 @@ use openssl::{
 use tracing::{debug, trace, warn};
 
 use crate::{
-    core::{
-        extra_database_params::ExtraStoreParams,
-        retrieve_object_utils::retrieve_object_for_operation, KMS,
-    },
+    core::{retrieve_object_utils::retrieve_object_for_operation, KMS},
     error::KmsError,
     result::KResult,
 };

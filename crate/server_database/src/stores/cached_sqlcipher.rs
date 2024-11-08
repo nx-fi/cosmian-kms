@@ -12,6 +12,7 @@ use cosmian_kmip::{
     kmip::{
         kmip_objects::Object,
         kmip_types::{Attributes, StateEnumeration},
+        KmipOperation,
     },
 };
 use sqlx::{
@@ -42,7 +43,7 @@ use crate::{
         store_traits::{AtomicOperation, ObjectsStore, PermissionsStore},
         SQLITE_QUERIES,
     },
-    DbResult, KmipOperation, KMS_VERSION_BEFORE_MIGRATION_SUPPORT,
+    DbResult, KMS_VERSION_BEFORE_MIGRATION_SUPPORT,
 };
 
 #[derive(Clone)]

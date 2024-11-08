@@ -5,16 +5,14 @@ use cosmian_kmip::{
         kmip_objects::ObjectType,
         kmip_operations::{ErrorReason, ReKeyKeyPair, ReKeyKeyPairResponse},
         kmip_types::{CryptographicAlgorithm, KeyFormatType, StateEnumeration},
+        KmipOperation,
     },
 };
-use cosmian_kms_client::access::KmipOperation;
+use cosmian_kms_server_database::ExtraStoreParams;
 use tracing::trace;
 
 use crate::{
-    core::{
-        cover_crypt::rekey_keypair_cover_crypt, extra_database_params::ExtraStoreParams,
-        object_with_metadata::ObjectWithMetadata, KMS,
-    },
+    core::{cover_crypt::rekey_keypair_cover_crypt, object_with_metadata::ObjectWithMetadata, KMS},
     error::KmsError,
     kms_bail,
     result::{KResult, KResultHelper},

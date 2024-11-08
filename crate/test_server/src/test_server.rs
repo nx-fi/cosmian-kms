@@ -15,8 +15,7 @@ use cosmian_kms_client::{
 };
 use cosmian_kms_server::{
     config::{ClapConfig, DBConfig, HttpConfig, HttpParams, JwtAuthConfig, ServerParams},
-    core::extra_database_params::ExtraStoreParams,
-    kms_server::start_kms_server,
+    core::kms_server::start_kms_server,
 };
 use tempfile::TempDir;
 use tokio::sync::OnceCell;

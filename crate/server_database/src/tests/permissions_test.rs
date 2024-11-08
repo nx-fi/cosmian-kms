@@ -1,10 +1,11 @@
 use std::collections::HashSet;
 
+use cosmian_kmip::kmip::KmipOperation;
 use uuid::Uuid;
 
 use crate::{
     stores::{ExtraStoreParams, ObjectsStore, PermissionsStore},
-    DbResult, KmipOperation,
+    DbResult,
 };
 
 pub(crate) async fn permissions<DB: ObjectsStore + PermissionsStore>(

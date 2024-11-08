@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use cloudproof::reexport::cover_crypt::Covercrypt;
 #[cfg(not(feature = "fips"))]
 use cosmian_kmip::crypto::elliptic_curves::ecies::ecies_decrypt;
@@ -21,18 +23,17 @@ use cosmian_kmip::{
             CryptographicAlgorithm, CryptographicParameters, CryptographicUsageMask, KeyFormatType,
             PaddingMethod, StateEnumeration, UniqueIdentifier,
         },
+        KmipOperation,
     },
     openssl::kmip_private_key_to_openssl,
 };
-use cosmian_kms_client::access::KmipOperation;
+use cosmian_kms_server_database::{ExtraStoreParams, StateFilter, UserFilter};
 use openssl::pkey::{Id, PKey, Private};
 use tracing::{debug, trace};
 use zeroize::Zeroizing;
 
 use crate::{
-    core::{
-        extra_database_params::ExtraStoreParams, object_with_metadata::ObjectWithMetadata, KMS,
-    },
+    core::{object_with_metadata::ObjectWithMetadata, KMS},
     error::KmsError,
     kms_bail,
     result::{KResult, KResultHelper},
@@ -97,17 +98,23 @@ async fn get_key(
         .context("Get Key: unique_identifier must be a string")?;
     trace!("get_key: uid_or_tags: {uid_or_tags}");
 
-    // retrieve from tags or use passed identifier
     let mut owm_s = kms
         .store
-        .retrieve(uid_or_tags, user, KmipOperation::Decrypt, params)
+        .retrieve_objects(
+            uid_or_tags,
+            user,
+            // We assume that if a user can export the key, it can decrypt using it.
+            UserFilter::UserCanPerformAnyOperation(HashSet::from([
+                KmipOperation::Decrypt,
+                KmipOperation::Get,
+            ])),
+            StateFilter::StateIn(HashSet::from([StateEnumeration::Active])),
+            params,
+        )
         .await?
-        .into_values()
-        .filter(|owm| {
+        .values()
+        .filter(|&owm| {
             let object_type = owm.object().object_type();
-            if owm.state() != StateEnumeration::Active {
-                return false
-            }
             if object_type == ObjectType::SymmetricKey {
                 return true
             }
@@ -123,7 +130,9 @@ async fn get_key(
             }
             true
         })
+        .cloned()
         .collect::<Vec<ObjectWithMetadata>>();
+
     trace!("get_key: owm_s: number of results: {}", owm_s.len());
 
     // there can only be one key

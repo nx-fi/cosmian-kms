@@ -15,6 +15,7 @@ use cosmian_kmip::{
     kmip::{
         kmip_objects::Object,
         kmip_types::{Attributes, StateEnumeration},
+        KmipOperation,
     },
 };
 use redis::aio::ConnectionManager;
@@ -34,13 +35,28 @@ use crate::{
         store_traits::{ObjectsStore, PermissionsStore},
         ExtraStoreParams,
     },
-    AtomicOperation, DbResult, KmipOperation,
+    AtomicOperation, DbResult,
 };
 
 pub const REDIS_WITH_FINDEX_MASTER_KEY_LENGTH: usize = 32;
-pub(crate) const REDIS_WITH_FINDEX_MASTER_KEY_DERIVATION_SALT: &[u8; 16] = b"rediswithfindex_";
-pub(crate) const REDIS_WITH_FINDEX_MASTER_FINDEX_KEY_DERIVATION_SALT: &[u8; 6] = b"findex";
-pub(crate) const REDIS_WITH_FINDEX_MASTER_DB_KEY_DERIVATION_SALT: &[u8; 2] = b"db";
+pub const REDIS_WITH_FINDEX_MASTER_KEY_DERIVATION_SALT: &[u8; 16] = b"rediswithfindex_";
+pub const REDIS_WITH_FINDEX_MASTER_FINDEX_KEY_DERIVATION_SALT: &[u8; 6] = b"findex";
+pub const REDIS_WITH_FINDEX_MASTER_DB_KEY_DERIVATION_SALT: &[u8; 2] = b"db";
+
+/// Derive a Redis Master Key from a password
+pub fn redis_master_key_from_password(
+    master_password: &str,
+) -> DbResult<SymmetricKey<REDIS_WITH_FINDEX_MASTER_KEY_LENGTH>> {
+    let output_key_material = derive_key_from_password::<REDIS_WITH_FINDEX_MASTER_KEY_LENGTH>(
+        REDIS_WITH_FINDEX_MASTER_KEY_DERIVATION_SALT,
+        master_password.as_bytes(),
+    )?;
+
+    let master_secret_key: SymmetricKey<REDIS_WITH_FINDEX_MASTER_KEY_LENGTH> =
+        SymmetricKey::try_from_slice(&output_key_material)?;
+
+    Ok(master_secret_key)
+}
 
 /// Find the intersection of all the sets
 fn intersect_all<I: IntoIterator<Item = HashSet<Location>>>(sets: I) -> HashSet<Location> {
@@ -92,20 +108,6 @@ impl RedisWithFindex {
             findex_key,
             label: Label::from(label),
         })
-    }
-
-    pub(crate) fn master_key_from_password(
-        master_password: &str,
-    ) -> DbResult<SymmetricKey<REDIS_WITH_FINDEX_MASTER_KEY_LENGTH>> {
-        let output_key_material = derive_key_from_password::<REDIS_WITH_FINDEX_MASTER_KEY_LENGTH>(
-            REDIS_WITH_FINDEX_MASTER_KEY_DERIVATION_SALT,
-            master_password.as_bytes(),
-        )?;
-
-        let master_secret_key: SymmetricKey<REDIS_WITH_FINDEX_MASTER_KEY_LENGTH> =
-            SymmetricKey::try_from_slice(&output_key_material)?;
-
-        Ok(master_secret_key)
     }
 
     /// Prepare an object for upsert

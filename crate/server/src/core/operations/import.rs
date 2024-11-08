@@ -20,6 +20,7 @@ use cosmian_kmip::{
         openssl_private_key_to_kmip, openssl_public_key_to_kmip,
     },
 };
+use cosmian_kms_server_database::{AtomicOperation, ExtraStoreParams};
 use openssl::{
     pkey::{PKey, Private},
     x509::X509,
@@ -28,8 +29,7 @@ use tracing::{debug, trace};
 use uuid::Uuid;
 
 use crate::{
-    core::{extra_database_params::ExtraStoreParams, wrapping::unwrap_key, KMS},
-    database::AtomicOperation,
+    core::{wrapping::unwrap_key, KMS},
     error::KmsError,
     kms_bail,
     result::KResult,

@@ -24,7 +24,7 @@ impl actix_web::error::ResponseError for KmsError {
 
             Self::Unauthorized(_) => StatusCode::UNAUTHORIZED,
 
-            Self::DatabaseError(_)
+            Self::Database(_)
             | Self::ConversionError(_)
             | Self::CryptographicError(_)
             | Self::Redis(_)

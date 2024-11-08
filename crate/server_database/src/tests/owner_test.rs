@@ -6,14 +6,17 @@ use cloudproof::reexport::crypto_core::{
 };
 use cosmian_kmip::{
     crypto::symmetric::create_symmetric_key_kmip_object,
-    kmip::kmip_types::{CryptographicAlgorithm, StateEnumeration},
+    kmip::{
+        kmip_types::{CryptographicAlgorithm, StateEnumeration},
+        KmipOperation,
+    },
 };
 use uuid::Uuid;
 
 use crate::{
     db_error,
     stores::{ExtraStoreParams, ObjectsStore, PermissionsStore},
-    DbResult, KmipOperation,
+    DbResult,
 };
 
 pub(crate) async fn owner<DB: ObjectsStore + PermissionsStore>(

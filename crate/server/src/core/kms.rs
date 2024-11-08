@@ -27,13 +27,13 @@ use cosmian_kmip::{
 use cosmian_kms_client::access::{
     Access, AccessRightsObtainedResponse, ObjectOwnedResponse, UserAccessResponse,
 };
+use cosmian_kms_server_database::{Database, DbParams, ExtraStoreParams};
 use tracing::debug;
 use uuid::Uuid;
 
 use crate::{
-    config::{DbParams, ServerParams},
-    core::{extra_database_params::ExtraStoreParams, operations},
-    database::Database,
+    config::ServerParams,
+    core::operations,
     error::KmsError,
     kms_bail, kms_error,
     middlewares::{JwtAuthClaim, PeerCommonName},

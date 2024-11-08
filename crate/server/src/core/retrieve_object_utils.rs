@@ -1,11 +1,9 @@
-use cosmian_kmip::kmip::kmip_types::StateEnumeration;
-use cosmian_kms_client::access::KmipOperation;
+use cosmian_kmip::kmip::{kmip_types::StateEnumeration, KmipOperation};
+use cosmian_kms_server_database::ExtraStoreParams;
 use tracing::trace;
 
 use crate::{
-    core::{
-        extra_database_params::ExtraStoreParams, object_with_metadata::ObjectWithMetadata, KMS,
-    },
+    core::{object_with_metadata::ObjectWithMetadata, KMS},
     error::KmsError,
     hsm::get_hsm_object,
     result::KResult,

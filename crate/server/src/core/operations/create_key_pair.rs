@@ -20,18 +20,13 @@ use cosmian_kmip::{
         kmip_types::{Attributes, CryptographicAlgorithm, RecommendedCurve, UniqueIdentifier},
     },
 };
+use cosmian_kms_server_database::{AtomicOperation, ExtraStoreParams};
 #[cfg(not(feature = "fips"))]
 use tracing::warn;
 use tracing::{debug, trace};
 use uuid::Uuid;
 
-use crate::{
-    core::{extra_database_params::ExtraStoreParams, KMS},
-    database::AtomicOperation,
-    error::KmsError,
-    kms_bail,
-    result::KResult,
-};
+use crate::{core::KMS, error::KmsError, kms_bail, result::KResult};
 
 pub(crate) async fn create_key_pair(
     kms: &KMS,

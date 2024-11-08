@@ -11,7 +11,10 @@ use cloudproof_findex::{
 };
 use cosmian_kmip::{
     crypto::symmetric::create_symmetric_key_kmip_object,
-    kmip::kmip_types::{CryptographicAlgorithm, StateEnumeration},
+    kmip::{
+        kmip_types::{CryptographicAlgorithm, StateEnumeration},
+        KmipOperation,
+    },
     KmipResultHelper,
 };
 use redis::aio::ConnectionManager;
@@ -23,7 +26,7 @@ use crate::{
         permissions::PermissionsDB,
     },
     tests::get_redis_url,
-    DbResult, KmipOperation,
+    DbResult,
 };
 
 struct DummyDB;

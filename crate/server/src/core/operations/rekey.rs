@@ -2,14 +2,14 @@ use cosmian_kmip::kmip::{
     kmip_objects::ObjectType,
     kmip_operations::{Create, ErrorReason, Import, ReKey, ReKeyResponse},
     kmip_types::{StateEnumeration, UniqueIdentifier},
+    KmipOperation,
 };
-use cosmian_kms_client::access::KmipOperation;
+use cosmian_kms_server_database::ExtraStoreParams;
 use tracing::{debug, trace};
 
 use crate::{
     core::{
-        extra_database_params::ExtraStoreParams, object_with_metadata::ObjectWithMetadata,
-        operations::import::process_symmetric_key, KMS,
+        object_with_metadata::ObjectWithMetadata, operations::import::process_symmetric_key, KMS,
     },
     error::KmsError,
     kms_bail,

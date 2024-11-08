@@ -9,10 +9,11 @@ use cosmian_kmip::kmip::{
     kmip_messages::Message,
     ttlv::{deserializer::from_ttlv, serializer::to_ttlv, TTLV},
 };
+use cosmian_kms_server_database::ExtraStoreParams;
 use tracing::info;
 
 use crate::{
-    core::{extra_database_params::ExtraStoreParams, operations::dispatch, KMS},
+    core::{operations::dispatch, KMS},
     result::KResult,
 };
 

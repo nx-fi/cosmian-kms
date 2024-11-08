@@ -1,9 +1,12 @@
-use cosmian_kmip::kmip::kmip_operations::{Get, GetResponse};
-use cosmian_kms_client::access::KmipOperation;
+use cosmian_kmip::kmip::{
+    kmip_operations::{Get, GetResponse},
+    KmipOperation,
+};
+use cosmian_kms_server_database::ExtraStoreParams;
 use tracing::trace;
 
 use crate::{
-    core::{extra_database_params::ExtraStoreParams, operations::export_get, KMS},
+    core::{operations::export_get, KMS},
     result::KResult,
 };
 

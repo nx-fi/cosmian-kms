@@ -43,6 +43,7 @@ thiserror = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true }
 tiny-keccak = "2.0.2"
+url = { workspace = true }
 uuid = { workspace = true }
 version-compare = "0.2.0"
 zeroize = { workspace = true }

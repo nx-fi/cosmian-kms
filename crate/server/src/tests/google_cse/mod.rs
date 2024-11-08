@@ -23,9 +23,10 @@ use cosmian_kmip::{
             LinkedObjectIdentifier, UniqueIdentifier, VendorAttribute, WrappingMethod,
         },
         ttlv::{deserializer::from_ttlv, TTLV},
+        KmipOperation,
     },
 };
-use cosmian_kms_client::access::{Access, KmipOperation, SuccessResponse};
+use cosmian_kms_client::access::{Access, SuccessResponse};
 use cosmian_logger::log_utils::log_init;
 use openssl::{
     hash::MessageDigest,

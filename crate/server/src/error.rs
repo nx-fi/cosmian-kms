@@ -8,6 +8,7 @@ use cosmian_kmip::{
     kmip::{kmip_operations::ErrorReason, ttlv::error::TtlvError},
     KmipError,
 };
+use cosmian_kms_server_database::DbError;
 use proteccio_pkcs11_loader::PError;
 use redis::ErrorKind;
 use thiserror::Error;
@@ -54,7 +55,7 @@ pub enum KmsError {
 
     // Any errors related to a bad behavior of the DB but not related to the user input
     #[error("Database Error: {0}")]
-    DatabaseError(String),
+    Database(String),
 
     // Any errors related to a bad behavior of the server but not related to the user input
     #[error("Unexpected server error: {0}")]
@@ -155,7 +156,7 @@ impl From<std::num::TryFromIntError> for KmsError {
 
 impl From<sqlx::Error> for KmsError {
     fn from(e: sqlx::Error) -> Self {
-        Self::DatabaseError(e.to_string())
+        Self::Database(e.to_string())
     }
 }
 
@@ -265,6 +266,12 @@ impl From<PError> for KmsError {
 impl From<HsmError> for KmsError {
     fn from(value: HsmError) -> Self {
         Self::Hsm(value.to_string())
+    }
+}
+
+impl From<DbError> for KmsError {
+    fn from(value: DbError) -> Self {
+        Self::Database(value.to_string())
     }
 }
 

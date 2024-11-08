@@ -7,16 +7,16 @@ use cosmian_kmip::{
             AttributeReference, Attributes, KeyFormatType, LinkType, Tag, UniqueIdentifier,
             VendorAttribute, VendorAttributeReference,
         },
+        KmipOperation,
     },
     openssl::{kmip_private_key_to_openssl, kmip_public_key_to_openssl},
 };
-use cosmian_kms_client::access::KmipOperation;
+use cosmian_kms_server_database::ExtraStoreParams;
 use strum::IntoEnumIterator;
 use tracing::{debug, trace};
 
 use crate::{
     core::{
-        extra_database_params::ExtraStoreParams,
         operations::export_utils::{
             openssl_private_key_to_kmip_default_format, openssl_public_key_to_kmip_default_format,
         },

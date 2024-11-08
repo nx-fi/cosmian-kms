@@ -5,12 +5,10 @@ use cosmian_kmip::{
         kmip_types::{StateEnumeration, UniqueIdentifier},
     },
 };
+use cosmian_kms_server_database::ExtraStoreParams;
 use tracing::trace;
 
-use crate::{
-    core::{extra_database_params::ExtraStoreParams, KMS},
-    result::KResult,
-};
+use crate::{core::KMS, result::KResult};
 
 pub(crate) async fn locate(
     kms: &KMS,
@@ -29,7 +27,7 @@ pub(crate) async fn locate(
     // Filter the uids that match the access policy
     let mut uids = Vec::new();
     if !uids_attrs.is_empty() {
-        for (uid, _, attributes, _) in uids_attrs {
+        for (uid, _, attributes) in uids_attrs {
             trace!("UID: {:?}, Attributes: {:?}", uid, attributes);
             // If there is no access policy, do not match and add, otherwise compare the access policies
             if access_policy_from_attributes(&request.attributes).is_err() {

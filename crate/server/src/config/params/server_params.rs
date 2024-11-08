@@ -1,8 +1,9 @@
 use std::{collections::HashMap, fmt, path::PathBuf};
 
+use cosmian_kms_server_database::DbParams;
 use openssl::x509::X509;
 
-use super::{DbParams, HttpParams};
+use super::HttpParams;
 use crate::{
     config::{ClapConfig, IdpConfig},
     kms_bail,

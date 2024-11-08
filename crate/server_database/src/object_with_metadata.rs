@@ -10,7 +10,7 @@ use cosmian_kmip::kmip::{
 /// This is the main representation of objects through the KMS server.
 /// Mpe APIs should use this representation.
 #[derive(Clone)]
-pub(crate) struct ObjectWithMetadata {
+pub struct ObjectWithMetadata {
     id: String,
     // this is the object as registered in the DN. For a key, it may be wrapped or unwrapped
     object: Object,
@@ -20,7 +20,7 @@ pub(crate) struct ObjectWithMetadata {
 }
 
 impl ObjectWithMetadata {
-    pub(crate) const fn new(
+    pub const fn new(
         id: String,
         object: Object,
         owner: String,
@@ -36,41 +36,41 @@ impl ObjectWithMetadata {
         }
     }
 
-    pub(crate) fn id(&self) -> &str {
+    pub fn id(&self) -> &str {
         &self.id
     }
 
-    pub(crate) const fn object(&self) -> &Object {
+    pub const fn object(&self) -> &Object {
         &self.object
     }
 
     /// Set a new object, clearing the cached unwrapped version
     /// if any
-    pub(crate) fn set_object(&mut self, object: Object) {
+    pub fn set_object(&mut self, object: Object) {
         self.object = object;
     }
 
     /// Return a mutable borrow to the Object
     /// Do not use this to set a new object or make sure you clear
     /// the cached unwrapped object
-    pub(crate) fn object_mut(&mut self) -> &mut Object {
+    pub fn object_mut(&mut self) -> &mut Object {
         &mut self.object
     }
 
     #[cfg(test)]
-    pub(crate) fn owner(&self) -> &str {
+    pub fn owner(&self) -> &str {
         &self.owner
     }
 
-    pub(crate) const fn state(&self) -> StateEnumeration {
+    pub const fn state(&self) -> StateEnumeration {
         self.state
     }
 
-    pub(crate) const fn attributes(&self) -> &Attributes {
+    pub const fn attributes(&self) -> &Attributes {
         &self.attributes
     }
 
-    pub(crate) fn attributes_mut(&mut self) -> &mut Attributes {
+    pub fn attributes_mut(&mut self) -> &mut Attributes {
         &mut self.attributes
     }
 
@@ -78,7 +78,7 @@ impl ObjectWithMetadata {
     // /// If the object is wrapped, it wil try to unwrap it
     // /// and cache the unwrapped version in the structure.
     // /// This call will return None for non-wrappable objects such as Certificates
-    // pub(crate) async fn unwrapped(
+    // pub async fn unwrapped(
     //     &self,
     //     kms: &KMS,
     //     user: &str,
@@ -92,7 +92,7 @@ impl ObjectWithMetadata {
     // /// Transform this own to its unwrapped version.
     // /// Returns false if this fails
     // /// Has no effect on a non wrappable object such as a Certificate
-    // pub(crate) async fn make_unwrapped(
+    // pub async fn make_unwrapped(
     //     &mut self,
     //     kms: &KMS,
     //     user: &str,
