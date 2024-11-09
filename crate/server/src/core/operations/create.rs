@@ -66,7 +66,7 @@ async fn create_kms_key(
         }
     };
     let uid = kms
-        .store
+        .database
         .create(
             unique_identifier,
             owner,

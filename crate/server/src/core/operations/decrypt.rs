@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use cloudproof::reexport::cover_crypt::Covercrypt;
 #[cfg(not(feature = "fips"))]
 use cosmian_kmip::crypto::elliptic_curves::ecies::ecies_decrypt;
@@ -27,13 +25,13 @@ use cosmian_kmip::{
     },
     openssl::kmip_private_key_to_openssl,
 };
-use cosmian_kms_server_database::{ExtraStoreParams, StateFilter, UserFilter};
+use cosmian_kms_server_database::{ExtraStoreParams, ObjectWithMetadata};
 use openssl::pkey::{Id, PKey, Private};
 use tracing::{debug, trace};
 use zeroize::Zeroizing;
 
 use crate::{
-    core::{object_with_metadata::ObjectWithMetadata, KMS},
+    core::KMS,
     error::KmsError,
     kms_bail,
     result::{KResult, KResultHelper},
@@ -99,65 +97,58 @@ async fn get_key(
     trace!("get_key: uid_or_tags: {uid_or_tags}");
 
     let mut owm_s = kms
-        .store
-        .retrieve_objects(
-            uid_or_tags,
-            user,
-            // We assume that if a user can export the key, it can decrypt using it.
-            UserFilter::UserCanPerformAnyOperation(HashSet::from([
-                KmipOperation::Decrypt,
-                KmipOperation::Get,
-            ])),
-            StateFilter::StateIn(HashSet::from([StateEnumeration::Active])),
-            params,
-        )
+        .database
+        .retrieve_objects(uid_or_tags, params)
         .await?
-        .values()
-        .filter(|&owm| {
-            let object_type = owm.object().object_type();
-            if object_type == ObjectType::SymmetricKey {
-                return true
+        .values();
+
+    trace!("get_key: owm_s: number of results: {}", owm_s.len());
+
+    for owm in owm_s {
+        let object_type = owm.object().object_type();
+        if !(object_type == ObjectType::SymmetricKey || object_type == ObjectType::PrivateKey) {
+            continue
+        }
+        if owm.state() != StateEnumeration::Active {
+            continue
+        }
+        if user != owm.owner() {
+            let permissions = kms
+                .database
+                .list_user_operations_on_object(owm.id(), user, false, params)
+                .await?;
+            if !(permissions.contains(&KmipOperation::Decrypt)
+                || permissions.contains(&KmipOperation::Get))
+            {
+                continue
             }
-            if object_type != ObjectType::PrivateKey {
-                return false
-            }
+        }
+        if object_type == ObjectType::PrivateKey {
             if let Ok(attributes) = owm.object().attributes() {
                 // is it a Covercrypt secret key?
                 if attributes.key_format_type == Some(KeyFormatType::CoverCryptSecretKey) {
                     // does it have an access policy that allows decryption?
-                    return attributes::access_policy_from_attributes(attributes).is_ok()
+                    if !attributes::access_policy_from_attributes(attributes).is_ok() {
+                        continue
+                    }
                 }
             }
-            true
-        })
-        .cloned()
-        .collect::<Vec<ObjectWithMetadata>>();
-
-    trace!("get_key: owm_s: number of results: {}", owm_s.len());
-
-    // there can only be one key
-    let mut owm = owm_s.pop().ok_or_else(|| {
-        KmsError::KmipError(
-            ErrorReason::Item_Not_Found,
-            format!(
-                "Get Key: no available key found (must be an active symmetric key or private key) \
-                 for object identifier {uid_or_tags}"
-            ),
-        )
-    })?;
-
-    if !owm_s.is_empty() {
-        return Err(KmsError::InvalidRequest(format!(
-            "get: too many objects for key {uid_or_tags}",
-        )))
+        }
+        let id = owm.id().to_owned();
+        owm.make_unwrapped(kms, user, params)
+            .await
+            .with_context(|| format!("The key: {id}, cannot be unwrapped."))?;
+        return Ok(owm.to_owned())
     }
 
-    // unwrap if wrapped
-    let id = owm.id().to_owned();
-    owm.make_unwrapped(kms, user, params)
-        .await
-        .with_context(|| format!("The key: {id}, cannot be unwrapped."))?;
-    Ok(owm)
+    // there can only be one key
+    Err(KmsError::KmipError(
+        ErrorReason::Item_Not_Found,
+        format!(
+            "Get Key: no available key found (must be an active symmetric key or private key) for \
+             object identifier {uid_or_tags}"
+        ),
+    ))
 }
 
 fn decrypt_bulk(

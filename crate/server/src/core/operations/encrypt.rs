@@ -21,12 +21,11 @@ use cosmian_kmip::{
             CryptographicAlgorithm, CryptographicParameters, CryptographicUsageMask, KeyFormatType,
             PaddingMethod, StateEnumeration, UniqueIdentifier,
         },
-        KmipOperation,
     },
     openssl::kmip_public_key_to_openssl,
     KmipError,
 };
-use cosmian_kms_server_database::ExtraStoreParams;
+use cosmian_kms_server_database::{ExtraStoreParams, ObjectWithMetadata};
 use openssl::{
     pkey::{Id, PKey, Public},
     x509::X509,
@@ -35,7 +34,7 @@ use tracing::{debug, trace};
 use zeroize::Zeroizing;
 
 use crate::{
-    core::{object_with_metadata::ObjectWithMetadata, KMS},
+    core::KMS,
     error::KmsError,
     kms_bail,
     result::{KResult, KResultHelper},
@@ -173,54 +172,45 @@ async fn get_key(
 
     // retrieve from tags or use passed identifier
     let mut owm_s = kms
-        .store
-        .retrieve(&uid_or_tags, user, KmipOperation::Encrypt, params)
+        .database
+        .retrieve_objects(&uid_or_tags, params)
         .await?
-        .into_values()
-        .filter(|owm| {
-            let object_type = owm.object().object_type();
-            owm.state() == StateEnumeration::Active
-                && (object_type == ObjectType::PublicKey
-                    || object_type == ObjectType::SymmetricKey
-                    || object_type == ObjectType::Certificate)
-        })
-        .collect::<Vec<ObjectWithMetadata>>();
+        .into_values();
 
     trace!(
         "operations::encrypt: key owm_s: number of results: {}",
         owm_s.len()
     );
-    // there can only be one key
-    let mut owm = owm_s
-        .pop()
-        .ok_or_else(|| KmsError::KmipError(ErrorReason::Item_Not_Found, uid_or_tags.clone()))?;
 
-    if !owm_s.is_empty() {
-        return Err(KmsError::InvalidRequest(format!(
-            "get: too many objects for key {uid_or_tags}",
-        )));
+    for owm in owm_s {
+        let object_type = owm.object().object_type();
+        if owm.state() != StateEnumeration::Active {
+            continue
+        }
+        if object_type != ObjectType::PublicKey
+            && object_type != ObjectType::SymmetricKey
+            && object_type != ObjectType::Certificate
+        {
+            continue
+        }
+        // unwrap if wrapped
+        // We could have the downstream code call unwrap() on the owm
+        // to get the unwrapped key; but this has a pretty big impact.
+        // Just update the the owm.object with the
+        let id = owm.id().to_owned();
+        match &mut owm.object() {
+            Object::Certificate { .. } => {}
+            _ => owm
+                .make_unwrapped(kms, user, params)
+                .await
+                .with_context(|| format!("The key: {id}, cannot be unwrapped."))?,
+        }
+        return Ok(owm)
     }
 
-    // the key must be active
-    if owm.state() != StateEnumeration::Active {
-        kms_bail!(KmsError::InconsistentOperation(
-            "encrypt: the server cannot if the key is not active".to_owned()
-        ));
-    }
-
-    // unwrap if wrapped
-    // We could have the downstream code call unwrap() on the owm
-    // to get the unwrapped key; but this has a pretty big impact.
-    // Just update the the owm.object with the
-    let id = owm.id().to_owned();
-    match &mut owm.object() {
-        Object::Certificate { .. } => {}
-        _ => owm
-            .make_unwrapped(kms, user, params)
-            .await
-            .with_context(|| format!("The key: {id}, cannot be unwrapped."))?,
-    }
-    Ok(owm)
+    Err(KmsError::InvalidRequest(format!(
+        "get: too many objects for key {uid_or_tags}",
+    )))
 }
 
 fn encrypt_with_symmetric_key(

@@ -13,13 +13,17 @@ mod permissions;
 
 mod db_params;
 pub use db_params::DbParams;
+mod object_with_metadata;
+mod unwrapped_cache;
+
+pub use object_with_metadata::ObjectWithMetadata;
 
 use crate::{
+    core::unwrapped_cache::UnwrappedCache,
     stores::{
         CachedSqlCipher, MySqlPool, ObjectsStore, PermissionsStore, PgPool, RedisWithFindex,
         SqlitePool, REDIS_WITH_FINDEX_MASTER_KEY_LENGTH,
     },
-    unwrapped_cache::UnwrappedCache,
     DbResult,
 };
 
@@ -29,12 +33,12 @@ pub struct Database {
     /// A map of uid prefixes to Object Store
     /// The "no-prefix" DB is registered under the empty string
     objects: RwLock<HashMap<String, Arc<dyn ObjectsStore + Sync + Send>>>,
-    /// The Unwrapped cache keeps the unwrapped version of keys in memory.
-    /// This cache avoids calls to HSMs for each operation
-    unwrapped_cache: UnwrappedCache,
     /// The permissions store is used to check if a user has the right to perform an operation
     //TODO use this store to check permissions in retrive, update, delete, etc.
     permissions: Arc<dyn PermissionsStore + Sync + Send>,
+    /// The Unwrapped cache keeps the unwrapped version of keys in memory.
+    /// This cache avoids calls to HSMs for each operation
+    unwrapped_cache: UnwrappedCache,
 }
 
 impl Database {
@@ -76,6 +80,10 @@ impl Database {
         })
     }
 
+    pub fn unwrapped_cache(&self) -> &UnwrappedCache {
+        &self.unwrapped_cache
+    }
+
     /// Create a new Objects Store
     ///  - `default_database` is the default database for objects without a prefix
     pub(crate) fn new(
@@ -84,8 +92,8 @@ impl Database {
     ) -> Self {
         Self {
             objects: RwLock::new(HashMap::from([(String::new(), default_objects_database)])),
-            unwrapped_cache: UnwrappedCache::new(),
             permissions: permissions_database,
+            unwrapped_cache: UnwrappedCache::new(),
         }
     }
 }

@@ -35,7 +35,6 @@ use crate::{
     error::DbResultHelper,
     get_sqlite_query,
     migrate::do_migration,
-    object_with_metadata::ObjectWithMetadata,
     stores::{
         sqlite::{
             atomic_, is_migration_in_progress_, list_uids_for_tags_, migrate_, retrieve_tags_,
@@ -43,7 +42,7 @@ use crate::{
         store_traits::{AtomicOperation, ObjectsStore, PermissionsStore},
         SQLITE_QUERIES,
     },
-    DbResult, KMS_VERSION_BEFORE_MIGRATION_SUPPORT,
+    DbResult, ObjectWithMetadata, KMS_VERSION_BEFORE_MIGRATION_SUPPORT,
 };
 
 #[derive(Clone)]

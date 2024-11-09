@@ -12,10 +12,11 @@ use cosmian_kmip::kmip::{
     kmip_objects::ObjectType, kmip_operations::ErrorReason, kmip_types::StateEnumeration,
     KmipOperation,
 };
+use cosmian_kms_server_database::ObjectWithMetadata;
 use tracing::{debug, error, trace};
 
 use crate::{
-    core::{object_with_metadata::ObjectWithMetadata, KMS},
+    core::{ObjectWithMetadata, KMS},
     error::KmsError,
     result::KResult,
 };
@@ -41,7 +42,7 @@ where
 
 async fn get_api_token(kms: &Arc<KMS>, api_token_id: &str) -> KResult<String> {
     let mut owm_s = kms
-        .store
+        .database
         .retrieve(
             api_token_id,
             &kms.params.default_username,

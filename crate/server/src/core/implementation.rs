@@ -58,7 +58,7 @@ impl KMS {
 
         Ok(Self {
             params: server_params,
-            store,
+            database: store,
             hsm,
         })
     }

@@ -24,6 +24,7 @@ mod extra_store_params;
 #[cfg(test)]
 pub(crate) mod redis;
 mod sqlite;
+
 pub use extra_store_params::ExtraStoreParams;
 pub(crate) use sqlite::SqlitePool;
 

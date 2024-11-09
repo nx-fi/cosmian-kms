@@ -57,7 +57,6 @@ impl ObjectWithMetadata {
         &mut self.object
     }
 
-    #[cfg(test)]
     pub fn owner(&self) -> &str {
         &self.owner
     }
@@ -83,7 +82,7 @@ impl ObjectWithMetadata {
     //     kms: &KMS,
     //     user: &str,
     //     params: Option<&ExtraStoreParams>,
-    // ) -> DbResult<Object> {
+    // ) -> KResult<Object> {
     //     kms.store
     //         .get_unwrapped(self.id(), self.object(), kms, user, params)
     //         .await
@@ -97,7 +96,7 @@ impl ObjectWithMetadata {
     //     kms: &KMS,
     //     user: &str,
     //     params: Option<&ExtraStoreParams>,
-    // ) -> DbResult<()> {
+    // ) -> KResult<()> {
     //     self.object = self.unwrapped(kms, user, params).await?;
     //     Ok(())
     // }

@@ -23,13 +23,12 @@ use crate::{
     db_bail, db_error,
     error::{DbError, DbResult, DbResultHelper},
     migrate::do_migration,
-    object_with_metadata::ObjectWithMetadata,
     stores::{
         locate_query::{query_from_attributes, MySqlPlaceholder},
         store_traits::{ObjectsStore, PermissionsStore},
         DBObject, ExtraStoreParams, MYSQL_QUERIES,
     },
-    AtomicOperation, KMS_VERSION_BEFORE_MIGRATION_SUPPORT,
+    AtomicOperation, ObjectWithMetadata, KMS_VERSION_BEFORE_MIGRATION_SUPPORT,
 };
 
 #[macro_export]

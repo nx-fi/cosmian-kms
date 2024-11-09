@@ -14,9 +14,7 @@ use cosmian_kms_server_database::ExtraStoreParams;
 use tracing::debug;
 
 use crate::{
-    core::{
-        cover_crypt::revoke_user_decryption_keys, object_with_metadata::ObjectWithMetadata, KMS,
-    },
+    core::{cover_crypt::revoke_user_decryption_keys, ObjectWithMetadata, KMS},
     error::KmsError,
     kms_bail,
     result::{KResult, KResultHelper},
@@ -70,29 +68,25 @@ pub(crate) async fn recursively_revoke_key(
 ) -> KResult<()> {
     // retrieve from tags or use passed identifier
     let owm_s = kms
-        .store
-        .retrieve(uid_or_tags, user, KmipOperation::Revoke, params)
+        .database
+        .retrieve_objects(uid_or_tags, params)
         .await?
-        .into_values()
-        .filter(|owm| {
-            let object_type = owm.object().object_type();
-            (owm.state() == StateEnumeration::Active || owm.state() == StateEnumeration::PreActive)
-                && (object_type == ObjectType::PrivateKey
-                    || object_type == ObjectType::Certificate
-                    || object_type == ObjectType::SymmetricKey
-                    || object_type == ObjectType::PublicKey)
-        })
-        .collect::<Vec<ObjectWithMetadata>>();
+        .into_values();
 
-    if owm_s.is_empty() {
-        return Err(KmsError::KmipError(
-            ErrorReason::Item_Not_Found,
-            uid_or_tags.to_owned(),
-        ))
-    }
-
-    // revoke the keys found
+    let mut count = 0;
     for owm in owm_s {
+        let object_type = owm.object().object_type();
+        if owm.state() != StateEnumeration::Active && owm.state() != StateEnumeration::PreActive {
+            continue
+        }
+        if object_type != ObjectType::PrivateKey
+            && object_type != ObjectType::Certificate
+            && object_type != ObjectType::SymmetricKey
+            && object_type != ObjectType::PublicKey
+        {
+            continue
+        }
+        count += 1;
         // perform the chain of revoke operations depending on the type of object
         let object_type = owm.object().object_type();
         match object_type {
@@ -192,6 +186,13 @@ pub(crate) async fn recursively_revoke_key(
         };
     }
 
+    if count == 0 {
+        return Err(KmsError::KmipError(
+            ErrorReason::Item_Not_Found,
+            uid_or_tags.to_owned(),
+        ))
+    }
+
     Ok(())
 }
 
@@ -224,7 +225,7 @@ async fn revoke_key_core(
         },
         RevocationReason::TextString(_) => StateEnumeration::Deactivated,
     };
-    kms.store
+    kms.database
         .update_state(unique_identifier, state, params)
         .await?;
 

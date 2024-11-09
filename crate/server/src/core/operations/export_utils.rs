@@ -15,7 +15,7 @@ use cosmian_kmip::{
     },
     KmipError,
 };
-use cosmian_kms_server_database::ExtraStoreParams;
+use cosmian_kms_server_database::{ExtraStoreParams, ObjectWithMetadata};
 #[cfg(not(feature = "fips"))]
 use openssl::{hash::MessageDigest, nid::Nid};
 use openssl::{
@@ -30,7 +30,6 @@ use zeroize::Zeroizing;
 use crate::{
     core::{
         certificate::{retrieve_certificate_for_private_key, retrieve_private_key_for_certificate},
-        object_with_metadata::ObjectWithMetadata,
         operations::import::upsert_imported_links_in_attributes,
         retrieve_object_utils::retrieve_object_for_operation,
         wrapping::wrap_key,

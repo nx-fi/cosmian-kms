@@ -27,7 +27,7 @@ use cosmian_kmip::{
         kmip_certificate_to_openssl, kmip_private_key_to_openssl, openssl_certificate_to_kmip,
     },
 };
-use cosmian_kms_server_database::{AtomicOperation, ExtraStoreParams};
+use cosmian_kms_server_database::{AtomicOperation, ExtraStoreParams, ObjectWithMetadata};
 use openssl::{
     asn1::{Asn1Integer, Asn1Time},
     hash::MessageDigest,
@@ -39,7 +39,6 @@ use tracing::{debug, info, trace};
 use crate::{
     core::{
         certificate::retrieve_issuer_private_key_and_certificate,
-        object_with_metadata::ObjectWithMetadata,
         operations::{
             certify::{
                 issuer::Issuer,
@@ -215,7 +214,7 @@ pub(crate) async fn certify(
     };
 
     // perform DB operations
-    kms.store.atomic(user, &operations, params).await?;
+    kms.database.atomic(user, &operations, params).await?;
 
     Ok(CertifyResponse { unique_identifier })
 }

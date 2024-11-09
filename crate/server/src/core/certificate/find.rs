@@ -2,14 +2,11 @@ use cosmian_kmip::kmip::{
     kmip_types::{LinkType, LinkedObjectIdentifier},
     KmipOperation,
 };
-use cosmian_kms_server_database::ExtraStoreParams;
+use cosmian_kms_server_database::{ExtraStoreParams, ObjectWithMetadata};
 use tracing::trace;
 
 use crate::{
-    core::{
-        object_with_metadata::ObjectWithMetadata,
-        retrieve_object_utils::retrieve_object_for_operation, KMS,
-    },
+    core::{retrieve_object_utils::retrieve_object_for_operation, KMS},
     error::KmsError,
     kms_bail,
     result::{KResult, KResultHelper},

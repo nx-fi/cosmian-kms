@@ -17,7 +17,7 @@ use num_bigint_dig::BigUint;
 use KmipKeyMaterial::TransparentRSAPublicKey;
 
 use crate::{
-    core::{object_with_metadata::ObjectWithMetadata, KMS},
+    core::{ObjectWithMetadata, KMS},
     error::KmsError,
     result::KResult,
 };

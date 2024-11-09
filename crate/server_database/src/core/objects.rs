@@ -11,8 +11,8 @@ use cosmian_kmip::kmip::{
 };
 
 use crate::{
+    core::ObjectWithMetadata,
     error::{DbError, DbResult},
-    object_with_metadata::ObjectWithMetadata,
     stores::{ExtraStoreParams, ObjectsStore},
     AtomicOperation, Database,
 };
@@ -505,140 +505,6 @@ impl Database {
                 AtomicOperation::UpdateState(_) => {}
             }
         }
-        Ok(())
-    }
-
-    // /// Unwrap the object (if need be) and return the unwrapped object
-    // /// The unwrapped object is cached in memory
-    // //TODO refactor unwrap_key() to use the permissions store
-    // pub async fn get_unwrapped(
-    //     &self,
-    //     uid: &str,
-    //     object: &Object,
-    //     kms: &KMS,
-    //     user: &str,
-    //     params: Option<&ExtraStoreParams>,
-    // ) -> DbResult<Object> {
-    //     // Is this an unwrapped key?
-    //     if object
-    //         .key_block()
-    //         .context("Cannot unwrap non key object")?
-    //         .key_wrapping_data
-    //         .is_none()
-    //     {
-    //         // already an unwrapped key
-    //         trace!("Already an unwrapped key");
-    //         return Ok(object.clone());
-    //     }
-    //
-    //     // check if we have it in the cache
-    //     match self.unwrapped_cache.peek(uid).await {
-    //         Some(Ok(u)) => {
-    //             // Note: In theory the cache should always be in sync...
-    //             if *u.key_signature() == object.key_signature()? {
-    //                 trace!("Unwrapped cache hit");
-    //                 return Ok(u.unwrapped_object().clone());
-    //             }
-    //         }
-    //         Some(Err(e)) => {
-    //             return Err(e);
-    //         }
-    //         None => {
-    //             // try unwrapping
-    //         }
-    //     }
-    //
-    //     // local async future unwrap the object
-    //     let unwrap_local = async {
-    //         let key_signature = object.key_signature()?;
-    //         let mut unwrapped_object = object.clone();
-    //         let key_block = unwrapped_object.key_block_mut()?;
-    //         unwrap_key(key_block, kms, user, params).await?;
-    //         Ok(CachedUnwrappedObject::new(key_signature, unwrapped_object))
-    //     };
-    //
-    //     // cache miss, try to unwrap
-    //     trace!("Unwrapped cache miss. Trying to unwrap");
-    //     let unwrapped_object = unwrap_local.await;
-    //     //pre-calculating the result avoids a clone on the `CachedUnwrappedObject`
-    //     let result = unwrapped_object
-    //         .as_ref()
-    //         .map(|u| u.unwrapped_object().to_owned())
-    //         .map_err(DbError::clone);
-    //     // update cache is there is one
-    //     self.unwrapped_cache
-    //         .insert(uid.to_owned(), unwrapped_object)
-    //         .await;
-    //     //return the result
-    //     result
-    // }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::{collections::HashSet, sync::Arc};
-
-    use cosmian_kmip::{
-        crypto::symmetric::create_symmetric_key_kmip_object,
-        kmip::kmip_types::CryptographicAlgorithm,
-    };
-    use cosmian_logger::log_utils::log_init;
-    use rand_chacha::rand_core::{RngCore, SeedableRng};
-    use tempfile::TempDir;
-    use uuid::Uuid;
-
-    use crate::{error::DbResult, stores::SqlitePool, Database};
-
-    #[tokio::test]
-    pub async fn test_lru_cache() -> DbResult<()> {
-        log_init(option_env!("RUST_LOG"));
-
-        let dir = TempDir::new()?;
-        let db_file = dir.path().join("test_sqlite.db");
-        if db_file.exists() {
-            std::fs::remove_file(&db_file)?;
-        }
-        let sqlite = Arc::new(SqlitePool::instantiate(&db_file, true).await?);
-        let store = Database::new(sqlite.clone(), sqlite);
-        let db_params = None;
-
-        let mut rng = rand_chacha::ChaCha12Rng::from_entropy();
-
-        // create a symmetric key with tags
-        let mut symmetric_key_bytes = vec![0; 32];
-        rng.fill_bytes(&mut symmetric_key_bytes);
-        // create a symmetric key
-        let symmetric_key =
-            create_symmetric_key_kmip_object(&symmetric_key_bytes, CryptographicAlgorithm::AES)?;
-
-        // insert into DB
-        let owner = "eyJhbGciOiJSUzI1Ni";
-        let uid = Uuid::new_v4().to_string();
-        let uid_ = store
-            .create(
-                Some(uid.clone()),
-                owner,
-                &symmetric_key,
-                symmetric_key.attributes()?,
-                &HashSet::new(),
-                db_params.as_ref(),
-            )
-            .await?;
-        assert_eq!(&uid, &uid_);
-
-        // The key should not be in the cache
-        assert!(store.unwrapped_cache.get_cache().await.peek(&uid).is_none());
-
-        // fetch the key
-        let owm = store.retrieve_object(&uid, db_params.as_ref()).await?;
-        assert!(owm.is_some());
-        assert_eq!(owm.unwrap().id(), &uid);
-        {
-            let cache = store.unwrapped_cache.get_cache();
-            // the unwrapped version should not be in the cache
-            assert!(cache.await.peek(&uid).is_none());
-        }
-
         Ok(())
     }
 }

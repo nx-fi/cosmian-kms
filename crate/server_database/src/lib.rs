@@ -35,17 +35,15 @@
 //! The specific error types and conditions are documented in the respective functions.
 
 mod core;
-pub use core::{Database, DbParams, StateFilter, UserFilter};
+pub use core::{Database, DbParams, ObjectWithMetadata, StateFilter, UserFilter};
 mod error;
 pub use error::{DbError, DbResult};
 mod migrate;
-mod object_with_metadata;
 mod stores;
 pub use stores::{
     redis_master_key_from_password, AtomicOperation, ExtraStoreParams,
     REDIS_WITH_FINDEX_MASTER_KEY_LENGTH,
 };
-pub mod unwrapped_cache;
 
 pub const KMS_VERSION_BEFORE_MIGRATION_SUPPORT: &str = "4.12.0";
 

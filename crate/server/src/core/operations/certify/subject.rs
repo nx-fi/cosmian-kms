@@ -10,12 +10,13 @@ use cosmian_kmip::{
     },
     openssl::{kmip_public_key_to_openssl, openssl_certificate_extensions},
 };
+use cosmian_kms_server_database::ObjectWithMetadata;
 use openssl::{
     pkey::{PKey, Public},
     x509::{X509Extension, X509Name, X509NameRef, X509Req, X509},
 };
 
-use crate::{core::object_with_metadata::ObjectWithMetadata, kms_error, result::KResult};
+use crate::{kms_error, result::KResult};
 
 /// This holds `KeyPair` information when one is created for the subject
 pub(crate) struct KeyPairData {

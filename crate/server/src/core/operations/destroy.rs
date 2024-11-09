@@ -13,9 +13,7 @@ use tracing::{debug, trace};
 use zeroize::Zeroizing;
 
 use crate::{
-    core::{
-        cover_crypt::destroy_user_decryption_keys, object_with_metadata::ObjectWithMetadata, KMS,
-    },
+    core::{cover_crypt::destroy_user_decryption_keys, KMS},
     error::KmsError,
     kms_bail,
     result::{KResult, KResultHelper},
@@ -61,29 +59,32 @@ pub(crate) async fn recursively_destroy_key(
 ) -> KResult<()> {
     // retrieve from tags or use passed identifier
     let owm_s = kms
-        .store
-        .retrieve(uid_or_tags, user, KmipOperation::Destroy, params)
+        .database
+        .retrieve_objects(uid_or_tags, params)
         .await?
-        .into_values()
-        .filter(|owm| {
-            let object_type = owm.object().object_type();
-            owm.state() != StateEnumeration::Destroyed
-                && (object_type == ObjectType::PrivateKey
-                    || object_type == ObjectType::SymmetricKey
-                    || object_type == ObjectType::Certificate
-                    || object_type == ObjectType::PublicKey)
-        })
-        .collect::<Vec<ObjectWithMetadata>>();
+        .into_values();
 
-    if owm_s.is_empty() {
-        return Err(KmsError::KmipError(
-            ErrorReason::Item_Not_Found,
-            uid_or_tags.to_owned(),
-        ))
-    }
-
-    // destroy the keys found
+    let mut count = 0;
     for mut owm in owm_s {
+        if user != owm.owner() {
+            let permissions = kms
+                .database
+                .list_user_operations_on_object(owm.id(), user, false, params)
+                .await?;
+            if !permissions.contains(&KmipOperation::Destroy) {
+                continue
+            }
+        }
+        let object_type = owm.object().object_type();
+        if owm.state() == StateEnumeration::Destroyed
+            || (object_type != ObjectType::PrivateKey
+                && object_type != ObjectType::SymmetricKey
+                && object_type != ObjectType::Certificate
+                && object_type != ObjectType::PublicKey)
+        {
+            continue
+        }
+        count += 1;
         // perform the chain of destroy operations depending on the type of object
         let object_type = owm.object().object_type();
         match object_type {
@@ -158,6 +159,13 @@ pub(crate) async fn recursively_destroy_key(
         };
     }
 
+    if count == 0 {
+        return Err(KmsError::KmipError(
+            ErrorReason::Item_Not_Found,
+            uid_or_tags.to_owned(),
+        ))
+    }
+
     Ok(())
 }
 
@@ -197,11 +205,11 @@ async fn destroy_key_core(
         key_block.attributes()?.clone()
     };
 
-    kms.store
+    kms.database
         .update_object(unique_identifier, object, &attributes, None, params)
         .await?;
 
-    kms.store
+    kms.database
         .update_state(unique_identifier, new_state, params)
         .await?;
 

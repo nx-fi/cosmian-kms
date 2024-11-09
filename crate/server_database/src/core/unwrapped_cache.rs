@@ -99,3 +99,71 @@ impl UnwrappedCache {
         self.cache.read().await
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use cloudproof::reexport::crypto_core::{
+        reexport::rand_core::{RngCore, SeedableRng},
+        CsRng,
+    };
+    use cosmian_kmip::{
+        crypto::symmetric::create_symmetric_key_kmip_object,
+        kmip::kmip_types::CryptographicAlgorithm,
+    };
+    use cosmian_logger::log_utils::log_init;
+    use tempfile::TempDir;
+    use uuid::Uuid;
+
+    use crate::{Database, DbResult};
+
+    #[tokio::test]
+    pub async fn test_lru_cache() -> DbResult<()> {
+        log_init(option_env!("RUST_LOG"));
+
+        let dir = TempDir::new()?;
+
+        let db_params = crate::DbParams::Sqlite(dir.path().to_owned());
+        let database = Database::instantiate(&db_params, true).await?;
+
+        let mut rng = CsRng::from_entropy();
+
+        // create a symmetric key with tags
+        let mut symmetric_key_bytes = vec![0; 32];
+        rng.fill_bytes(&mut symmetric_key_bytes);
+        // create a symmetric key
+        let symmetric_key =
+            create_symmetric_key_kmip_object(&symmetric_key_bytes, CryptographicAlgorithm::AES)?;
+
+        // insert into DB
+        let owner = "eyJhbGciOiJSUzI1Ni";
+        let uid = Uuid::new_v4().to_string();
+        let uid_ = database
+            .create(
+                Some(uid.clone()),
+                owner,
+                &symmetric_key,
+                symmetric_key.attributes()?,
+                &HashSet::new(),
+                None,
+            )
+            .await?;
+        assert_eq!(&uid, &uid_);
+
+        // The key should not be in the cache
+        assert!(database.unwrapped_cache().peek(&uid).await.is_none());
+
+        // fetch the key
+        let owm = database.retrieve_object(&uid, None).await?;
+        assert!(owm.is_some());
+        assert_eq!(owm.unwrap().id(), &uid);
+        {
+            let cache = database.unwrapped_cache.get_cache();
+            // the unwrapped version should not be in the cache
+            assert!(cache.await.peek(&uid).is_none());
+        }
+
+        Ok(())
+    }
+}

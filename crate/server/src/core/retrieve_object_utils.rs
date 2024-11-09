@@ -1,13 +1,8 @@
 use cosmian_kmip::kmip::{kmip_types::StateEnumeration, KmipOperation};
-use cosmian_kms_server_database::ExtraStoreParams;
+use cosmian_kms_server_database::{ExtraStoreParams, ObjectWithMetadata};
 use tracing::trace;
 
-use crate::{
-    core::{object_with_metadata::ObjectWithMetadata, KMS},
-    error::KmsError,
-    hsm::get_hsm_object,
-    result::KResult,
-};
+use crate::{core::KMS, error::KmsError, hsm::get_hsm_object, result::KResult};
 
 /// Retrieve a single object for a given operation type
 /// or the Get operation if not found.
@@ -56,7 +51,7 @@ async fn _retrieve_object(
 
     // Getting a database object
     let mut owm_s: Vec<ObjectWithMetadata> = kms
-        .store
+        .database
         .retrieve(uid_or_tags, user, operation_type, params)
         .await?
         .into_values()

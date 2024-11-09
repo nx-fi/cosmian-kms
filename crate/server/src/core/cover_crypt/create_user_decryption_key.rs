@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use cloudproof::reexport::cover_crypt::Covercrypt;
 use cosmian_kmip::{
     crypto::{
@@ -15,7 +13,7 @@ use cosmian_kmip::{
         kmip_types::{Attributes, KeyFormatType, StateEnumeration, UniqueIdentifier},
     },
 };
-use cosmian_kms_server_database::{ExtraStoreParams, StateFilter, UserFilter};
+use cosmian_kms_server_database::ExtraStoreParams;
 
 use super::KMS;
 use crate::{error::KmsError, kms_bail, result::KResult};
@@ -45,7 +43,7 @@ async fn create_user_decryption_key_(
     kms: &KMS,
     cover_crypt: Covercrypt,
     create_attributes: &Attributes,
-    user: &str,
+    _user: &str,
     params: Option<&ExtraStoreParams>,
 ) -> KResult<Object> {
     // Recover the access policy
@@ -64,16 +62,16 @@ async fn create_user_decryption_key_(
 
     // retrieve from tags or use passed identifier
     let msk = kms
-        .store
-        .retrieve_object(
-            &msk_uid,
-            user,
-            UserFilter::None,
-            StateFilter::StateIn(HashSet::from([StateEnumeration::Active])),
-            params,
-        )
+        .database
+        .retrieve_object(&msk_uid, params)
         .await?
         .ok_or_else(|| KmsError::KmipError(ErrorReason::Item_Not_Found, msk_uid.clone()))?;
+
+    if msk.state() != StateEnumeration::Active {
+        return Err(KmsError::InvalidRequest(format!(
+            "get: the master private key {msk_uid} is not active",
+        )))
+    }
 
     if msk.object().object_type() != ObjectType::PrivateKey {
         return Err(KmsError::InvalidRequest(format!(

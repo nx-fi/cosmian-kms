@@ -10,7 +10,7 @@ use cosmian_kmip::kmip::{
     KmipOperation,
 };
 
-use crate::{error::DbResult, object_with_metadata::ObjectWithMetadata, stores::ExtraStoreParams};
+use crate::{error::DbResult, stores::ExtraStoreParams, ObjectWithMetadata};
 
 /// An atomic operation on the objects database
 pub enum AtomicOperation {

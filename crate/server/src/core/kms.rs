@@ -13,6 +13,7 @@ use cosmian_kmip::{
     crypto::secret::Secret,
     kmip::{
         kmip_messages::{Message, MessageResponse},
+        kmip_objects::Object,
         kmip_operations::{
             Certify, CertifyResponse, Create, CreateKeyPair, CreateKeyPairResponse, CreateResponse,
             Decrypt, DecryptResponse, DeleteAttribute, DeleteAttributeResponse, Destroy,
@@ -28,12 +29,15 @@ use cosmian_kms_client::access::{
     Access, AccessRightsObtainedResponse, ObjectOwnedResponse, UserAccessResponse,
 };
 use cosmian_kms_server_database::{Database, DbParams, ExtraStoreParams};
-use tracing::debug;
+use tracing::{debug, trace};
 use uuid::Uuid;
 
 use crate::{
     config::ServerParams,
-    core::operations,
+    core::{
+        operations,
+        wrapping::{unwrap_key, CachedUnwrappedObject, UnwrappedCache},
+    },
     error::KmsError,
     kms_bail, kms_error,
     middlewares::{JwtAuthClaim, PeerCommonName},
@@ -44,13 +48,14 @@ use crate::{
 /// `https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=kmip`
 pub struct KMS {
     pub(crate) params: ServerParams,
-    /// The store is made of 2 parts:
+    /// The database is made of 2 parts:
     ///  - the objects store that stores the cryptographic objects.
     ///    The Object store may be backed by multiple databases or HSMs
     ///    and store the cryptographic objects and their attributes.
     ///    Objects are spread across the underlying stores based on their ID prefix.
     /// - the permissions store that stores the permissions granted to users on the objects
-    pub(crate) store: Database,
+    pub(crate) database: Database,
+
     //TODO refactor this into ObjectStore
     pub(crate) hsm: Option<Box<dyn HSM + Sync + Send>>,
 }
@@ -75,7 +80,7 @@ impl KMS {
             // Generate a new group id
             let uid: u128 = loop {
                 let uid = Uuid::new_v4().to_u128_le();
-                if let Some(database) = self.store.filename(uid).await {
+                if let Some(database) = self.database.filename(uid).await {
                     if !database.exists() {
                         // Create an empty file (to book the group id)
                         fs::File::create(database)?;
@@ -95,7 +100,9 @@ impl KMS {
             // Create a dummy query to initialize the database
             // Note: if we don't proceed like that, the password will be set at the first query of the user
             // which let him put the password he wants.
-            self.store.find(None, None, "", true, Some(&params)).await?;
+            self.database
+                .find(None, None, "", true, Some(&params))
+                .await?;
 
             return Ok(token)
         }
@@ -575,7 +582,7 @@ impl KMS {
             .context("unique_identifier is not a string")?;
 
         // check the object identified by its `uid` is really owned by `owner`
-        if !self.store.is_object_owned_by(uid, owner, params).await? {
+        if !self.database.is_object_owned_by(uid, owner, params).await? {
             kms_bail!(KmsError::Unauthorized(format!(
                 "Object with uid `{uid}` is not owned by owner `{owner}`"
             )))
@@ -589,7 +596,7 @@ impl KMS {
             ))
         }
 
-        self.store
+        self.database
             .grant_operations(
                 uid,
                 &access.user_id,
@@ -617,7 +624,7 @@ impl KMS {
             .context("unique_identifier is not a string")?;
 
         // check the object identified by its `uid` is really owned by `owner`
-        if !self.store.is_object_owned_by(uid, owner, params).await? {
+        if !self.database.is_object_owned_by(uid, owner, params).await? {
             kms_bail!(KmsError::Unauthorized(format!(
                 "Object with uid `{uid}` is not owned by owner `{owner}`"
             )))
@@ -631,7 +638,7 @@ impl KMS {
             ))
         }
 
-        self.store
+        self.database
             .remove_operations(
                 uid,
                 &access.user_id,
@@ -656,7 +663,7 @@ impl KMS {
         // check the object identified by its `uid` is really owned by `owner`
         // only the owner can list the permission of an object
         if !self
-            .store
+            .database
             .is_object_owned_by(object_id, owner, params)
             .await?
         {
@@ -666,7 +673,7 @@ impl KMS {
         }
 
         let list = self
-            .store
+            .database
             .list_object_operations_granted(object_id, params)
             .await?;
         let ids = list
@@ -686,7 +693,7 @@ impl KMS {
         owner: &str,
         params: Option<&ExtraStoreParams>,
     ) -> KResult<Vec<ObjectOwnedResponse>> {
-        let list = self.store.find(None, None, owner, true, params).await?;
+        let list = self.database.find(None, None, owner, true, params).await?;
         let ids = list.into_iter().map(ObjectOwnedResponse::from).collect();
         Ok(ids)
     }
@@ -698,7 +705,7 @@ impl KMS {
         params: Option<&ExtraStoreParams>,
     ) -> KResult<Vec<AccessRightsObtainedResponse>> {
         let list = self
-            .store
+            .database
             .list_user_operations_granted(user, params)
             .await?;
         let ids = list
@@ -774,5 +781,70 @@ impl KMS {
                 _ => None,
             },
         )
+    }
+
+    /// Unwrap the object (if need be) and return the unwrapped object
+    /// The unwrapped object is cached in memory
+    //TODO refactor unwrap_key() to use the permissions store
+    pub async fn get_unwrapped(
+        &self,
+        uid: &str,
+        object: &Object,
+        user: &str,
+        params: Option<&ExtraStoreParams>,
+    ) -> KResult<Object> {
+        // Is this an unwrapped key?
+        if object
+            .key_block()
+            .context("Cannot unwrap non key object")?
+            .key_wrapping_data
+            .is_none()
+        {
+            // already an unwrapped key
+            trace!("Already an unwrapped key");
+            return Ok(object.clone());
+        }
+
+        // check if we have it in the cache
+        match self.database.unwrapped_cache().peek(uid).await {
+            Some(Ok(u)) => {
+                // Note: In theory the cache should always be in sync...
+                if *u.key_signature() == object.key_signature()? {
+                    trace!("Unwrapped cache hit");
+                    return Ok(u.unwrapped_object().clone());
+                }
+            }
+            Some(Err(e)) => {
+                return Err(e);
+            }
+            None => {
+                // try unwrapping
+            }
+        }
+
+        // local async future unwrap the object
+        let unwrap_local = async {
+            let key_signature = object.key_signature()?;
+            let mut unwrapped_object = object.clone();
+            let key_block = unwrapped_object.key_block_mut()?;
+            unwrap_key(key_block, kms, user, params).await?;
+            Ok(CachedUnwrappedObject::new(key_signature, unwrapped_object))
+        };
+
+        // cache miss, try to unwrap
+        trace!("Unwrapped cache miss. Trying to unwrap");
+        let unwrapped_object = unwrap_local.await;
+        //pre-calculating the result avoids a clone on the `CachedUnwrappedObject`
+        let result = unwrapped_object
+            .as_ref()
+            .map(|u| u.unwrapped_object().to_owned())
+            .map_err(KmsError::clone);
+        // update cache is there is one
+        self.database
+            .unwrapped_cache()
+            .insert(uid.to_owned(), unwrapped_object)
+            .await;
+        //return the result
+        result
     }
 }
