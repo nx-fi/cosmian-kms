@@ -8,7 +8,6 @@ use cosmian_kmip::crypto::secret::Secret;
 use tokio::sync::RwLock;
 
 mod objects;
-pub use objects::{StateFilter, UserFilter};
 mod permissions;
 
 mod db_params;
@@ -18,8 +17,8 @@ mod unwrapped_cache;
 
 pub use object_with_metadata::ObjectWithMetadata;
 
+pub use crate::core::unwrapped_cache::{CachedUnwrappedObject, UnwrappedCache};
 use crate::{
-    core::unwrapped_cache::UnwrappedCache,
     stores::{
         CachedSqlCipher, MySqlPool, ObjectsStore, PermissionsStore, PgPool, RedisWithFindex,
         SqlitePool, REDIS_WITH_FINDEX_MASTER_KEY_LENGTH,

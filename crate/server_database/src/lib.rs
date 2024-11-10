@@ -35,7 +35,7 @@
 //! The specific error types and conditions are documented in the respective functions.
 
 mod core;
-pub use core::{Database, DbParams, ObjectWithMetadata, StateFilter, UserFilter};
+pub use core::{CachedUnwrappedObject, Database, DbParams, ObjectWithMetadata, UnwrappedCache};
 mod error;
 pub use error::{DbError, DbResult};
 mod migrate;

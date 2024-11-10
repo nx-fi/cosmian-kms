@@ -7,7 +7,6 @@ use std::{
 use cosmian_kmip::kmip::{
     kmip_objects::Object,
     kmip_types::{Attributes, StateEnumeration},
-    KmipOperation,
 };
 
 use crate::{
@@ -16,40 +15,6 @@ use crate::{
     stores::{ExtraStoreParams, ObjectsStore},
     AtomicOperation, Database,
 };
-
-/// Enum representing different user filters for object operations.
-///
-/// This enum is used to specify the conditions under which a user can perform
-/// operations on objects in the database.
-///
-/// Variants:
-/// - `None`: No user filter is applied.
-/// - `UserMustBeOwner`: The user must be the owner of the object.
-/// - `UserCanPerformAnyOperation(HashSet<KmipOperation>)`: The user can perform any of the specified operations.
-/// - `UserCanPerformAllOperations(HashSet<KmipOperation>)`: The user can perform all the specified operations.
-#[derive(Clone)]
-pub enum UserFilter {
-    None,
-    UserMustBeOwner,
-    UserCanPerformAnyOperation(HashSet<KmipOperation>),
-    UserCanPerformAllOperations(HashSet<KmipOperation>),
-}
-
-/// Enum representing different state filters for object operations.
-///
-/// This enum is used to specify the conditions based on the state of objects
-/// in the database.
-///
-/// Variants:
-/// - `None`: No state filter is applied.
-/// - `StateIn(HashSet<StateEnumeration>)`: The object state must be in the specified set of states.
-/// - `StateNotIn(HashSet<StateEnumeration>)`: The object state must not be in the specified set of states.
-#[derive(Clone)]
-pub enum StateFilter {
-    None,
-    StateIn(HashSet<StateEnumeration>),
-    StateNotIn(HashSet<StateEnumeration>),
-}
 
 /// Struct representing the database and providing methods to manipulate objects within it.
 ///

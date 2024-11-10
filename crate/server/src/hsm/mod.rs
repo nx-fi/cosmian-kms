@@ -13,14 +13,11 @@ use cosmian_kmip::{
         KmipOperation,
     },
 };
+use cosmian_kms_server_database::ObjectWithMetadata;
 use num_bigint_dig::BigUint;
 use KmipKeyMaterial::TransparentRSAPublicKey;
 
-use crate::{
-    core::{ObjectWithMetadata, KMS},
-    error::KmsError,
-    result::KResult,
-};
+use crate::{core::KMS, error::KmsError, result::KResult};
 
 pub(crate) async fn get_hsm_object(
     uid: &str,

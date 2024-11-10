@@ -88,6 +88,9 @@ pub enum KmsError {
 
     #[error("HSM error: {0}")]
     Hsm(String),
+
+    #[error("{0}")]
+    Default(String),
 }
 
 impl KmsError {
@@ -271,7 +274,13 @@ impl From<HsmError> for KmsError {
 
 impl From<DbError> for KmsError {
     fn from(value: DbError) -> Self {
-        Self::Database(value.to_string())
+        Self::Default(value.to_string())
+    }
+}
+
+impl Into<DbError> for KmsError {
+    fn into(self) -> DbError {
+        DbError::Default(self.to_string())
     }
 }
 

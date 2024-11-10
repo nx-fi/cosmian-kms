@@ -28,16 +28,13 @@ use cosmian_kmip::{
 use cosmian_kms_client::access::{
     Access, AccessRightsObtainedResponse, ObjectOwnedResponse, UserAccessResponse,
 };
-use cosmian_kms_server_database::{Database, DbParams, ExtraStoreParams};
+use cosmian_kms_server_database::{CachedUnwrappedObject, Database, DbParams, ExtraStoreParams};
 use tracing::{debug, trace};
 use uuid::Uuid;
 
 use crate::{
     config::ServerParams,
-    core::{
-        operations,
-        wrapping::{unwrap_key, CachedUnwrappedObject, UnwrappedCache},
-    },
+    core::{operations, wrapping::unwrap_key},
     error::KmsError,
     kms_bail, kms_error,
     middlewares::{JwtAuthClaim, PeerCommonName},
@@ -815,7 +812,7 @@ impl KMS {
                 }
             }
             Some(Err(e)) => {
-                return Err(e);
+                return Err(e.into());
             }
             None => {
                 // try unwrapping
@@ -827,7 +824,7 @@ impl KMS {
             let key_signature = object.key_signature()?;
             let mut unwrapped_object = object.clone();
             let key_block = unwrapped_object.key_block_mut()?;
-            unwrap_key(key_block, kms, user, params).await?;
+            unwrap_key(key_block, self, user, params).await?;
             Ok(CachedUnwrappedObject::new(key_signature, unwrapped_object))
         };
 
@@ -842,7 +839,7 @@ impl KMS {
         // update cache is there is one
         self.database
             .unwrapped_cache()
-            .insert(uid.to_owned(), unwrapped_object)
+            .insert(uid.to_owned(), unwrapped_object.map_err(Into::into))
             .await;
         //return the result
         result

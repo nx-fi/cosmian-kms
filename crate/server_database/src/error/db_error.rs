@@ -22,11 +22,11 @@ pub enum DbError {
     #[error("Not Supported: {0}")]
     NotSupported(String),
 
-    // When a user requests something which is a non-sense
+    // When a user requests something which is a nonsense
     #[error("Inconsistent operation: {0}")]
     InconsistentOperation(String),
 
-    // When a user requests with place holder id arg.
+    // When a user requests with placeholder id arg.
     #[error("This KMIP server does not yet support place holder id")]
     UnsupportedPlaceholder,
 
@@ -81,6 +81,10 @@ pub enum DbError {
     // Any errors on KMIP format due to mistake of the user
     #[error("{0}: {1}")]
     KmipError(ErrorReason, String),
+
+    // Default error
+    #[error("{0}")]
+    Default(String),
 }
 
 impl From<std::string::FromUtf8Error> for DbError {

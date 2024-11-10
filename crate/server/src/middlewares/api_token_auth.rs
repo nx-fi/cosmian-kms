@@ -10,16 +10,10 @@ use actix_web::{
 use base64::Engine;
 use cosmian_kmip::kmip::{
     kmip_objects::ObjectType, kmip_operations::ErrorReason, kmip_types::StateEnumeration,
-    KmipOperation,
 };
-use cosmian_kms_server_database::ObjectWithMetadata;
 use tracing::{debug, error, trace};
 
-use crate::{
-    core::{ObjectWithMetadata, KMS},
-    error::KmsError,
-    result::KResult,
-};
+use crate::{core::KMS, error::KmsError, result::KResult};
 
 pub(crate) async fn manage_api_token_request<S, B>(
     service: Rc<S>,
@@ -41,43 +35,28 @@ where
 }
 
 async fn get_api_token(kms: &Arc<KMS>, api_token_id: &str) -> KResult<String> {
-    let mut owm_s = kms
+    let owm = kms
         .database
-        .retrieve(
-            api_token_id,
-            &kms.params.default_username,
-            KmipOperation::Get,
-            None,
-        )
+        .retrieve_object(api_token_id, None)
         .await?
-        .into_values()
-        .filter(|owm| {
-            // only active objects
-            if owm.state() != StateEnumeration::Active {
-                return false
-            }
-            // only symmetric keys
-            if owm.object().object_type() != ObjectType::SymmetricKey {
-                return false
-            }
-            true
-        })
-        .collect::<Vec<ObjectWithMetadata>>();
-
-    // there can only be one symmetric key
-    let owm = owm_s.pop().ok_or_else(|| {
-        KmsError::KmipError(
-            ErrorReason::Item_Not_Found,
-            format!("The symmetric key of unique identifier {api_token_id} could not be found"),
-        )
-    })?;
-
-    if !owm_s.is_empty() {
+        .ok_or_else(|| {
+            KmsError::KmipError(
+                ErrorReason::Item_Not_Found,
+                format!("The symmetric key of unique identifier {api_token_id} could not be found"),
+            )
+        })?;
+    // only symmetric keys
+    if owm.object().object_type() != ObjectType::SymmetricKey {
         return Err(KmsError::InvalidRequest(format!(
-            "rekey: get: too many symmetric keys for uid/tags: {api_token_id}",
+            "The key for API token: {api_token_id} is not a symmetric key",
         )))
     }
-
+    // only active objects
+    if owm.state() != StateEnumeration::Active {
+        return Err(KmsError::InvalidRequest(format!(
+            "The symmetric key for API token: {api_token_id} is not active",
+        )))
+    }
     // Get the API token bytes in base64
     Ok(base64::engine::general_purpose::STANDARD
         .encode(owm.object().key_block()?.key_bytes()?)

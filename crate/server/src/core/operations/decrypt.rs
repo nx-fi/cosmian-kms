@@ -21,7 +21,6 @@ use cosmian_kmip::{
             CryptographicAlgorithm, CryptographicParameters, CryptographicUsageMask, KeyFormatType,
             PaddingMethod, StateEnumeration, UniqueIdentifier,
         },
-        KmipOperation,
     },
     openssl::kmip_private_key_to_openssl,
 };
@@ -96,15 +95,12 @@ async fn get_key(
         .context("Get Key: unique_identifier must be a string")?;
     trace!("get_key: uid_or_tags: {uid_or_tags}");
 
-    let mut owm_s = kms
+    for owm in kms
         .database
         .retrieve_objects(uid_or_tags, params)
         .await?
-        .values();
-
-    trace!("get_key: owm_s: number of results: {}", owm_s.len());
-
-    for owm in owm_s {
+        .values()
+    {
         let object_type = owm.object().object_type();
         if !(object_type == ObjectType::SymmetricKey || object_type == ObjectType::PrivateKey) {
             continue
@@ -112,33 +108,27 @@ async fn get_key(
         if owm.state() != StateEnumeration::Active {
             continue
         }
-        if user != owm.owner() {
-            let permissions = kms
-                .database
-                .list_user_operations_on_object(owm.id(), user, false, params)
-                .await?;
-            if !(permissions.contains(&KmipOperation::Decrypt)
-                || permissions.contains(&KmipOperation::Get))
-            {
-                continue
-            }
-        }
+
         if object_type == ObjectType::PrivateKey {
             if let Ok(attributes) = owm.object().attributes() {
                 // is it a Covercrypt secret key?
                 if attributes.key_format_type == Some(KeyFormatType::CoverCryptSecretKey) {
                     // does it have an access policy that allows decryption?
-                    if !attributes::access_policy_from_attributes(attributes).is_ok() {
+                    if attributes::access_policy_from_attributes(attributes).is_err() {
                         continue
                     }
                 }
             }
         }
-        let id = owm.id().to_owned();
-        owm.make_unwrapped(kms, user, params)
-            .await
-            .with_context(|| format!("The key: {id}, cannot be unwrapped."))?;
-        return Ok(owm.to_owned())
+        // we found a key
+        let mut key_wm = owm.to_owned();
+        // if the key is wrapped, we need to unwrap it
+        key_wm.set_object(
+            kms.get_unwrapped(key_wm.id(), owm.object(), user, params)
+                .await
+                .with_context(|| format!("The key: {}, cannot be unwrapped.", key_wm.id()))?,
+        );
+        return Ok(key_wm)
     }
 
     // there can only be one key

@@ -497,10 +497,15 @@ async fn transform_to_key_wrap_type(
 ) -> Result<(), KmsError> {
     if let Some(key_wrap_type) = key_wrap_type {
         if *key_wrap_type == KeyWrapType::NotWrapped {
-            // The owm must be made an object where the unwrapped version is the version "as is"
-            object_with_metadata
-                .make_unwrapped(kms, user, params)
-                .await?;
+            object_with_metadata.set_object(
+                kms.get_unwrapped(
+                    object_with_metadata.id(),
+                    object_with_metadata.object(),
+                    user,
+                    params,
+                )
+                .await?,
+            );
         }
     }
     Ok(())

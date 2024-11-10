@@ -15,8 +15,9 @@ use cosmian_kms_client::{
 };
 use cosmian_kms_server::{
     config::{ClapConfig, DBConfig, HttpConfig, HttpParams, JwtAuthConfig, ServerParams},
-    core::kms_server::start_kms_server,
+    kms_server::start_kms_server,
 };
+use cosmian_kms_server_database::ExtraStoreParams;
 use tempfile::TempDir;
 use tokio::sync::OnceCell;
 use tracing::{info, trace};

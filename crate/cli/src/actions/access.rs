@@ -1,7 +1,6 @@
 use clap::Parser;
 use cosmian_kms_client::{
-    access::{Access, KmipOperation},
-    cosmian_kmip::kmip::kmip_types::UniqueIdentifier,
+    access::Access, cosmian_kmip::kmip::kmip_types::UniqueIdentifier, kmip::KmipOperation,
     KmsClient,
 };
 

@@ -171,7 +171,7 @@ async fn get_key(
     trace!("operations::encrypt: key uid_or_tags: {uid_or_tags}");
 
     // retrieve from tags or use passed identifier
-    let mut owm_s = kms
+    let owm_s = kms
         .database
         .retrieve_objects(&uid_or_tags, params)
         .await?
@@ -182,7 +182,7 @@ async fn get_key(
         owm_s.len()
     );
 
-    for owm in owm_s {
+    for mut owm in owm_s {
         let object_type = owm.object().object_type();
         if owm.state() != StateEnumeration::Active {
             continue
@@ -196,14 +196,15 @@ async fn get_key(
         // unwrap if wrapped
         // We could have the downstream code call unwrap() on the owm
         // to get the unwrapped key; but this has a pretty big impact.
-        // Just update the the owm.object with the
-        let id = owm.id().to_owned();
-        match &mut owm.object() {
+        // Just update the owm.object with the unwrapped object
+        match owm.object() {
             Object::Certificate { .. } => {}
-            _ => owm
-                .make_unwrapped(kms, user, params)
-                .await
-                .with_context(|| format!("The key: {id}, cannot be unwrapped."))?,
+            _ => {
+                owm.set_object(
+                    kms.get_unwrapped(owm.id(), owm.object(), user, params)
+                        .await?,
+                );
+            }
         }
         return Ok(owm)
     }
