@@ -21,6 +21,7 @@ use cosmian_kmip::{
             CryptographicAlgorithm, CryptographicParameters, CryptographicUsageMask, KeyFormatType,
             PaddingMethod, StateEnumeration, UniqueIdentifier,
         },
+        KmipOperation,
     },
     openssl::kmip_public_key_to_openssl,
     KmipError,
@@ -192,6 +193,19 @@ async fn get_key(
             && object_type != ObjectType::Certificate
         {
             continue
+        }
+        // if the user is not the owner, we need to check if the user has the right to encrypt
+        // or get the key (in which case it can encrypt on its side)
+        if user != owm.owner() {
+            let permissions = kms
+                .database
+                .list_user_operations_on_object(owm.id(), user, false, params)
+                .await?;
+            if !(permissions.contains(&KmipOperation::Encrypt)
+                || permissions.contains(&KmipOperation::Get))
+            {
+                continue
+            }
         }
         // unwrap if wrapped
         // We could have the downstream code call unwrap() on the owm

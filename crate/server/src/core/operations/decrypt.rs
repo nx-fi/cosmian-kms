@@ -21,6 +21,7 @@ use cosmian_kmip::{
             CryptographicAlgorithm, CryptographicParameters, CryptographicUsageMask, KeyFormatType,
             PaddingMethod, StateEnumeration, UniqueIdentifier,
         },
+        KmipOperation,
     },
     openssl::kmip_private_key_to_openssl,
 };
@@ -120,6 +121,20 @@ async fn get_key(
                 }
             }
         }
+        // if the user is not the owner, we need to check if the user has the right to decrypt
+        // or get the key (in which case it can decrypt on its side)
+        if user != owm.owner() {
+            let permissions = kms
+                .database
+                .list_user_operations_on_object(owm.id(), user, false, params)
+                .await?;
+            if !(permissions.contains(&KmipOperation::Decrypt)
+                || permissions.contains(&KmipOperation::Get))
+            {
+                continue
+            }
+        }
+
         // we found a key
         let mut key_wm = owm.to_owned();
         // if the key is wrapped, we need to unwrap it

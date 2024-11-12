@@ -8,6 +8,7 @@ use cosmian_kmip::kmip::{
         KeyFormatType, LinkType, RevocationReason, RevocationReasonEnumeration, StateEnumeration,
         UniqueIdentifier,
     },
+    KmipOperation,
 };
 use cosmian_kms_server_database::ExtraStoreParams;
 use tracing::debug;
@@ -84,6 +85,17 @@ pub(crate) async fn recursively_revoke_key(
             && object_type != ObjectType::PublicKey
         {
             continue
+        }
+        // if the user is not the owner, we need to check if the user has the right to decrypt
+        // or get the key (in which case it can decrypt on its side)
+        if user != owm.owner() {
+            let permissions = kms
+                .database
+                .list_user_operations_on_object(owm.id(), user, false, params)
+                .await?;
+            if !permissions.contains(&KmipOperation::Revoke) {
+                continue
+            }
         }
         count += 1;
         // perform the chain of revoke operations depending on the type of object

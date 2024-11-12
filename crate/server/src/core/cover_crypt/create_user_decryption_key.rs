@@ -50,7 +50,7 @@ async fn create_user_decryption_key_(
     let access_policy = access_policy_from_attributes(create_attributes)?;
 
     // Recover private key
-    let msk_uid = create_attributes
+    let msk_uid_or_tags = create_attributes
         .get_parent_id()
         .ok_or_else(|| {
             KmsError::InvalidRequest(
@@ -63,37 +63,36 @@ async fn create_user_decryption_key_(
     // retrieve from tags or use passed identifier
     let msk = kms
         .database
-        .retrieve_object(&msk_uid, params)
-        .await?
-        .ok_or_else(|| KmsError::KmipError(ErrorReason::Item_Not_Found, msk_uid.clone()))?;
+        .retrieve_objects(&msk_uid_or_tags, params)
+        .await?;
 
     if msk.state() != StateEnumeration::Active {
         return Err(KmsError::InvalidRequest(format!(
-            "get: the master private key {msk_uid} is not active",
+            "get: the master private key {msk_uid_or_tags} is not active",
         )))
     }
 
     if msk.object().object_type() != ObjectType::PrivateKey {
         return Err(KmsError::InvalidRequest(format!(
-            "get: the object {msk_uid} is not a private key",
+            "get: the object {msk_uid_or_tags} is not a private key",
         )))
     }
 
     let Ok(attributes) = msk.object().attributes() else {
         return Err(KmsError::InvalidRequest(format!(
-            "get: the master private key {msk_uid} has no attributes",
+            "get: the master private key {msk_uid_or_tags} has no attributes",
         )))
     };
 
     if attributes.key_format_type != Some(KeyFormatType::CoverCryptSecretKey) {
         return Err(KmsError::InvalidRequest(format!(
-            "get: the master private key {msk_uid} is not a CoverCrypt secret key",
+            "get: the master private key {msk_uid_or_tags} is not a CoverCrypt secret key",
         )))
     }
     // a master key should have policies in the attributes
-    policy_from_attributes(attributes).map_err(|_| {
+    policy_from_attributes(attributes).map_err(|e| {
         KmsError::InvalidRequest(format!(
-            "get: the master private key {msk_uid} has no policy",
+            "get: the master private key {msk_uid_or_tags} has no policy: {e}",
         ))
     })?;
 
