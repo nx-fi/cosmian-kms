@@ -7,7 +7,7 @@
 
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
-exclude: documentation/pandoc|documentation/overrides|crate/server/src/tests/test_utils.rs|.pre-commit-config.yaml|crate/server/src/routes/google_cse/jwt.rs|crate/server/src/routes/google_cse/python/openssl|documentation/docs/google_cse|crate/pkcs11/sys|documentation/docs/drawings|crate/kmip/test_data/certificates/openssl
+exclude: documentation/pandoc|documentation/overrides|crate/server/src/tests/test_utils.rs|.pre-commit-config.yaml|crate/server/src/routes/google_cse/jwt.rs|crate/server/src/routes/google_cse/python/openssl|documentation/docs/google_cse|crate/pkcs11/sys|documentation/docs/drawings|crate/kmip/test_data/certificates/openssl|crate/cli/test_data
 repos:
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v3.4.0
@@ -126,7 +126,7 @@ repos:
       # - id: cargo-upgrade
       # - id: cargo-update
       - id: cargo-machete
-      - id: cargo-build-all
+      - id: cargo-build-kms
       - id: renew-kms-markdown
       - id: docker-compose-up
       - id: cargo-test

@@ -1,11 +1,16 @@
 [workspace]
-default-members = ["crate/server"]
+default-members = ["crate/server", "crate/cli", "crate/pkcs11/provider"]
 members = [
   "crate/access",
+  "crate/cli",
+  "crate/client",
+  "crate/config",
   "crate/kmip",
-  "crate/server",
+  "crate/pyo3",
   "crate/pkcs11/sys",
   "crate/pkcs11/module",
+  "crate/pkcs11/provider",
+  "crate/server",
 ]
 # Do that if you don't want to enable `dev` feature by default due to the `dev-dependencies` of the cli.
 # For more details, read: https://doc.rust-lang.org/cargo/reference/resolver.html#feature-resolver-version-2
@@ -52,7 +57,9 @@ base64 = "0.21"
 chrono = "0.4"
 clap = { version = "4.5", default-features = false }
 cloudproof = "3.0"
-cosmian_logger = { git = "https://www.github.com/Cosmian/http_client_server", branch = "develop" }
+cosmian_logger = { git = "https://www.github.com/Cosmian/http_client_server", branch = "add_http_client" }
+# cosmian_http_client = { path ="../client_server/crate/http_client" }
+cosmian_http_client = { git = "https://www.github.com/Cosmian/http_client_server", branch = "add_http_client" }
 der = { version = "0.7", default-features = false }
 env_logger = "0.11"
 hex = { version = "0.4", default-features = false }
