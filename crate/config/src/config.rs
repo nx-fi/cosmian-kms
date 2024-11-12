@@ -98,12 +98,14 @@ impl Default for KmsClientConfig {
 ///
 /// ```json
 /// {
+///    "http_config": {
 ///     "accept_invalid_certs": false,
 ///     "server_url": "http://127.0.0.1:9998",
 ///     "access_token": "AA...AAA",
-///     "kms_database_secret": "BB...BBB",
+///     "database_secret": "BB...BBB",
 ///     "ssl_client_pkcs12_path": "/path/to/client.p12",
 ///     "ssl_client_pkcs12_password": "password"
+///     }
 /// }
 /// ```
 /// The path to the configuration file is specified through the `KMS_CLI_CONF` environment variable.

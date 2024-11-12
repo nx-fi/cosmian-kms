@@ -75,21 +75,21 @@ databases can be used concurrently on the same KMS server.
 
 === "ckms"
 
-    The secret must be set in `kms_database_secret` property of the CLI `kms.json` configuration file.
+    The secret must be set in `database_secret` property of the CLI `kms.json` configuration file.
 
     ```json
         {
             "kms_server_url": "https://my-server:9998",
-            "kms_database_secret": "eyJncm91cF9pZCI6MzE0ODQ3NTQzOTU4OTM2Mjk5OTY2ODU4MTY1NzE0MTk0MjU5NjUyLCJrZXkiOiIzZDAyNzg3YjUyZGY5OTYzNGNkOTVmM2QxODEyNDk4YTRiZWU1Nzc1NmM5NDI0NjdhZDI5ZTYxZjFmMmM0OWViIn0="
+            "database_secret": "eyJncm91cF9pZCI6MzE0ODQ3NTQzOTU4OTM2Mjk5OTY2ODU4MTY1NzE0MTk0MjU5NjUyLCJrZXkiOiIzZDAyNzg3YjUyZGY5OTYzNGNkOTVmM2QxODEyNDk4YTRiZWU1Nzc1NmM5NDI0NjdhZDI5ZTYxZjFmMmM0OWViIn0="
         }
     ```
 
 === "curl"
 
-    The secret must be passed using a `KmsDatabaseSecret` HTTP header, e.g.
+    The secret must be passed using a `DatabaseSecret` HTTP header, e.g.
 
     ```sh
         curl \
-        -H "KmsDatabaseSecret: eyJncm91cF9pZCI6MzE0ODQ3NTQzOTU4OTM2Mjk5OTY2ODU4MTY1NzE0MTk0MjU5NjUyLCJrZXkiOiIzZDAyNzg3YjUyZGY5OTYzNGNkOTVmM2QxODEyNDk4YTRiZWU1Nzc1NmM5NDI0NjdhZDI5ZTYxZjFmMmM0OWViIn0=" \
+        -H "DatabaseSecret: eyJncm91cF9pZCI6MzE0ODQ3NTQzOTU4OTM2Mjk5OTY2ODU4MTY1NzE0MTk0MjU5NjUyLCJrZXkiOiIzZDAyNzg3YjUyZGY5OTYzNGNkOTVmM2QxODEyNDk4YTRiZWU1Nzc1NmM5NDI0NjdhZDI5ZTYxZjFmMmM0OWViIn0=" \
         http://localhost:9998/objects/owned
     ```

@@ -722,7 +722,7 @@ impl KMS {
     }
 
     /// Get the `SqliteEnc` database secrets from the request
-    /// The secrets are encoded in the `KmsDatabaseSecret` header
+    /// The secrets are encoded in the `DatabaseSecret` header
     pub(crate) fn get_sqlite_enc_secrets(
         &self,
         req_http: &HttpRequest,
@@ -734,24 +734,24 @@ impl KMS {
                 DbParams::SqliteEnc(_) => {
                     let secrets = req_http
                         .headers()
-                        .get("KmsDatabaseSecret")
+                        .get("DatabaseSecret")
                         .and_then(|h| h.to_str().ok().map(std::string::ToString::to_string))
                         .ok_or_else(|| {
                             KmsError::Unauthorized(
-                                "Missing KmsDatabaseSecret header in the query".to_owned(),
+                                "Missing DatabaseSecret header in the query".to_owned(),
                             )
                         })?;
 
                     let secrets = general_purpose::STANDARD.decode(secrets).map_err(|e| {
                         KmsError::Unauthorized(format!(
-                            "KmsDatabaseSecret header cannot be decoded: {e}"
+                            "DatabaseSecret header cannot be decoded: {e}"
                         ))
                     })?;
 
                     Some(
                         serde_json::from_slice::<ExtraDatabaseParams>(&secrets).map_err(|e| {
                             KmsError::Unauthorized(format!(
-                                "KmsDatabaseSecret header cannot be read: {e}"
+                                "DatabaseSecret header cannot be read: {e}"
                             ))
                         })?,
                     )

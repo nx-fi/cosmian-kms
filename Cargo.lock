@@ -1328,7 +1328,7 @@ dependencies = [
 [[package]]
 name = "cosmian_http_client"
 version = "0.1.0"
-source = "git+https://www.github.com/Cosmian/http_client_server?branch=add_http_client#40fc26683fa077b336295ad5e1ee7fa9611d5f9c"
+source = "git+https://www.github.com/Cosmian/http_client_server?branch=add_http_client#49d4de89865f23d14bc1948d6db48fd690239eec"
 dependencies = [
  "actix-web",
  "oauth2",
@@ -1524,7 +1524,7 @@ dependencies = [
 [[package]]
 name = "cosmian_logger"
 version = "0.1.0"
-source = "git+https://www.github.com/Cosmian/http_client_server?branch=add_http_client#40fc26683fa077b336295ad5e1ee7fa9611d5f9c"
+source = "git+https://www.github.com/Cosmian/http_client_server?branch=add_http_client#49d4de89865f23d14bc1948d6db48fd690239eec"
 dependencies = [
  "tracing",
  "tracing-subscriber",

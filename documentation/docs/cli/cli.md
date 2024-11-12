@@ -45,7 +45,7 @@ configuration of the KMS.
 - `oauth2_conf`: is OPTIONAL and is the OAuth2 configuration (
   see [below](#oauth2oidc-configuration))
   to use when authenticating to the KMS server using OAuth2 or Open ID Connect.
-- `kms_database_secret` is OPTIONAL and is the base 64 encoded secret to use
+- `database_secret` is OPTIONAL and is the base 64 encoded secret to use
   when connecting to a KMS using an encrypted database
 - `accept_invalid_certs` is OPTIONAL and should be set to "true" to allow the
   CLI to connect to a KMS using an "invalid" certificate, such as a self-signed
@@ -64,7 +64,7 @@ database:
   "kms_server_url": "https://kms.acme.com:9999",
   "ssl_client_pkcs12_path": "./certificates/john.doe.acme.p12",
   "ssl_client_pkcs12_password": "pkcs12_password",
-  "kms_database_secret": "eyJncm91cF9pZCI6MjkzMjY3MjM2NDU3ODgyMjIzMjM0NDY2MjkxNTY2NDk5Nzc0NTk1LCJrZXkiOlsyMTgsNDIsMTkzLDE4Myw1OSwyMzQsMTY3LDE3Niw4OCwxNjYsMjUyLDYyLDk5LDU4LDM0LDUxLDE1Nyw5NiwyMjEsMjE1LDIwMSwxOTcsODYsOTksMTI1LDIxMSw2Niw0MCw0MiwyNDYsMTgzLDg1XX0="
+  "database_secret": "eyJncm91cF9pZCI6MjkzMjY3MjM2NDU3ODgyMjIzMjM0NDY2MjkxNTY2NDk5Nzc0NTk1LCJrZXkiOlsyMTgsNDIsMTkzLDE4Myw1OSwyMzQsMTY3LDE3Niw4OCwxNjYsMjUyLDYyLDk5LDU4LDM0LDUxLDE1Nyw5NiwyMjEsMjE1LDIwMSwxOTcsODYsOTksMTI1LDIxMSw2Niw0MCw0MiwyNDYsMTgzLDg1XX0="
 }
 ```
 
