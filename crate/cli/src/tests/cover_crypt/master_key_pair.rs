@@ -61,14 +61,14 @@ pub(crate) async fn test_create_master_key_pair() -> CliResult<()> {
     create_cc_master_key_pair(
         &ctx.owner_client_conf_path,
         "--policy-specifications",
-        "test_data/policy_specifications.json",
+        "../../test_data/policy_specifications.json",
         &[],
     )?;
     //from binary
     create_cc_master_key_pair(
         &ctx.owner_client_conf_path,
         "--policy-binary",
-        "test_data/policy.bin",
+        "../../test_data/policy.bin",
         &[],
     )?;
     Ok(())
@@ -81,7 +81,7 @@ pub(crate) async fn test_create_master_key_pair_error() -> CliResult<()> {
     let err = create_cc_master_key_pair(
         &ctx.owner_client_conf_path,
         "--policy-specifications",
-        "test_data/notfound.json",
+        "../../test_data/notfound.json",
         &[],
     )
     .err()
@@ -91,7 +91,7 @@ pub(crate) async fn test_create_master_key_pair_error() -> CliResult<()> {
     let err = create_cc_master_key_pair(
         &ctx.owner_client_conf_path,
         "--policy-binary",
-        "test_data/policy.bad",
+        "../../test_data/policy.bad",
         &[],
     )
     .err()

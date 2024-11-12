@@ -62,7 +62,7 @@ pub(crate) async fn test_import_export_wrap_rfc_5649() -> CliResult<()> {
     let (private_key_id, _public_key_id) = create_cc_master_key_pair(
         &ctx.owner_client_conf_path,
         "--policy-specifications",
-        "test_data/policy_specifications.json",
+        "../../test_data/policy_specifications.json",
         &[],
     )?;
     test_import_export_wrap_private_key(
@@ -152,7 +152,7 @@ pub(crate) async fn test_import_export_wrap_ecies() -> CliResult<()> {
     let (private_key_id, _public_key_id) = create_cc_master_key_pair(
         &ctx.owner_client_conf_path,
         "--policy-specifications",
-        "test_data/policy_specifications.json",
+        "../../test_data/policy_specifications.json",
         &[],
     )?;
     test_import_export_wrap_private_key(

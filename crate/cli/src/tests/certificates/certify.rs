@@ -125,7 +125,7 @@ pub(crate) fn import_root_and_intermediate(
     let root_ca_id = import_certificate(ImportCertificateInput {
         cli_conf_path: &ctx.owner_client_conf_path,
         sub_command: "certificates",
-        key_file: "test_data/certificates/csr/ca.crt",
+        key_file: "../../test_data/certificates/csr/ca.crt",
         format: &CertificateInputFormat::Pem,
         certificate_id: Some(Uuid::new_v4().to_string()),
         replace_existing: true,
@@ -136,7 +136,7 @@ pub(crate) fn import_root_and_intermediate(
     let intermediate_ca_id = import_certificate(ImportCertificateInput {
         cli_conf_path: &ctx.owner_client_conf_path,
         sub_command: "certificates",
-        key_file: "test_data/certificates/csr/intermediate.crt",
+        key_file: "../../test_data/certificates/csr/intermediate.crt",
         format: &CertificateInputFormat::Pem,
         certificate_id: Some(Uuid::new_v4().to_string()),
         tags: Some(&["root_ca"]),
@@ -148,7 +148,7 @@ pub(crate) fn import_root_and_intermediate(
     let intermediate_ca_private_key_id = import_certificate(ImportCertificateInput {
         cli_conf_path: &ctx.owner_client_conf_path,
         sub_command: "certificates",
-        key_file: "test_data/certificates/csr/intermediate.p12",
+        key_file: "../../test_data/certificates/csr/intermediate.p12",
         format: &CertificateInputFormat::Pkcs12,
         pkcs12_password: Some("secret"),
         certificate_id: Some(Uuid::new_v4().to_string()),
@@ -398,7 +398,7 @@ async fn test_certify_a_csr_without_extensions() -> CliResult<()> {
     let certificate_id = certify(
         &ctx.owner_client_conf_path,
         CertifyOp {
-            csr_file: Some("test_data/certificates/csr/leaf.csr".to_owned()),
+            csr_file: Some("../../test_data/certificates/csr/leaf.csr".to_owned()),
             issuer_private_key_id: Some(issuer_private_key_id.clone()),
             tags: Some(vec!["certify_a_csr_we_test".to_owned()]),
             ..Default::default()
@@ -431,10 +431,12 @@ async fn test_certify_a_csr_with_extensions() -> CliResult<()> {
     let certificate_id = certify(
         &ctx.owner_client_conf_path,
         CertifyOp {
-            csr_file: Some("test_data/certificates/csr/leaf.csr".to_owned()),
+            csr_file: Some("../../test_data/certificates/csr/leaf.csr".to_owned()),
             issuer_private_key_id: Some(issuer_private_key_id.clone()),
             tags: Some(vec!["certify_a_csr_test".to_owned()]),
-            certificate_extensions: Some(PathBuf::from("test_data/certificates/openssl/ext.cnf")),
+            certificate_extensions: Some(PathBuf::from(
+                "../../test_data/certificates/openssl/ext.cnf",
+            )),
             ..Default::default()
         },
     )?;
@@ -522,7 +524,9 @@ async fn test_certify_a_public_key_test_with_extensions() -> CliResult<()> {
             subject_name: Some(
                 "C = FR, ST = IdF, L = Paris, O = AcmeTest, CN = Test Leaf".to_owned(),
             ),
-            certificate_extensions: Some(PathBuf::from("test_data/certificates/openssl/ext.cnf")),
+            certificate_extensions: Some(PathBuf::from(
+                "../../test_data/certificates/openssl/ext.cnf",
+            )),
             ..Default::default()
         },
     )?;
@@ -561,7 +565,7 @@ async fn test_certify_renew_a_certificate() -> CliResult<()> {
     let certificate_id = certify(
         &ctx.owner_client_conf_path,
         CertifyOp {
-            csr_file: Some("test_data/certificates/csr/leaf.csr".to_owned()),
+            csr_file: Some("../../test_data/certificates/csr/leaf.csr".to_owned()),
             issuer_private_key_id: Some(issuer_private_key_id.clone()),
             tags: Some(vec!["certify_a_csr_test".to_owned()]),
             ..Default::default()

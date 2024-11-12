@@ -84,7 +84,7 @@ async fn test_rekey_error() -> CliResult<()> {
     let (master_private_key_id, _master_public_key_id) = create_cc_master_key_pair(
         &ctx.owner_client_conf_path,
         "--policy-specifications",
-        "test_data/policy_specifications.json",
+        "../../test_data/policy_specifications.json",
         &[],
     )?;
     let _user_decryption_key = create_user_decryption_key(
@@ -165,7 +165,7 @@ async fn test_rekey_prune() -> CliResult<()> {
     let tmp_dir = TempDir::new()?;
     let tmp_path = tmp_dir.path();
 
-    let input_file = PathBuf::from("test_data/plain.txt");
+    let input_file = PathBuf::from("../../test_data/plain.txt");
     let output_file_before = tmp_path.join("plain.before.enc");
     let output_file_after = tmp_path.join("plain.after.enc");
     let recovered_file = tmp_path.join("plain.txt");
@@ -174,7 +174,7 @@ async fn test_rekey_prune() -> CliResult<()> {
     let (master_private_key_id, master_public_key_id) = create_cc_master_key_pair(
         &ctx.owner_client_conf_path,
         "--policy-specifications",
-        "test_data/policy_specifications.json",
+        "../../test_data/policy_specifications.json",
         &[],
     )?;
     let user_decryption_key = create_user_decryption_key(

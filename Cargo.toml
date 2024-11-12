@@ -1,5 +1,5 @@
 [workspace]
-default-members = ["crate/server", "crate/cli", "crate/pkcs11/provider"]
+default-members = ["crate/cli", "crate/server", "crate/pkcs11/provider"]
 members = [
   "crate/access",
   "crate/cli",

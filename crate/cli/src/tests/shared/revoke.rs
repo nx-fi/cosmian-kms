@@ -153,7 +153,7 @@ async fn test_revoke_cover_crypt() -> CliResult<()> {
         let (master_private_key_id, master_public_key_id) = create_cc_master_key_pair(
             &ctx.owner_client_conf_path,
             "--policy-specifications",
-            "test_data/policy_specifications.json",
+            "../../test_data/policy_specifications.json",
             &[],
         )?;
 
@@ -190,7 +190,7 @@ async fn test_revoke_cover_crypt() -> CliResult<()> {
         let (master_private_key_id, master_public_key_id) = create_cc_master_key_pair(
             &ctx.owner_client_conf_path,
             "--policy-specifications",
-            "test_data/policy_specifications.json",
+            "../../test_data/policy_specifications.json",
             &[],
         )?;
 
@@ -227,7 +227,7 @@ async fn test_revoke_cover_crypt() -> CliResult<()> {
         let (master_private_key_id, master_public_key_id) = create_cc_master_key_pair(
             &ctx.owner_client_conf_path,
             "--policy-specifications",
-            "test_data/policy_specifications.json",
+            "../../test_data/policy_specifications.json",
             &[],
         )?;
 

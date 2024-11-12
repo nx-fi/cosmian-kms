@@ -47,7 +47,7 @@ pub(crate) async fn test_bad_conf() -> CliResult<()> {
     cmd.assert().success();
 
     let mut cmd = Command::cargo_bin(PROG_NAME)?;
-    cmd.env(KMS_CLI_CONF_ENV, "test_data/configs/kms.bad");
+    cmd.env(KMS_CLI_CONF_ENV, "../../test_data/configs/kms.bad");
 
     cmd.arg("ec").args(vec!["keys", "create"]);
     recover_cmd_logs(&mut cmd);
@@ -69,7 +69,10 @@ pub(crate) async fn test_secrets_group_id_bad() -> CliResult<()> {
     }
 
     let mut cmd = Command::cargo_bin(PROG_NAME)?;
-    cmd.env(KMS_CLI_CONF_ENV, "test_data/configs/kms_bad_secret.bad");
+    cmd.env(
+        KMS_CLI_CONF_ENV,
+        "../../test_data/configs/kms_bad_secret.bad",
+    );
 
     cmd.arg("ec").args(vec!["keys", "create"]);
     recover_cmd_logs(&mut cmd);

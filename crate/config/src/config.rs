@@ -235,14 +235,14 @@ mod tests {
         log_init(None);
         // valid conf
         unsafe {
-            env::set_var(KMS_CLI_CONF_ENV, "test_data/configs/kms.json");
+            env::set_var(KMS_CLI_CONF_ENV, "../../test_data/configs/kms.json");
         }
         let conf_path = KmsClientConfig::location(None).unwrap();
         assert!(KmsClientConfig::load(&conf_path).is_ok());
 
         // another valid conf
         unsafe {
-            env::set_var(KMS_CLI_CONF_ENV, "test_data/configs/kms_partial.json");
+            env::set_var(KMS_CLI_CONF_ENV, "../../test_data/configs/kms_partial.json");
         }
         let conf_path = KmsClientConfig::location(None).unwrap();
         assert!(KmsClientConfig::load(&conf_path).is_ok());
@@ -258,7 +258,7 @@ mod tests {
 
         // invalid conf
         unsafe {
-            env::set_var(KMS_CLI_CONF_ENV, "test_data/configs/kms.bad");
+            env::set_var(KMS_CLI_CONF_ENV, "../../test_data/configs/kms.bad");
         }
         let conf_path = KmsClientConfig::location(None).unwrap();
         let e = KmsClientConfig::load(&conf_path).err().unwrap().to_string();
@@ -269,7 +269,8 @@ mod tests {
             env::remove_var(KMS_CLI_CONF_ENV);
         }
         let conf_path =
-            KmsClientConfig::location(Some(PathBuf::from("test_data/configs/kms.json"))).unwrap();
+            KmsClientConfig::location(Some(PathBuf::from("../../test_data/configs/kms.json")))
+                .unwrap();
         assert!(KmsClientConfig::load(&conf_path).is_ok());
     }
 }

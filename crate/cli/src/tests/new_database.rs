@@ -80,7 +80,10 @@ pub(crate) async fn test_conf_does_not_exist() -> CliResult<()> {
     }
 
     let mut cmd = Command::cargo_bin(PROG_NAME)?;
-    cmd.env(KMS_CLI_CONF_ENV, "test_data/configs/kms_bad_group_id.bad");
+    cmd.env(
+        KMS_CLI_CONF_ENV,
+        "../../test_data/configs/kms_bad_group_id.bad",
+    );
 
     cmd.arg("ec").args(vec!["keys", "create"]);
     let output = recover_cmd_logs(&mut cmd);

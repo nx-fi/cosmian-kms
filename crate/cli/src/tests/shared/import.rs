@@ -108,7 +108,7 @@ pub(crate) async fn test_import_cover_crypt() -> CliResult<()> {
     let import_params = ImportKeyParams {
         cli_conf_path: ctx.owner_client_conf_path.clone(),
         sub_command: "cc".to_string(),
-        key_file: "test_data/ttlv_public_key.json".to_string(),
+        key_file: "../../test_data/ttlv_public_key.json".to_string(),
         ..Default::default()
     };
 
@@ -120,7 +120,7 @@ pub(crate) async fn test_import_cover_crypt() -> CliResult<()> {
         import_key(ImportKeyParams {
             cli_conf_path: ctx.owner_client_conf_path.clone(),
             sub_command: "cc".to_string(),
-            key_file: "test_data/ttlv_public_key.json".to_string(),
+            key_file: "../../test_data/ttlv_public_key.json".to_string(),
             key_id: Some(uid.clone()),
             ..Default::default()
         })
@@ -131,7 +131,7 @@ pub(crate) async fn test_import_cover_crypt() -> CliResult<()> {
     let uid_: String = import_key(ImportKeyParams {
         cli_conf_path: ctx.owner_client_conf_path.clone(),
         sub_command: "cc".to_string(),
-        key_file: "test_data/ttlv_public_key.json".to_string(),
+        key_file: "../../test_data/ttlv_public_key.json".to_string(),
         key_id: Some(uid.clone()),
         replace_existing: true,
         ..Default::default()
@@ -151,7 +151,7 @@ pub(crate) async fn test_generate_export_import() -> CliResult<()> {
     let (private_key_id, _public_key_id) = create_cc_master_key_pair(
         &ctx.owner_client_conf_path,
         "--policy-specifications",
-        "test_data/policy_specifications.json",
+        "../../test_data/policy_specifications.json",
         &[],
     )?;
     export_import_test(

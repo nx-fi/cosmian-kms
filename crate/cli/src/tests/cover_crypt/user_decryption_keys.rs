@@ -57,7 +57,7 @@ pub(crate) async fn test_user_decryption_key() -> CliResult<()> {
     let (master_private_key_id, _) = create_cc_master_key_pair(
         &ctx.owner_client_conf_path,
         "--policy-specifications",
-        "test_data/policy_specifications.json",
+        "../../test_data/policy_specifications.json",
         &[],
     )?;
 
@@ -81,7 +81,7 @@ pub(crate) async fn test_user_decryption_key_error() -> CliResult<()> {
     let (master_private_key_id, _) = create_cc_master_key_pair(
         &ctx.owner_client_conf_path,
         "--policy-specifications",
-        "test_data/policy_specifications.json",
+        "../../test_data/policy_specifications.json",
         &[],
     )?;
 

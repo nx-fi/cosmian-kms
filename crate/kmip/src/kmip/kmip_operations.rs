@@ -1713,41 +1713,9 @@ impl Display for RevokeResponse {
 ///
 ///
 ///
-///
-///
-///
-///
-///
-///
-///
-///
-///
-///
-///
-///
-///
-///
-///
-///
-///
-///
-///
-///
-///
-///
-///
-///
-///
-///
-///
-///
-///
 /// As the replacement key takes over the name attribute of the existing key, Re-key SHOULD only be performed once on a given key.
-///
 /// The server SHALL copy the Unique Identifier of the replacement key returned by this operation into the ID Placeholder variable.
-///
 /// For the existing key, the server SHALL create a Link attribute of Link Type Replacement Object pointing to the replacement key. For the replacement key, the server SHALL create a Link attribute of Link Type Replaced Key pointing to the existing key.
-///
 /// An Offset MAY be used to indicate the difference between the Initial Date and the Activation Date of the replacement key. If no Offset is specified, the Activation Date, Process Start Date, Protect Stop Date and Deactivation Date values are copied from the existing key.
 #[derive(Serialize, Deserialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "PascalCase")]

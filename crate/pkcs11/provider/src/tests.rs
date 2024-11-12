@@ -84,7 +84,7 @@ async fn load_p12() -> Result<String, Pkcs11Error> {
     let ctx = start_default_test_kms_server().await;
 
     let kms_client = KmsClient::new(ctx.owner_client_conf.clone())?;
-    let p12_bytes = include_bytes!("../test_data/certificate.p12");
+    let p12_bytes = include_bytes!("../../../../test_data/pkcs11/certificate.p12");
 
     let p12_sk = Object::PrivateKey {
         key_block: KeyBlock {

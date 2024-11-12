@@ -139,7 +139,7 @@ pub(crate) async fn test_password_wrap_import() -> CliResult<()> {
     let (private_key_id, _public_key_id) = create_cc_master_key_pair(
         &ctx.owner_client_conf_path,
         "--policy-specifications",
-        "test_data/policy_specifications.json",
+        "../../test_data/policy_specifications.json",
         &[],
     )?;
     password_wrap_import_test(ctx, "cc", &private_key_id)?;
