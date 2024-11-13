@@ -25,6 +25,7 @@ mod extra_store_params;
 pub(crate) mod redis;
 mod sqlite;
 
+pub(crate) mod hsm;
 pub use extra_store_params::ExtraStoreParams;
 pub(crate) use sqlite::SqlitePool;
 

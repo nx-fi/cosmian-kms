@@ -7,8 +7,8 @@ use cloudproof::reexport::crypto_core::FixedSizeCBytes;
 use cosmian_kmip::crypto::secret::Secret;
 use tokio::sync::RwLock;
 
-mod objects;
-mod permissions;
+mod database_objects;
+mod database_permissions;
 
 mod db_params;
 pub use db_params::DbParams;
@@ -16,14 +16,17 @@ mod object_with_metadata;
 mod unwrapped_cache;
 
 pub use object_with_metadata::ObjectWithMetadata;
+use proteccio_pkcs11_loader::Proteccio;
 
 pub use crate::core::unwrapped_cache::{CachedUnwrappedObject, UnwrappedCache};
+pub(crate) use crate::stores::hsm::HsmStore;
 use crate::{
+    core::db_params::{AdditionalObjectStoresParams, MainDbParams},
     stores::{
         CachedSqlCipher, MySqlPool, ObjectsStore, PermissionsStore, PgPool, RedisWithFindex,
         SqlitePool, REDIS_WITH_FINDEX_MASTER_KEY_LENGTH,
     },
-    DbResult,
+    DbResult, ExtraStoreParams,
 };
 
 /// The `Database` struct represents the core database functionalities, including object management,
@@ -42,26 +45,49 @@ pub struct Database {
 
 impl Database {
     pub async fn instantiate(db_params: &DbParams, clear_db_on_start: bool) -> DbResult<Self> {
-        Ok(match db_params {
-            DbParams::Sqlite(db_path) => {
+        // main dabasee
+        let db = Self::instantiate_main_database(db_params, clear_db_on_start).await?;
+        for extra_store in db_params.additional_stores() {
+            match extra_store {
+                AdditionalObjectStoresParams::ProteccioHsm((prefix, hsm_admin, slot_passwords)) => {
+                    let hsm = Arc::new(HsmStore::new(
+                        Box::new(Proteccio::instantiate(
+                            "/lib/libnethsm.so",
+                            slot_passwords.clone(),
+                        )?),
+                        hsm_admin.clone(),
+                    ));
+                    db.register_objects_store(prefix, hsm).await;
+                }
+            }
+        }
+        Ok(db)
+    }
+
+    async fn instantiate_main_database(
+        db_params: &DbParams,
+        clear_db_on_start: bool,
+    ) -> DbResult<Database> {
+        Ok(match db_params.main_database() {
+            MainDbParams::Sqlite(db_path) => {
                 let db = Arc::new(
                     SqlitePool::instantiate(&db_path.join("kms.db"), clear_db_on_start).await?,
                 );
                 Database::new(db.clone(), db)
             }
-            DbParams::SqliteEnc(db_path) => {
+            MainDbParams::SqliteEnc(db_path) => {
                 let db = Arc::new(CachedSqlCipher::instantiate(&*db_path, clear_db_on_start)?);
                 Database::new(db.clone(), db)
             }
-            DbParams::Postgres(url) => {
+            MainDbParams::Postgres(url) => {
                 let db = Arc::new(PgPool::instantiate(url.as_str(), clear_db_on_start).await?);
                 Database::new(db.clone(), db)
             }
-            DbParams::Mysql(url) => {
+            MainDbParams::Mysql(url) => {
                 let db = Arc::new(MySqlPool::instantiate(url.as_str(), clear_db_on_start).await?);
                 Database::new(db.clone(), db)
             }
-            DbParams::RedisFindex(url, master_key, label) => {
+            MainDbParams::RedisFindex(url, master_key, label) => {
                 // There is no reason to keep a copy of the key in the shared config
                 // So we are going to create a "zeroizable" copy which will be passed to Redis with Findex
                 // and zeroize the one in the shared config

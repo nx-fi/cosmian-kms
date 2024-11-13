@@ -8,7 +8,6 @@ use base64::{
     engine::general_purpose::{self, STANDARD as b64},
     Engine as _,
 };
-use cosmian_hsm_traits::HSM;
 use cosmian_kmip::{
     crypto::secret::Secret,
     kmip::{
@@ -52,9 +51,6 @@ pub struct KMS {
     ///    Objects are spread across the underlying stores based on their ID prefix.
     /// - the permissions store that stores the permissions granted to users on the objects
     pub(crate) database: Database,
-
-    //TODO refactor this into ObjectStore
-    pub(crate) hsm: Option<Box<dyn HSM + Sync + Send>>,
 }
 
 /// Implement the KMIP Server operations and dispatches the actual actions
@@ -72,7 +68,7 @@ impl KMS {
     /// generating the new database or key.
     pub(crate) async fn add_new_database(&self) -> KResult<String> {
         if let DbParams::SqliteEnc(_) = self.params.db_params.as_ref().ok_or_else(|| {
-            kms_error!("Unexpected fatal error: no database configured on the KMS server")
+            kms_error!("Unexpected fatal error: nodatabase configured on the KMS server")
         })? {
             // Generate a new group id
             let uid: u128 = loop {

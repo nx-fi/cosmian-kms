@@ -4,6 +4,7 @@ use cloudproof::reexport::crypto_core::CryptoCoreError;
 use cloudproof_findex::implementations::redis::FindexRedisError;
 use cosmian_hsm_traits::HsmError;
 use cosmian_kmip::{kmip::kmip_operations::ErrorReason, KmipError};
+use proteccio_pkcs11_loader::PError;
 use redis::ErrorKind;
 use thiserror::Error;
 
@@ -77,6 +78,9 @@ pub enum DbError {
 
     #[error("HSM error: {0}")]
     Hsm(String),
+
+    #[error("Proteccio error: {0}")]
+    Proteccio(String),
 
     // Any errors on KMIP format due to mistake of the user
     #[error("{0}: {1}")]
@@ -175,5 +179,10 @@ impl From<KmipError> for DbError {
             | KmipError::ConversionError(s)
             | KmipError::ObjectNotFound(s) => Self::NotSupported(s),
         }
+    }
+}
+impl From<PError> for DbError {
+    fn from(value: PError) -> Self {
+        Self::Proteccio(value.to_string())
     }
 }

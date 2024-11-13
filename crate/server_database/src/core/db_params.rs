@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fmt::{self, Display},
     path::PathBuf,
 };
@@ -9,7 +10,37 @@ use url::Url;
 
 use crate::REDIS_WITH_FINDEX_MASTER_KEY_LENGTH;
 
-pub enum DbParams {
+pub struct DbParams {
+    main_database: MainDbParams,
+    additional_stores: Vec<AdditionalObjectStoresParams>,
+}
+impl DbParams {
+    /// Create a new `DbParams` instance
+    #[must_use]
+    pub const fn new(
+        main_database: MainDbParams,
+        additional_stores: Vec<AdditionalObjectStoresParams>,
+    ) -> Self {
+        Self {
+            main_database,
+            additional_stores,
+        }
+    }
+
+    /// Return the main database parameters
+    #[must_use]
+    pub const fn main_database(&self) -> &MainDbParams {
+        &self.main_database
+    }
+
+    /// Return the additional stores parameters
+    #[must_use]
+    pub fn additional_stores(&self) -> &[AdditionalObjectStoresParams] {
+        &self.additional_stores
+    }
+}
+
+pub enum MainDbParams {
     /// contains the dir of the sqlite db file (not the db file itself)
     Sqlite(PathBuf),
     /// contains the dir of the sqlcipher db file (not the db file itself)
@@ -29,7 +60,7 @@ pub enum DbParams {
     ),
 }
 
-impl DbParams {
+impl MainDbParams {
     /// Return the name of the database type
     #[must_use]
     pub const fn db_name(&self) -> &str {
@@ -43,7 +74,7 @@ impl DbParams {
     }
 }
 
-impl Display for DbParams {
+impl Display for MainDbParams {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Sqlite(path) => write!(f, "sqlite: {}", path.display()),
@@ -78,8 +109,13 @@ fn redact_url(original: &Url) -> Url {
     url
 }
 
-impl fmt::Debug for DbParams {
+impl fmt::Debug for MainDbParams {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_fmt(format_args!("{}", &self))
     }
+}
+
+pub enum AdditionalObjectStoresParams {
+    /// Proteccio HSM: the Object UIDs prefix, HSM admin username and the slot passwords
+    ProteccioHsm((String, String, HashMap<usize, Option<String>>)),
 }

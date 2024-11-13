@@ -86,9 +86,6 @@ pub enum KmsError {
     #[error("Invalid URL: {0}")]
     UrlError(String),
 
-    #[error("HSM error: {0}")]
-    Hsm(String),
-
     #[error("{0}")]
     Default(String),
 }
@@ -257,18 +254,6 @@ impl From<base64::DecodeError> for KmsError {
 impl From<tracing::dispatcher::SetGlobalDefaultError> for KmsError {
     fn from(e: tracing::dispatcher::SetGlobalDefaultError) -> Self {
         Self::ServerError(e.to_string())
-    }
-}
-
-impl From<PError> for KmsError {
-    fn from(value: PError) -> Self {
-        Self::Hsm(value.to_string())
-    }
-}
-
-impl From<HsmError> for KmsError {
-    fn from(value: HsmError) -> Self {
-        Self::Hsm(value.to_string())
     }
 }
 

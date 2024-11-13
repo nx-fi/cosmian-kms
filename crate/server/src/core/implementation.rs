@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 
 use cloudproof::reexport::cover_crypt::Covercrypt;
 use cosmian_hsm_traits::HSM;
@@ -26,13 +26,15 @@ use crate::{config::ServerParams, error::KmsError, kms_bail, result::KResult};
 
 impl KMS {
     pub(crate) async fn instantiate(server_params: ServerParams) -> KResult<Self> {
-        let store = Database::instantiate(
+        let database = Database::instantiate(
             server_params.db_params.as_ref().ok_or_else(|| {
                 KmsError::InvalidRequest("The database parameters are not specified".to_owned())
             })?,
             server_params.clear_db_on_start,
         )
         .await?;
+
+        database.register_objects_store("hsm", Arc::new(Proteccio::default()));
 
         // Check if we have Proteccio HSM
         let hsm: Option<Box<dyn HSM + Sync + Send>> =
@@ -58,7 +60,7 @@ impl KMS {
 
         Ok(Self {
             params: server_params,
-            database: store,
+            database,
             hsm,
         })
     }
