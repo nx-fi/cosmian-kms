@@ -296,7 +296,7 @@ async fn test_encrypt_decrypt_using_tags() -> CliResult<()> {
 
     let input_file = PathBuf::from("test_data/plain.txt");
     let output_file = tmp_path.join("plain.enc");
-    let _recovered_file = tmp_path.join("plain.txt");
+    let recovered_file = tmp_path.join("plain.txt");
 
     fs::remove_file(&output_file).ok();
     assert!(!output_file.exists());
@@ -318,27 +318,30 @@ async fn test_encrypt_decrypt_using_tags() -> CliResult<()> {
     )?;
 
     // create a user decryption key
-    let _user_ok_key_id = create_user_decryption_key(
+    let user_ok_key_id = create_user_decryption_key(
         &ctx.owner_client_conf_path,
         "[\"tag\"]",
         "(Department::MKG || Department::FIN) && Security Level::Top Secret",
         &["tag"],
     )?;
-    //
-    // // the user key should be able to decrypt the file
-    // decrypt(
-    //     &ctx.owner_client_conf_path,
-    //     &[output_file.to_str().unwrap()],
-    //     "[\"tag\"]",
-    //     Some(recovered_file.to_str().unwrap()),
-    //     Some("myid"),
-    // )?;
-    // assert!(recovered_file.exists());
-    //
-    // let original_content = read_bytes_from_file(&input_file)?;
-    // let recovered_content = read_bytes_from_file(&recovered_file)?;
-    // assert_eq!(original_content, recovered_content);
-    //
+
+    // the user key should be able to decrypt the file
+    decrypt(
+        &ctx.owner_client_conf_path,
+        &[output_file.to_str().unwrap()],
+        "[\"tag\"]",
+        Some(recovered_file.to_str().unwrap()),
+        Some("myid"),
+    )?;
+    assert!(recovered_file.exists());
+
+    let original_content = read_bytes_from_file(&input_file)?;
+    let recovered_content = read_bytes_from_file(&recovered_file)?;
+    assert_eq!(original_content, recovered_content);
+
+    //TODO Left here but this has become undefined behavior in the new version:
+    //TODO if the first key found is the correct one, decryption will work, else it will fail
+
     // // decrypt fails because two keys with same tag exist
     // let _user_ko_key_id = create_user_decryption_key(
     //     &ctx.owner_client_conf_path,
@@ -356,36 +359,36 @@ async fn test_encrypt_decrypt_using_tags() -> CliResult<()> {
     //     )
     //     .is_err()
     // );
-    //
-    // // this user key should not be able to decrypt the file
-    // let _user_ko_key_id = create_user_decryption_key(
-    //     &ctx.owner_client_conf_path,
-    //     "[\"tag\"]",
-    //     "Department::FIN && Security Level::Top Secret",
-    //     &["tag_ko"],
-    // )?;
-    // assert!(
-    //     decrypt(
-    //         &ctx.owner_client_conf_path,
-    //         &[output_file.to_str().unwrap()],
-    //         "[\"tag_ko\"]",
-    //         Some(recovered_file.to_str().unwrap()),
-    //         Some("myid"),
-    //     )
-    //     .is_err()
-    // );
-    //
-    // fs::remove_file(&recovered_file).ok();
-    // assert!(!recovered_file.exists());
-    // // the user key should be able to decrypt the file
-    // decrypt(
-    //     &ctx.owner_client_conf_path,
-    //     &[output_file.to_str().unwrap()],
-    //     &user_ok_key_id,
-    //     Some(recovered_file.to_str().unwrap()),
-    //     Some("myid"),
-    // )?;
-    // assert!(recovered_file.exists());
+
+    // this user key should not be able to decrypt the file
+    let _user_ko_key_id = create_user_decryption_key(
+        &ctx.owner_client_conf_path,
+        "[\"tag\"]",
+        "Department::FIN && Security Level::Top Secret",
+        &["tag_ko"],
+    )?;
+    assert!(
+        decrypt(
+            &ctx.owner_client_conf_path,
+            &[output_file.to_str().unwrap()],
+            "[\"tag_ko\"]",
+            Some(recovered_file.to_str().unwrap()),
+            Some("myid"),
+        )
+        .is_err()
+    );
+
+    fs::remove_file(&recovered_file).ok();
+    assert!(!recovered_file.exists());
+    // the user key should be able to decrypt the file
+    decrypt(
+        &ctx.owner_client_conf_path,
+        &[output_file.to_str().unwrap()],
+        &user_ok_key_id,
+        Some(recovered_file.to_str().unwrap()),
+        Some("myid"),
+    )?;
+    assert!(recovered_file.exists());
 
     Ok(())
 }
@@ -480,23 +483,26 @@ async fn test_encrypt_decrypt_bulk_using_tags() -> CliResult<()> {
     let recovered_content = read_bytes_from_file(&recovered_file3)?;
     assert_eq!(original_content, recovered_content);
 
-    // decrypt fails because two keys with same tag exist
-    let _user_ko_key_id = create_user_decryption_key(
-        &ctx.owner_client_conf_path,
-        "[\"tag_bulk\"]",
-        "Department::FIN && Security Level::Top Secret",
-        &["tag_bulk"],
-    )?;
-    assert!(
-        decrypt(
-            &ctx.owner_client_conf_path,
-            &[output_file1.to_str().unwrap()],
-            "[\"tag_bulk\"]",
-            Some(recovered_file1.to_str().unwrap()),
-            Some("myid"),
-        )
-        .is_err()
-    );
+    //TODO Left here but this has become undefined behavior in the new version:
+    //TODO if the first key found is the correct one, decryption will work, else it will fail
+
+    // // decrypt fails because two keys with same tag exist
+    // let _user_ko_key_id = create_user_decryption_key(
+    //     &ctx.owner_client_conf_path,
+    //     "[\"tag_bulk\"]",
+    //     "Department::FIN && Security Level::Top Secret",
+    //     &["tag_bulk"],
+    // )?;
+    // assert!(
+    //     decrypt(
+    //         &ctx.owner_client_conf_path,
+    //         &[output_file1.to_str().unwrap()],
+    //         "[\"tag_bulk\"]",
+    //         Some(recovered_file1.to_str().unwrap()),
+    //         Some("myid"),
+    //     )
+    //     .is_err()
+    // );
 
     // Test encrypted files have their own encrypted header
     // along the data and can be decrypted alone

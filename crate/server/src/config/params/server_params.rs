@@ -108,9 +108,12 @@ impl ServerParams {
             .hsm_slot
             .iter()
             .zip(&conf.hsm_password)
-            .into_iter()
             .map(|(s, p)| {
-                let password = if p == "" { None } else { Some(p.to_string()) };
+                let password = if p.is_empty() {
+                    None
+                } else {
+                    Some(p.to_string())
+                };
                 (*s, password)
             })
             .collect();
@@ -132,7 +135,7 @@ impl ServerParams {
             hsm_model: if slot_passwords.is_empty() {
                 None
             } else {
-                Some(conf.hsm_model.clone())
+                Some(conf.hsm_model)
             },
             slot_passwords,
         })
@@ -253,8 +256,8 @@ impl Clone for ServerParams {
             slot_passwords: self
                 .slot_passwords
                 .clone()
-                .into_iter()
-                .map(|(s, _p)| (s, None))
+                .into_keys()
+                .map(|s| (s, None))
                 .collect(),
         }
     }

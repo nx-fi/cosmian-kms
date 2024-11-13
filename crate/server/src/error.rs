@@ -278,9 +278,9 @@ impl From<DbError> for KmsError {
     }
 }
 
-impl Into<DbError> for KmsError {
-    fn into(self) -> DbError {
-        DbError::Default(self.to_string())
+impl From<KmsError> for DbError {
+    fn from(value: KmsError) -> Self {
+        Self::Default(value.to_string())
     }
 }
 
@@ -354,10 +354,9 @@ mod tests {
 
     fn bail() -> Result<(), KmsError> {
         let var = 43;
-        if true {
+        {
             kms_bail!("interpolate {var}");
         }
-        Ok(())
     }
 
     fn ensure() -> Result<(), KmsError> {

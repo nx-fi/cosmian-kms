@@ -47,7 +47,7 @@ pub(crate) async fn create_key_pair(
                 .as_ref()
                 .and_then(|attrs| attrs.unique_identifier.as_ref())
         })
-        .map(|x| x.to_string())
+        .map(ToString::to_string)
     {
         if uid.starts_with("hsm::") {
             return if let Some(hsm) = &kms.hsm {
@@ -56,7 +56,7 @@ pub(crate) async fn create_key_pair(
                         "Only the Super Admin can create HSM objects".to_owned(),
                     ));
                 }
-                create_hsm_keypair(&request, hsm, &uid).await
+                create_hsm_keypair(&request, &**hsm, &uid).await
             } else {
                 Err(KmsError::NotSupported(
                     "This server does not support HSM operations".to_owned(),
@@ -70,7 +70,7 @@ pub(crate) async fn create_key_pair(
 
 async fn create_hsm_keypair(
     request: &CreateKeyPair,
-    hsm: &Box<dyn HSM + Send + Sync>,
+    hsm: &(dyn HSM + Send + Sync),
     uid: &str,
 ) -> KResult<CreateKeyPairResponse> {
     // try converting the rest of the uid into a slot_id
@@ -85,7 +85,7 @@ async fn create_hsm_keypair(
     let attributes = request
         .private_key_attributes
         .as_ref()
-        .or_else(|| request.common_attributes.as_ref())
+        .or(request.common_attributes.as_ref())
         .ok_or_else(|| {
             KmsError::InvalidRequest(
                 "Attributes must be provided in a CreateKeyPair request".to_owned(),
@@ -116,7 +116,7 @@ async fn create_hsm_keypair(
         .create_keypair(
             slot_id,
             HsmKeypairAlgorithm::RSA,
-            *key_length as usize,
+            usize::try_from(*key_length)?,
             tags.contains("exportable"),
             label.as_str(),
         )

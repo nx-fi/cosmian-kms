@@ -754,7 +754,7 @@ impl KMS {
                     let secrets = req_http
                         .headers()
                         .get("KmsDatabaseSecret")
-                        .and_then(|h| h.to_str().ok().map(std::string::ToString::to_string))
+                        .and_then(|h| h.to_str().ok().map(ToString::to_string))
                         .ok_or_else(|| {
                             KmsError::Unauthorized(
                                 "Missing KmsDatabaseSecret header in the query".to_owned(),
@@ -780,9 +780,15 @@ impl KMS {
         )
     }
 
-    /// Unwrap the object (if need be) and return the unwrapped object
-    /// The unwrapped object is cached in memory
-    //TODO refactor unwrap_key() to use the permissions store
+    /// Unwrap the object (if need be) and return the unwrapped object.
+    /// The unwrapped object is cached in memory.
+    /// # Arguments
+    /// * `uid` - The unique identifier of the object
+    /// * `object` - The object to unwrap
+    /// * `user` - The user requesting the unwrapped object
+    /// * `params` - Extra parameters for the store
+    /// # Errors
+    /// If the object is not a key object
     pub async fn get_unwrapped(
         &self,
         uid: &str,
@@ -819,7 +825,7 @@ impl KMS {
             }
         }
 
-        // local async future unwrap the object
+        // local async future that unwraps the object
         let unwrap_local = async {
             let key_signature = object.key_signature()?;
             let mut unwrapped_object = object.clone();

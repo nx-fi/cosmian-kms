@@ -59,7 +59,7 @@ pub(crate) async fn rekey_keypair(
         if let Ok(attributes) = owm.object().attributes() {
             if attributes.key_format_type == Some(KeyFormatType::CoverCryptSecretKey) {
                 // a master key should have policies in the attributes
-                if !policy_from_attributes(attributes).is_ok() {
+                if policy_from_attributes(attributes).is_err() {
                     continue
                 }
             }

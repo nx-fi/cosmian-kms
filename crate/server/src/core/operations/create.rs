@@ -25,7 +25,7 @@ pub(crate) async fn create(
         .attributes
         .unique_identifier
         .as_ref()
-        .map(|x| x.to_string())
+        .map(ToString::to_string)
     {
         if uid.starts_with("hsm::") {
             return if let Some(hsm) = &kms.hsm {
@@ -34,7 +34,7 @@ pub(crate) async fn create(
                         "Only the Super Admin can create HSM objects".to_owned(),
                     ));
                 }
-                create_hsm_key(&request, hsm, &uid).await
+                create_hsm_key(&request, &**hsm, &uid).await
             } else {
                 Err(KmsError::NotSupported(
                     "This server does not support HSM operations".to_owned(),
@@ -88,7 +88,7 @@ async fn create_kms_key(
 
 async fn create_hsm_key(
     request: &Create,
-    hsm: &Box<dyn HSM + Sync + Send>,
+    hsm: &(dyn HSM + Sync + Send),
     uid: &str,
 ) -> KResult<CreateResponse> {
     // try converting the rest of the uid into a slot_id
@@ -127,7 +127,7 @@ async fn create_hsm_key(
                 })?;
             // recover tags
             let tags = &request.attributes.get_tags();
-            Attributes::check_user_tags(&tags)?;
+            Attributes::check_user_tags(tags)?;
             let label = if tags.is_empty() {
                 String::new()
             } else {
@@ -137,7 +137,7 @@ async fn create_hsm_key(
                 .create_key(
                     slot_id,
                     HsmKeyAlgorithm::AES,
-                    *key_length as usize,
+                    usize::try_from(*key_length)?,
                     tags.contains("exportable"),
                     label.as_str(),
                 )

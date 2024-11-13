@@ -80,12 +80,12 @@ pub struct ClapConfig {
     pub info: bool,
 
     /// The HSM model.
-    /// Only `proteccio' is supported for now.
+    /// Only `proteccio` is supported for now.
     #[clap(verbatim_doc_comment, long,value_parser(["proteccio"]), default_value = "proteccio")]
     pub hsm_model: String,
 
     /// The username of the HSM admin.
-    /// The HSM admin can create objects on the HSM, destroy them and potentially export them.
+    /// The HSM admin can create objects on the HSM, destroy them, and potentially export them.
     #[clap(long, env = "KMS_HSM_ADMIN", default_value = HSM_ADMIN)]
     pub hsm_admin: String,
 
