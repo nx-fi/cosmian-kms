@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use clap::Parser;
 use cosmian_kms_client::reexport::{
     cosmian_http_client::LoginState, cosmian_kms_config::KmsClientConfig,
@@ -49,12 +47,13 @@ impl LoginAction {
     /// * The token exchange response cannot be parsed.
     /// * The client configuration cannot be updated or saved.
     #[allow(clippy::print_stdout)]
-    pub async fn process(&self, conf_path: &PathBuf) -> CliResult<()> {
-        let mut conf = KmsClientConfig::load(conf_path)?;
+    pub async fn process(&self, conf: &KmsClientConfig) -> CliResult<()> {
+        let mut conf = conf.clone();
         let login_config = conf.http_config.oauth2_conf.as_ref().ok_or_else(|| {
             CliError::Default(format!(
                 "The `login` command (only used for JWT authentication) requires an Identity \
-                 Provider (IdP) that MUST be configured in the oauth2_conf object in {conf_path:?}"
+                 Provider (IdP) that MUST be configured in the oauth2_conf object in {:?}",
+                conf.conf_path
             ))
         })?;
 
@@ -64,10 +63,11 @@ impl LoginAction {
 
         // update the configuration and save it
         conf.http_config.access_token = Some(access_token);
-        conf.save(conf_path)?;
+        conf.save(&conf.conf_path)?;
 
         println!(
-            "\nSuccess! The access token was saved in the KMS configuration file: {conf_path:?}"
+            "\nSuccess! The access token was saved in the KMS configuration file: {:?}",
+            conf.conf_path
         );
 
         Ok(())

@@ -19,13 +19,13 @@ use crate::{
 const COSMIAN_PKCS11_DISK_ENCRYPTION_TAG: &str = "disk-encryption";
 
 pub(crate) struct CkmsBackend {
-    kms_client: KmsClient,
+    kms_rest_client: KmsClient,
 }
 
 impl CkmsBackend {
     /// Instantiate a new `CkmsBackend` using the
-    pub(crate) const fn instantiate(kms_client: KmsClient) -> Self {
-        Self { kms_client }
+    pub(crate) const fn instantiate(kms_rest_client: KmsClient) -> Self {
+        Self { kms_rest_client }
     }
 }
 
@@ -75,7 +75,7 @@ impl Backend for CkmsBackend {
         let disk_encryption_tag = std::env::var("COSMIAN_PKCS11_DISK_ENCRYPTION_TAG")
             .unwrap_or_else(|_| COSMIAN_PKCS11_DISK_ENCRYPTION_TAG.to_string());
         let kms_objects = get_kms_objects(
-            &self.kms_client,
+            &self.kms_rest_client,
             &[disk_encryption_tag, "_cert".to_owned()],
             Some(KeyFormatType::X509),
         )?;
@@ -109,15 +109,16 @@ impl Backend for CkmsBackend {
         trace!("find_all_private_keys");
         let disk_encryption_tag = std::env::var("COSMIAN_PKCS11_DISK_ENCRYPTION_TAG")
             .unwrap_or_else(|_| COSMIAN_PKCS11_DISK_ENCRYPTION_TAG.to_string());
-        Ok(
-            locate_kms_objects(&self.kms_client, &[disk_encryption_tag, "_sk".to_owned()])?
-                .into_iter()
-                .map(|id| {
-                    Arc::new(Pkcs11PrivateKey::new(id, RemoteObjectType::PrivateKey))
-                        as Arc<dyn RemoteObjectId>
-                })
-                .collect(),
-        )
+        Ok(locate_kms_objects(
+            &self.kms_rest_client,
+            &[disk_encryption_tag, "_sk".to_owned()],
+        )?
+        .into_iter()
+        .map(|id| {
+            Arc::new(Pkcs11PrivateKey::new(id, RemoteObjectType::PrivateKey))
+                as Arc<dyn RemoteObjectId>
+        })
+        .collect())
     }
 
     fn find_all_public_keys(&self) -> cosmian_pkcs11_module::MResult<Vec<Arc<dyn PublicKey>>> {
@@ -138,7 +139,7 @@ impl Backend for CkmsBackend {
         let disk_encryption_tag = std::env::var("COSMIAN_PKCS11_DISK_ENCRYPTION_TAG")
             .unwrap_or_else(|_| COSMIAN_PKCS11_DISK_ENCRYPTION_TAG.to_string());
         let kms_objects = get_kms_objects(
-            &self.kms_client,
+            &self.kms_rest_client,
             &[disk_encryption_tag, "_kk".to_owned()],
             Some(KeyFormatType::Raw),
         )?;
@@ -171,7 +172,7 @@ impl Backend for CkmsBackend {
             ciphertext.len()
         );
         kms_decrypt(
-            &self.kms_client,
+            &self.kms_rest_client,
             remote_object.remote_id(),
             algorithm,
             ciphertext,

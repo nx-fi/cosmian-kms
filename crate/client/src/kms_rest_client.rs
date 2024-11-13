@@ -33,6 +33,7 @@ use crate::error::{result::KmsClientResultHelper, KmsClientError};
 pub struct KmsClient {
     pub client: HttpClient,
     pub print_json: bool,
+    pub conf: KmsClientConfig,
 }
 
 impl KmsClient {
@@ -52,6 +53,7 @@ impl KmsClient {
         Ok(KmsClient {
             client: kms_rest_client,
             print_json: conf.print_json.unwrap_or_default(),
+            conf,
         })
     }
 

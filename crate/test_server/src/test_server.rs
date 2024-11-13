@@ -202,7 +202,7 @@ pub async fn start_test_server_with_options(
     // Create a (object owner) conf
     let (owner_client_conf_path, mut owner_client_conf) =
         generate_owner_conf(&server_params, authentication_options.api_token.clone())?;
-    let kms_client = KmsClient::new(owner_client_conf.clone())?;
+    let kms_rest_client = KmsClient::new(owner_client_conf.clone())?;
 
     info!(
         "Starting KMS test server at URL: {} with server params {:?}",
@@ -212,13 +212,13 @@ pub async fn start_test_server_with_options(
     let (server_handle, thread_handle) = start_test_kms_server(server_params);
 
     // wait for the server to be up
-    wait_for_server_to_start(&kms_client)
+    wait_for_server_to_start(&kms_rest_client)
         .await
         .expect("server timeout");
 
     if db_config.database_type.clone().unwrap() == "sqlite-enc" {
         // Configure a database and create the kms json file
-        let database_secret = kms_client.new_database().await?;
+        let database_secret = kms_rest_client.new_database().await?;
 
         // Rewrite the conf with the correct database secret
         owner_client_conf.http_config.database_secret = Some(database_secret);
@@ -262,7 +262,7 @@ fn start_test_kms_server(
 }
 
 /// Wait for the server to start by reading the version
-async fn wait_for_server_to_start(kms_client: &KmsClient) -> Result<(), KmsClientError> {
+async fn wait_for_server_to_start(kms_rest_client: &KmsClient) -> Result<(), KmsClientError> {
     // Depending on the running environment, the server could take a bit of time to start
     // We try to query it with a dummy request until be sure it is started.
     let mut retry = true;
@@ -270,7 +270,7 @@ async fn wait_for_server_to_start(kms_client: &KmsClient) -> Result<(), KmsClien
     let mut waiting = 1;
     while retry {
         info!("...checking if the server is up...");
-        let result = kms_client.version().await;
+        let result = kms_rest_client.version().await;
         if result.is_err() {
             timeout -= 1;
             retry = timeout >= 0;

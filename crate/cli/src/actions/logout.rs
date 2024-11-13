@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use clap::Parser;
 use cosmian_kms_client::reexport::cosmian_kms_config::KmsClientConfig;
 
@@ -24,12 +22,15 @@ impl LogoutAction {
     /// Returns an error if there is an issue loading or saving the configuration file.
     ///
     #[allow(clippy::print_stdout)]
-    pub fn process(&self, conf_path: &PathBuf) -> CliResult<()> {
-        let mut conf = KmsClientConfig::load(conf_path)?;
+    pub fn process(&self, conf: &KmsClientConfig) -> CliResult<()> {
+        let mut conf = conf.clone();
         conf.http_config.access_token = None;
-        conf.save(conf_path)?;
+        conf.save(&conf.conf_path)?;
 
-        println!("\nThe access token was removed from the KMS configuration file: {conf_path:?}");
+        println!(
+            "\nThe access token was removed from the KMS configuration file: {:?}",
+            conf.conf_path
+        );
 
         Ok(())
     }

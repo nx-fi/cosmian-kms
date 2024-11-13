@@ -1,13 +1,18 @@
 use std::{fs, path::PathBuf, process::Command};
 
 use assert_cmd::prelude::*;
-use cosmian_kms_client::{read_bytes_from_file, reexport::cosmian_kms_config::KMS_CLI_CONF_ENV};
+use cosmian_kms_client::{
+    read_bytes_from_file, reexport::cosmian_kms_config::KMS_CLI_CONF_ENV, KmsClient,
+};
 use kms_test_server::start_default_test_kms_server;
+use strum::IntoEnumIterator;
 use tempfile::TempDir;
 
 use super::SUB_COMMAND;
 use crate::{
-    actions::symmetric::{DataEncryptionAlgorithm, KeyEncryptionAlgorithm},
+    actions::symmetric::{
+        DataEncryptionAlgorithm, DecryptAction, EncryptAction, KeyEncryptionAlgorithm,
+    },
     error::{result::CliResult, CliError},
     tests::{symmetric::create_key::create_symmetric_key, utils::recover_cmd_logs, PROG_NAME},
 };
@@ -415,4 +420,55 @@ async fn test_rfc5649_aes_gcm_client_side() -> CliResult<()> {
             + 1 /* encapsulation len leb128 */
             + 12 /* nonce */ + 16, /* tag */
     )
+}
+
+#[tokio::test]
+async fn test_client_side_encryption_with_buffer() -> CliResult<()> {
+    let ctx = start_default_test_kms_server().await;
+    let kek = create_symmetric_key(
+        &ctx.owner_client_conf_path,
+        Some(256),
+        None,
+        Some("aes"),
+        &[],
+    )?;
+
+    let kms_rest_client = KmsClient::new(ctx.owner_client_conf.clone())?;
+
+    for size in [0, 1, 16, 64, 256, 1024, 4096, 16384] {
+        let plaintext: Vec<u8> = vec![0; size];
+        for kea in KeyEncryptionAlgorithm::iter() {
+            for dea in DataEncryptionAlgorithm::iter() {
+                if dea == DataEncryptionAlgorithm::AesXts {
+                    continue;
+                }
+                let ciphertext = EncryptAction::default()
+                    .client_side_encrypt_with_buffer(
+                        &kms_rest_client,
+                        &kek,
+                        kea,
+                        dea,
+                        None,
+                        &plaintext,
+                        Some(hex::encode(b"myid").into_bytes()),
+                    )
+                    .await?;
+
+                let cleartext = DecryptAction::default()
+                    .client_side_decrypt_with_buffer(
+                        &kms_rest_client,
+                        kea,
+                        dea,
+                        &kek,
+                        &ciphertext,
+                        Some(hex::encode(b"myid").into_bytes()),
+                    )
+                    .await?;
+
+                assert_eq!(cleartext, plaintext);
+            }
+        }
+    }
+
+    Ok(())
 }

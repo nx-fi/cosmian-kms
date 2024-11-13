@@ -3,3 +3,4 @@ pub use error::KmsConfigError;
 
 mod config;
 mod error;
+mod io;

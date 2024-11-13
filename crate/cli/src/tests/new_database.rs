@@ -156,8 +156,8 @@ async fn test_multiple_databases() -> CliResult<()> {
     .unwrap();
 
     // create a new encrypted database
-    let kms_client = KmsClient::new(ctx.owner_client_conf.clone())?;
-    let new_database_secret = kms_client.new_database().await?;
+    let kms_rest_client = KmsClient::new(ctx.owner_client_conf.clone())?;
+    let new_database_secret = kms_rest_client.new_database().await?;
 
     // update the CLI conf
     let mut new_conf = ctx.owner_client_conf.clone();
