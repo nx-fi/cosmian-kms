@@ -108,6 +108,9 @@ pub(crate) async fn test_user_decryption_key_error() -> CliResult<()> {
     )
     .err()
     .unwrap();
-    assert!(err.to_string().contains("Item_Not_Found: BAD_KEY"));
+    assert!(
+        err.to_string()
+            .contains("no Covercrypt master private key found for: BAD_KEY")
+    );
     Ok(())
 }

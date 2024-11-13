@@ -137,6 +137,11 @@ async fn get_key(
 
         // we found a key
         let mut key_wm = owm.to_owned();
+        debug!(
+            "Decrypt: found key: {} of type: {}",
+            key_wm.id(),
+            key_wm.object().object_type()
+        );
         // if the key is wrapped, we need to unwrap it
         key_wm.set_object(
             kms.get_unwrapped(key_wm.id(), owm.object(), user, params)
@@ -262,6 +267,7 @@ fn decrypt_with_covercrypt(
     owm: &ObjectWithMetadata,
     request: &Decrypt,
 ) -> Result<DecryptResponse, KmsError> {
+    trace!("Decrypt with Covercrypt key {}", owm.id());
     CovercryptDecryption::instantiate(Covercrypt::default(), owm.id(), owm.object())?
         .decrypt(request)
         .map_err(Into::into)
