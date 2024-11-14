@@ -7,7 +7,6 @@ use cosmian_logger::log_utils::log_init;
 use tempfile::TempDir;
 
 use self::{
-    additional_redis_findex_tests::{test_corner_case, test_objects_db, test_permissions_db},
     database_tests::{crud, tx_and_list, upsert},
     find_attributes_test::find_attributes,
     json_access_test::json_access,
@@ -17,6 +16,7 @@ use self::{
 };
 use crate::{
     stores::{
+        additional_redis_findex_tests::{test_corner_case, test_objects_db, test_permissions_db},
         CachedSqlCipher, ExtraStoreParams, MySqlPool, PgPool, RedisWithFindex, SqlitePool,
         REDIS_WITH_FINDEX_MASTER_KEY_LENGTH,
     },
@@ -24,7 +24,6 @@ use crate::{
     DbResult,
 };
 
-mod additional_redis_findex_tests;
 mod database_tests;
 mod find_attributes_test;
 mod json_access_test;
@@ -33,7 +32,7 @@ mod owner_test;
 mod permissions_test;
 mod tagging_tests;
 
-fn get_redis_url() -> String {
+pub fn get_redis_url() -> String {
     std::env::var("REDIS_HOST").map_or_else(
         |_| "redis://localhost:6379".to_owned(),
         |var_env| format!("redis://{var_env}:6379"),

@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 
 use cloudproof::reexport::cover_crypt::Covercrypt;
-use cosmian_hsm_traits::{HsmKeypairAlgorithm, HSM};
 #[cfg(not(feature = "fips"))]
 use cosmian_kmip::crypto::elliptic_curves::operation::{
     create_x25519_key_pair, create_x448_key_pair,

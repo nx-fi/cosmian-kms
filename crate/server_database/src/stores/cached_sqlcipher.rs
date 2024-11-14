@@ -376,7 +376,7 @@ impl ObjectsStore for CachedSqlCipher {
         user: &str,
         operations: &[AtomicOperation],
         params: Option<&ExtraStoreParams>,
-    ) -> DbResult<()> {
+    ) -> DbResult<Vec<String>> {
         if let Some(params) = params {
             let pool = self.pre_query(params.group_id, &params.key).await?;
             if is_migration_in_progress_(&*pool).await? {
@@ -384,10 +384,10 @@ impl ObjectsStore for CachedSqlCipher {
             }
             let mut tx = pool.begin().await?;
             return match atomic_(user, operations, &mut tx).await {
-                Ok(()) => {
+                Ok(v) => {
                     tx.commit().await?;
                     self.post_query(params.group_id)?;
-                    Ok(())
+                    Ok(v)
                 }
                 Err(e) => {
                     tx.rollback().await.context("transaction failed")?;

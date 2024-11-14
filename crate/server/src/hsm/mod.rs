@@ -1,6 +1,5 @@
 use std::{collections::HashSet, default::Default};
 
-use cosmian_hsm_traits::{HsmObject, KeyMaterial, HSM};
 use cosmian_kmip::{
     crypto::secret::SafeBigUint,
     kmip::{

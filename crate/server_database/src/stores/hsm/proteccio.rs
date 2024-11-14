@@ -1,7 +1,7 @@
 use std::{collections::HashSet, path::PathBuf};
 
 use async_trait::async_trait;
-use cosmian_hsm_traits::{HsmKeyAlgorithm, HSM};
+use cosmian_hsm_traits::{HsmKeyAlgorithm, HsmKeypairAlgorithm, HSM};
 use cosmian_kmip::kmip::{
     kmip_objects::{Object, ObjectType},
     kmip_types::{Attributes, CryptographicAlgorithm, StateEnumeration},
@@ -9,7 +9,7 @@ use cosmian_kmip::kmip::{
 use tracing::debug;
 
 use super::super::store_traits::ObjectsStore;
-use crate::{AtomicOperation, DbError, DbResult, ExtraStoreParams, ObjectWithMetadata};
+use crate::{db_bail, AtomicOperation, DbError, DbResult, ExtraStoreParams, ObjectWithMetadata};
 
 pub struct HsmStore {
     hsm: Box<dyn HSM + Send + Sync>,
@@ -165,9 +165,45 @@ impl ObjectsStore for HsmStore {
         &self,
         user: &str,
         operations: &[AtomicOperation],
-        params: Option<&ExtraStoreParams>,
-    ) -> DbResult<()> {
-        todo!()
+        _params: Option<&ExtraStoreParams>,
+    ) -> DbResult<Vec<String>> {
+        if let Some((uid, object, attributes, tags)) = is_rsa_keypair_creation(operations) {
+            if user != self.hsm_admin {
+                return Err(DbError::InvalidRequest(
+                    "Only the HSM Admin can create HSM keypairs".to_owned(),
+                ));
+            }
+            let slot_id = uid
+                .trim_start_matches("hsm::")
+                .parse::<usize>()
+                .map_err(|e| {
+                    DbError::InvalidRequest(format!(
+                        "The uid of an HSM create keypair request must be in the form of \
+                         'hsm::<slot_id>': {e}"
+                    ))
+                })?;
+            let label = if tags.is_empty() {
+                String::new()
+            } else {
+                serde_json::to_string(&tags)?
+            };
+            let (sk_id, pk_id) = self
+                .hsm
+                .create_keypair(
+                    slot_id,
+                    HsmKeypairAlgorithm::RSA,
+                    usize::try_from(attributes.cryptographic_length.unwrap_or(2048))?,
+                    tags.contains("exportable"),
+                    label.as_str(),
+                )
+                .await?;
+            return Ok(vec![
+                format!("hsm::{slot_id}::{sk_id}"),
+                format!("hsm::{slot_id}::{pk_id}"),
+            ]);
+        }
+
+        db_bail!("HSM atomic operations only support RSA keypair creations for now");
     }
 
     async fn list_uids_for_tags(
@@ -188,4 +224,45 @@ impl ObjectsStore for HsmStore {
     ) -> DbResult<Vec<(String, StateEnumeration, Attributes)>> {
         todo!()
     }
+}
+
+/// The creation of RSA key pairs is done via 2 atomic operations,
+/// one to create the private key and one to generate the public key.
+/// All the information we need is contained in the atomic operation
+/// to create the private key, so we recover it here
+///
+/// # Returns
+///  - the uid of the private key
+/// - the object of the private key
+/// - the attributes of the private key
+fn is_rsa_keypair_creation(
+    operations: &[AtomicOperation],
+) -> Option<(String, Object, Attributes, HashSet<String>)> {
+    operations
+        .iter()
+        .filter_map(|op| match op {
+            AtomicOperation::Create((uid, object, attributes, tags)) => {
+                if object.object_type() != ObjectType::PrivateKey {
+                    return None;
+                }
+                if attributes
+                    .cryptographic_algorithm
+                    .as_ref()
+                    .map(|algorithm| *algorithm == CryptographicAlgorithm::RSA)
+                    .unwrap_or(false)
+                {
+                    return None;
+                }
+                Some((
+                    uid.clone(),
+                    object.clone(),
+                    attributes.clone(),
+                    tags.clone(),
+                ))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .first()
+        .cloned()
 }

@@ -42,6 +42,12 @@ pub struct UnwrappedCache {
     cache: RwLock<LruCache<String, DbResult<CachedUnwrappedObject>>>,
 }
 
+impl Default for UnwrappedCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl UnwrappedCache {
     pub fn new() -> Self {
         #[allow(unsafe_code)]
@@ -116,7 +122,7 @@ mod tests {
     use tempfile::TempDir;
     use uuid::Uuid;
 
-    use crate::{Database, DbResult};
+    use crate::{core::db_params::MainDbParams, Database, DbParams, DbResult};
 
     #[tokio::test]
     pub async fn test_lru_cache() -> DbResult<()> {
@@ -124,7 +130,7 @@ mod tests {
 
         let dir = TempDir::new()?;
 
-        let db_params = crate::DbParams::Sqlite(dir.path().to_owned());
+        let db_params = DbParams::new(MainDbParams::Sqlite(dir.path().to_owned()), vec![]);
         let database = Database::instantiate(&db_params, true).await?;
 
         let mut rng = CsRng::from_entropy();

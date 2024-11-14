@@ -3,13 +3,11 @@ use std::{array::TryFromSliceError, sync::mpsc::SendError};
 use actix_web::{dev::ServerHandle, error::QueryPayloadError};
 use cloudproof::reexport::crypto_core::CryptoCoreError;
 use cloudproof_findex::implementations::redis::FindexRedisError;
-use cosmian_hsm_traits::HsmError;
 use cosmian_kmip::{
     kmip::{kmip_operations::ErrorReason, ttlv::error::TtlvError},
     KmipError,
 };
 use cosmian_kms_server_database::DbError;
-use proteccio_pkcs11_loader::PError;
 use redis::ErrorKind;
 use thiserror::Error;
 use x509_parser::prelude::{PEMError, X509Error};

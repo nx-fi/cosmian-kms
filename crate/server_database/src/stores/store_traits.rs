@@ -131,12 +131,15 @@ pub trait ObjectsStore {
 
     /// Perform an atomic set of operation on the database
     /// (typically in a transaction)
+    ///
+    /// # Returns
+    /// The list objects uid that operations were performed on
     async fn atomic(
         &self,
         user: &str,
         operations: &[AtomicOperation],
         params: Option<&ExtraStoreParams>,
-    ) -> DbResult<()>;
+    ) -> DbResult<Vec<String>>;
 
     /// List the `uid` of all the objects that have the given `tags`
     async fn list_uids_for_tags(

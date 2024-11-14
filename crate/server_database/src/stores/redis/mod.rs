@@ -5,3 +5,6 @@ pub use redis_with_findex::{
 };
 pub(crate) mod objects_db;
 pub(crate) mod permissions;
+
+#[cfg(test)]
+pub mod additional_redis_findex_tests;

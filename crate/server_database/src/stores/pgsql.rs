@@ -288,16 +288,16 @@ impl ObjectsStore for PgPool {
         user: &str,
         operations: &[AtomicOperation],
         _params: Option<&ExtraStoreParams>,
-    ) -> DbResult<()> {
+    ) -> DbResult<Vec<String>> {
         if is_migration_in_progress_(&self.pool).await? {
             db_bail!("Migration in progress. Please retry later");
         }
 
         let mut tx = self.pool.begin().await?;
         match atomic_(user, operations, &mut tx).await {
-            Ok(()) => {
+            Ok(v) => {
                 tx.commit().await?;
-                Ok(())
+                Ok(v)
             }
             Err(e) => {
                 tx.rollback().await.context("transaction failed")?;
@@ -878,7 +878,8 @@ pub(crate) async fn atomic_(
     owner: &str,
     operations: &[AtomicOperation],
     tx: &mut Transaction<'_, Postgres>,
-) -> DbResult<()> {
+) -> DbResult<Vec<String>> {
+    let mut uids = Vec::with_capacity(operations.len());
     for operation in operations {
         match operation {
             AtomicOperation::Create((uid, object, attributes, tags)) => {
@@ -887,16 +888,19 @@ pub(crate) async fn atomic_(
                 {
                     db_bail!("creation of object {uid} failed: {e}");
                 }
+                uids.push(uid.clone());
             }
             AtomicOperation::UpdateObject((uid, object, attributes, tags)) => {
                 if let Err(e) = update_object_(uid, object, attributes, tags.as_ref(), tx).await {
                     db_bail!("update of object {uid} failed: {e}");
                 }
+                uids.push(uid.clone());
             }
             AtomicOperation::UpdateState((uid, state)) => {
                 if let Err(e) = update_state_(uid, *state, tx).await {
                     db_bail!("update of the state of object {uid} failed: {e}");
                 }
+                uids.push(uid.clone());
             }
             AtomicOperation::Upsert((uid, object, attributes, tags, state)) => {
                 if let Err(e) =
@@ -904,15 +908,17 @@ pub(crate) async fn atomic_(
                 {
                     db_bail!("upsert of object {uid} failed: {e}");
                 }
+                uids.push(uid.clone());
             }
             AtomicOperation::Delete(uid) => {
                 if let Err(e) = delete_(uid, owner, tx).await {
                     db_bail!("deletion of object {uid} failed: {e}");
                 }
+                uids.push(uid.clone());
             }
         }
     }
-    Ok(())
+    Ok(uids)
 }
 
 pub(crate) async fn is_migration_in_progress_<'e, E>(executor: E) -> DbResult<bool>
@@ -1037,7 +1043,7 @@ pub(crate) async fn migrate_from_4_12_0_to_4_13_0(executor: &Pool<Postgres>) -> 
     )
     .await
     {
-        Ok(()) => {
+        Ok(_v) => {
             tx.commit().await?;
             Ok(())
         }

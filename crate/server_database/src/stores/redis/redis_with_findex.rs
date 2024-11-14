@@ -378,7 +378,7 @@ impl ObjectsStore for RedisWithFindex {
         user: &str,
         operations: &[AtomicOperation],
         params: Option<&ExtraStoreParams>,
-    ) -> DbResult<()> {
+    ) -> DbResult<Vec<String>> {
         let mut redis_operations: Vec<RedisOperation> = Vec::with_capacity(operations.len());
         for operation in operations {
             match operation {

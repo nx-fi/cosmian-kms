@@ -1,33 +1,29 @@
-mod store_traits;
-
-use cosmian_kmip::kmip::kmip_objects::{Object, ObjectType};
-use lazy_static::lazy_static;
-use rawsql::Loader;
-use serde::{Deserialize, Serialize};
-pub use store_traits::{AtomicOperation, ObjectsStore, PermissionsStore};
-
 mod cached_sqlcipher;
-pub use cached_sqlcipher::CachedSqlCipher;
-
 mod cached_sqlite_struct;
-
+mod extra_store_params;
+pub(crate) mod hsm;
 mod locate_query;
 mod mysql;
-pub(crate) use mysql::MySqlPool;
 mod pgsql;
-pub(crate) use pgsql::PgPool;
-#[cfg(not(test))]
 mod redis;
-pub(crate) use redis::RedisWithFindex;
-pub use redis::{redis_master_key_from_password, REDIS_WITH_FINDEX_MASTER_KEY_LENGTH};
-mod extra_store_params;
-#[cfg(test)]
-pub(crate) mod redis;
 mod sqlite;
+mod store_traits;
 
-pub(crate) mod hsm;
+pub use cached_sqlcipher::CachedSqlCipher;
+use cosmian_kmip::kmip::kmip_objects::{Object, ObjectType};
 pub use extra_store_params::ExtraStoreParams;
+use lazy_static::lazy_static;
+pub(crate) use mysql::MySqlPool;
+pub(crate) use pgsql::PgPool;
+use rawsql::Loader;
+#[cfg(test)]
+pub use redis::additional_redis_findex_tests;
+pub use redis::{
+    redis_master_key_from_password, RedisWithFindex, REDIS_WITH_FINDEX_MASTER_KEY_LENGTH,
+};
+use serde::{Deserialize, Serialize};
 pub(crate) use sqlite::SqlitePool;
+pub use store_traits::{AtomicOperation, ObjectsStore, PermissionsStore};
 
 const PGSQL_FILE_QUERIES: &str = include_str!("query.sql");
 const MYSQL_FILE_QUERIES: &str = include_str!("query_mysql.sql");

@@ -8,7 +8,7 @@ use actix_web::{
     web::{self, Data, JsonConfig, PayloadConfig},
     App, HttpServer,
 };
-use cosmian_kms_server_database::DbParams;
+use cosmian_kms_server_database::MainDbParams;
 use openssl::{
     ssl::{SslAcceptor, SslAcceptorBuilder, SslMethod, SslVerifyMode},
     x509::store::X509StoreBuilder,
@@ -244,7 +244,11 @@ pub async fn prepare_kms_server(
     let use_cert_auth = kms_server.params.authority_cert_file.is_some();
 
     // Determine if the application is using an encrypted SQLite database.
-    let is_using_sqlite_enc = matches!(kms_server.params.db_params, Some(DbParams::SqliteEnc(_)));
+    let is_using_sqlite_enc = if let Some(db_params) = &kms_server.params.db_params {
+        matches!(db_params.main_database(), MainDbParams::SqliteEnc(_))
+    } else {
+        false
+    };
 
     // Determine the address to bind the server to.
     let address = format!("{}:{}", kms_server.params.hostname, kms_server.params.port);

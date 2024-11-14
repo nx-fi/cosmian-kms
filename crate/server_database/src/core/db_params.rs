@@ -8,7 +8,7 @@ use cloudproof::reexport::crypto_core::SymmetricKey;
 use cloudproof_findex::Label;
 use url::Url;
 
-use crate::REDIS_WITH_FINDEX_MASTER_KEY_LENGTH;
+use crate::stores::REDIS_WITH_FINDEX_MASTER_KEY_LENGTH;
 
 pub struct DbParams {
     main_database: MainDbParams,

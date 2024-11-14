@@ -1,7 +1,6 @@
-use std::{collections::HashSet, sync::Arc};
+use std::collections::HashSet;
 
 use cloudproof::reexport::cover_crypt::Covercrypt;
-use cosmian_hsm_traits::HSM;
 use cosmian_kmip::{
     crypto::symmetric::{
         create_symmetric_key_kmip_object, symmetric_ciphers::AES_256_GCM_KEY_LENGTH,
@@ -18,11 +17,11 @@ use log::info;
 use openssl::rand::rand_bytes;
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 use proteccio_pkcs11_loader::Proteccio;
-use tracing::{debug, trace};
+use tracing::trace;
 use zeroize::Zeroizing;
 
 use super::{cover_crypt::create_user_decryption_key, KMS};
-use crate::{config::ServerParams, error::KmsError, kms_bail, result::KResult};
+use crate::{config::ServerParams, error::KmsError, result::KResult};
 
 impl KMS {
     pub(crate) async fn instantiate(server_params: ServerParams) -> KResult<Self> {
@@ -34,34 +33,9 @@ impl KMS {
         )
         .await?;
 
-        database.register_objects_store("hsm", Arc::new(Proteccio::default()));
-
-        // Check if we have Proteccio HSM
-        let hsm: Option<Box<dyn HSM + Sync + Send>> =
-            if let Some(hsm_model) = &server_params.hsm_model {
-                if hsm_model != "proteccio" {
-                    kms_bail!("Fatal: unsupported HSM model: {}", hsm_model);
-                }
-                #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
-                kms_bail!("Fatal: Proteccio HSM is only supported on Linux x86_64");
-                #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-                {
-                    let hsm = Box::new(Proteccio::instantiate(
-                        "/lib/libnethsm.so",
-                        server_params.slot_passwords.clone(),
-                    )?);
-                    info!("Successfully loaded the Proteccio PKCS#11 HSM library");
-                    Some(hsm)
-                }
-            } else {
-                debug!("Not using an HSM");
-                None
-            };
-
         Ok(Self {
             params: server_params,
             database,
-            hsm,
         })
     }
 

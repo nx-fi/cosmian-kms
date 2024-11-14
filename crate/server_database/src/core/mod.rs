@@ -11,17 +11,15 @@ mod database_objects;
 mod database_permissions;
 
 mod db_params;
-pub use db_params::DbParams;
+pub use db_params::{AdditionalObjectStoresParams, DbParams, MainDbParams};
 mod object_with_metadata;
 mod unwrapped_cache;
 
 pub use object_with_metadata::ObjectWithMetadata;
-use proteccio_pkcs11_loader::Proteccio;
 
 pub use crate::core::unwrapped_cache::{CachedUnwrappedObject, UnwrappedCache};
-pub(crate) use crate::stores::hsm::HsmStore;
 use crate::{
-    core::db_params::{AdditionalObjectStoresParams, MainDbParams},
+    db_bail,
     stores::{
         CachedSqlCipher, MySqlPool, ObjectsStore, PermissionsStore, PgPool, RedisWithFindex,
         SqlitePool, REDIS_WITH_FINDEX_MASTER_KEY_LENGTH,
@@ -47,8 +45,14 @@ impl Database {
     pub async fn instantiate(db_params: &DbParams, clear_db_on_start: bool) -> DbResult<Self> {
         // main dabasee
         let db = Self::instantiate_main_database(db_params, clear_db_on_start).await?;
+        #[allow(clippy::never_loop)]
         for extra_store in db_params.additional_stores() {
             match extra_store {
+                #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+                AdditionalObjectStoresParams::ProteccioHsm((prefix, hsm_admin, slot_passwords)) => {
+                    db_bail!("Fatal: Proteccio HSM is only supported on Linux x86_64");
+                }
+                #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
                 AdditionalObjectStoresParams::ProteccioHsm((prefix, hsm_admin, slot_passwords)) => {
                     let hsm = Arc::new(HsmStore::new(
                         Box::new(Proteccio::instantiate(

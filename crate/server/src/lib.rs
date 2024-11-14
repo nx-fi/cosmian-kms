@@ -59,7 +59,7 @@ pub mod config;
 pub mod core;
 
 pub mod error;
-pub mod hsm;
+// pub mod hsm;
 pub mod kms_server;
 pub mod middlewares;
 pub mod result;

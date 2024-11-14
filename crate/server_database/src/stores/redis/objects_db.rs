@@ -234,9 +234,9 @@ impl ObjectsDB {
         Ok(results)
     }
 
-    pub(crate) async fn atomic(&self, operations: &[RedisOperation]) -> DbResult<()> {
-        // first check if all created objects do not already exist
-        // watching them, will lock them until the end of the transaction
+    pub(crate) async fn atomic(&self, operations: &[RedisOperation]) -> DbResult<Vec<String>> {
+        // first check if all created objects do not already exist, watching them
+        // will lock them until the end of the transaction
         let mut pipeline = pipe();
         for operation in operations {
             if let RedisOperation::Create(uid, _) = operation {
@@ -257,6 +257,7 @@ impl ObjectsDB {
             db_bail!("one or more objects already exist")
         }
 
+        let mut res = Vec::with_capacity(operations.len());
         let mut pipeline = pipe();
         pipeline.atomic();
         for operation in operations {
@@ -266,20 +267,23 @@ impl ObjectsDB {
                         Self::object_key(uid),
                         self.encrypt_object(uid, redis_db_object)?,
                     );
+                    res.push(uid.clone());
                 }
                 RedisOperation::Delete(uid) => {
                     pipeline.del(Self::object_key(uid));
+                    res.push(uid.clone());
                 }
                 RedisOperation::Create(uid, redis_dn_object) => {
                     pipeline.set(
                         Self::object_key(uid),
                         self.encrypt_object(uid, redis_dn_object)?,
                     );
+                    res.push(uid.clone());
                 }
             }
         }
         pipeline.query_async::<_, ()>(&mut self.mgr.clone()).await?;
-        Ok(())
+        Ok(res)
     }
 
     /// Clear all data
