@@ -2,7 +2,7 @@ use cosmian_kmip::kmip::{kmip_types::StateEnumeration, KmipOperation};
 use cosmian_kms_server_database::{ExtraStoreParams, ObjectWithMetadata};
 use tracing::trace;
 
-use crate::{core::KMS, error::KmsError, hsm::get_hsm_object, result::KResult};
+use crate::{core::KMS, error::KmsError, result::KResult};
 
 /// Retrieve a single object for a given operation type
 /// or the Get operation if not found.
@@ -22,11 +22,6 @@ pub(crate) async fn retrieve_object_for_operation(
         "get_key: key_uid_or_tags: {uid_or_tags:?}, user: {user}, operation_type: \
          {operation_type:?}"
     );
-
-    // An HSM Create request will have a uid in the form of "ham::<slot_id>"
-    if uid_or_tags.starts_with("hsm::") {
-        return get_hsm_object(uid_or_tags, operation_type, kms, user).await;
-    }
 
     for owm in kms
         .database

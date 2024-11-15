@@ -27,7 +27,9 @@ use cosmian_kmip::{
 use cosmian_kms_client::access::{
     Access, AccessRightsObtainedResponse, ObjectOwnedResponse, UserAccessResponse,
 };
-use cosmian_kms_server_database::{CachedUnwrappedObject, Database, DbParams, ExtraStoreParams};
+use cosmian_kms_server_database::{
+    CachedUnwrappedObject, Database, ExtraStoreParams, MainDbParams,
+};
 use tracing::{debug, trace};
 use uuid::Uuid;
 
@@ -35,7 +37,7 @@ use crate::{
     config::ServerParams,
     core::{operations, wrapping::unwrap_key},
     error::KmsError,
-    kms_bail, kms_error,
+    kms_bail,
     middlewares::{JwtAuthClaim, PeerCommonName},
     result::{KResult, KResultHelper},
 };
@@ -44,12 +46,12 @@ use crate::{
 /// `https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=kmip`
 pub struct KMS {
     pub(crate) params: ServerParams,
-    /// The database is made of 2 parts:
-    ///  - the objects store that stores the cryptographic objects.
+    /// The database is made of two parts:
+    /// - The objects' store that stores the cryptographic objects.
     ///    The Object store may be backed by multiple databases or HSMs
     ///    and store the cryptographic objects and their attributes.
     ///    Objects are spread across the underlying stores based on their ID prefix.
-    /// - the permissions store that stores the permissions granted to users on the objects
+    /// - The permissions store that stores the permissions granted to users on the objects.
     pub(crate) database: Database,
 }
 
@@ -67,43 +69,42 @@ impl KMS {
     /// Returns an error if the KMS server does not allow this operation or if an error occurs while
     /// generating the new database or key.
     pub(crate) async fn add_new_database(&self) -> KResult<String> {
-        if let DbParams::SqliteEnc(_) = self.params.db_params.as_ref().ok_or_else(|| {
-            kms_error!("Unexpected fatal error: nodatabase configured on the KMS server")
-        })? {
-            // Generate a new group id
-            let uid: u128 = loop {
-                let uid = Uuid::new_v4().to_u128_le();
-                if let Some(database) = self.database.filename(uid).await {
-                    if !database.exists() {
-                        // Create an empty file (to book the group id)
-                        fs::File::create(database)?;
-                        break uid
-                    }
-                }
-            };
-
-            // Encode ExtraDatabaseParams
-            let params = ExtraStoreParams {
-                group_id: uid,
-                key: Secret::new_random()?,
-            };
-
-            let token = b64.encode(serde_json::to_vec(&params)?);
-
-            // Create a dummy query to initialize the database
-            // Note: if we don't proceed like that, the password will be set at the first query of the user
-            // which let him put the password he wants.
-            self.database
-                .find(None, None, "", true, Some(&params))
-                .await?;
-
-            return Ok(token)
+        if !self.is_using_sqlite_enc() {
+            kms_bail!(KmsError::InvalidRequest(
+                "add_new_database: not an encrypted sqlite: this server does not allow this \
+                 operation"
+                    .to_owned()
+            ));
         }
 
-        kms_bail!(KmsError::InvalidRequest(
-            "add_new_database: not an encrypted sqlite: this server does not allow this operation"
-                .to_owned()
-        ));
+        // Generate a new group id
+        let uid: u128 = loop {
+            let uid = Uuid::new_v4().to_u128_le();
+            if let Some(database) = self.database.filename(uid).await {
+                if !database.exists() {
+                    // Create an empty file (to book the group id)
+                    fs::File::create(database)?;
+                    break uid
+                }
+            }
+        };
+
+        // Encode ExtraDatabaseParams
+        let params = ExtraStoreParams {
+            group_id: uid,
+            key: Secret::new_random()?,
+        };
+
+        let token = b64.encode(serde_json::to_vec(&params)?);
+
+        // Create a fake query to initialize the database
+        // Note: if we don't proceed like that, the password will be set at the first query of the user
+        // which let him put the password he wants.
+        self.database
+            .find(None, None, "", true, Some(&params))
+            .await?;
+
+        Ok(token)
     }
 
     /// This operation requests the server to Import a Managed Object specified
@@ -742,38 +743,26 @@ impl KMS {
         &self,
         req_http: &HttpRequest,
     ) -> KResult<Option<ExtraStoreParams>> {
-        Ok(
-            match self.params.db_params.as_ref().ok_or_else(|| {
-                kms_error!("Unexpected fatal error: no database configured on the KMS server")
-            })? {
-                DbParams::SqliteEnc(_) => {
-                    let secrets = req_http
-                        .headers()
-                        .get("KmsDatabaseSecret")
-                        .and_then(|h| h.to_str().ok().map(ToString::to_string))
-                        .ok_or_else(|| {
-                            KmsError::Unauthorized(
-                                "Missing KmsDatabaseSecret header in the query".to_owned(),
-                            )
-                        })?;
+        if !self.is_using_sqlite_enc() {
+            return Ok(None);
+        }
+        let secrets = req_http
+            .headers()
+            .get("KmsDatabaseSecret")
+            .and_then(|h| h.to_str().ok().map(ToString::to_string))
+            .ok_or_else(|| {
+                KmsError::Unauthorized("Missing KmsDatabaseSecret header in the query".to_owned())
+            })?;
 
-                    let secrets = general_purpose::STANDARD.decode(secrets).map_err(|e| {
-                        KmsError::Unauthorized(format!(
-                            "KmsDatabaseSecret header cannot be decoded: {e}"
-                        ))
-                    })?;
+        let secrets = general_purpose::STANDARD.decode(secrets).map_err(|e| {
+            KmsError::Unauthorized(format!("KmsDatabaseSecret header cannot be decoded: {e}"))
+        })?;
 
-                    Some(
-                        serde_json::from_slice::<ExtraStoreParams>(&secrets).map_err(|e| {
-                            KmsError::Unauthorized(format!(
-                                "KmsDatabaseSecret header cannot be read: {e}"
-                            ))
-                        })?,
-                    )
-                }
-                _ => None,
-            },
-        )
+        Ok(Some(
+            serde_json::from_slice::<ExtraStoreParams>(&secrets).map_err(|e| {
+                KmsError::Unauthorized(format!("KmsDatabaseSecret header cannot be read: {e}"))
+            })?,
+        ))
     }
 
     /// Unwrap the object (if need be) and return the unwrapped object.
@@ -845,5 +834,37 @@ impl KMS {
             .await;
         //return the result
         result
+    }
+}
+
+impl KMS {
+    /// Determines if the application is using an encrypted `SQLite` database.
+    ///
+    /// # Arguments
+    ///
+    /// * `kms_server` - A reference-counted pointer to the KMS instance.
+    ///
+    /// # Returns
+    ///
+    /// * `bool` - Returns `true` if the application is using an encrypted `SQLite` database, otherwise `false`.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// let kms_server = Arc::new(KMS::new(...)); // Initialize your KMS instance as required
+    /// if is_using_sqlite_enc(&kms_server) {
+    ///     println!("Using encrypted SQLite database.");
+    /// } else {
+    ///     println!("Not using encrypted SQLite database.");
+    /// }
+    /// ```
+    pub(crate) const fn is_using_sqlite_enc(&self) -> bool {
+        if let Some(db_params) = &self.params.db_params {
+            matches!(db_params.main_database(), MainDbParams::SqliteEnc(_))
+        } else {
+            false
+        }
     }
 }

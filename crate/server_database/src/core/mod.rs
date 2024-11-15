@@ -24,7 +24,7 @@ use crate::{
         CachedSqlCipher, MySqlPool, ObjectsStore, PermissionsStore, PgPool, RedisWithFindex,
         SqlitePool, REDIS_WITH_FINDEX_MASTER_KEY_LENGTH,
     },
-    DbResult, ExtraStoreParams,
+    DbResult,
 };
 
 /// The `Database` struct represents the core database functionalities, including object management,

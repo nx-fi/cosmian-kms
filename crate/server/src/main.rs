@@ -166,14 +166,14 @@ mod tests {
     use std::path::PathBuf;
 
     use cosmian_kms_server::{
-        config::{ClapConfig, DBConfig, HttpConfig, JwtAuthConfig, WorkspaceConfig},
+        config::{ClapConfig, HttpConfig, JwtAuthConfig, MainDBConfig, WorkspaceConfig},
         telemetry::TelemetryConfig,
     };
 
     #[test]
     fn test_toml() {
         let config = ClapConfig {
-            db: DBConfig {
+            db: MainDBConfig {
                 database_type: Some("[redis-findex, postgresql,...]".to_owned()),
                 database_url: Some("[redis urls]".to_owned()),
                 sqlite_path: PathBuf::from("[sqlite path]"),

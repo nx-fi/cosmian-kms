@@ -10,6 +10,7 @@ use url::Url;
 
 use crate::stores::REDIS_WITH_FINDEX_MASTER_KEY_LENGTH;
 
+#[derive(Debug)]
 pub struct DbParams {
     main_database: MainDbParams,
     additional_stores: Vec<AdditionalObjectStoresParams>,
@@ -115,6 +116,7 @@ impl fmt::Debug for MainDbParams {
     }
 }
 
+#[derive(Debug)]
 pub enum AdditionalObjectStoresParams {
     /// Proteccio HSM: the Object UIDs prefix, HSM admin username and the slot passwords
     ProteccioHsm((String, String, HashMap<usize, Option<String>>)),

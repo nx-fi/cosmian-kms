@@ -3,7 +3,7 @@ use std::fmt::{self};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 
-use super::{DBConfig, HttpConfig, JwtAuthConfig, WorkspaceConfig};
+use super::{HttpConfig, JwtAuthConfig, MainDBConfig, WorkspaceConfig};
 use crate::telemetry::TelemetryConfig;
 
 const DEFAULT_USERNAME: &str = "admin";
@@ -12,7 +12,7 @@ const HSM_ADMIN: &str = "admin";
 impl Default for ClapConfig {
     fn default() -> Self {
         Self {
-            db: DBConfig::default(),
+            db: MainDBConfig::default(),
             http: HttpConfig::default(),
             auth: JwtAuthConfig::default(),
             workspace: WorkspaceConfig::default(),
@@ -35,7 +35,7 @@ impl Default for ClapConfig {
 #[serde(default)]
 pub struct ClapConfig {
     #[clap(flatten)]
-    pub db: DBConfig,
+    pub db: MainDBConfig,
 
     #[clap(flatten)]
     pub http: HttpConfig,

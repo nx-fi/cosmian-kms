@@ -14,7 +14,7 @@ use cosmian_kms_client::{
     write_json_object_to_file, ClientConf, ClientError, GmailApiConf, KmsClient,
 };
 use cosmian_kms_server::{
-    config::{ClapConfig, DBConfig, HttpConfig, HttpParams, JwtAuthConfig, ServerParams},
+    config::{ClapConfig, HttpConfig, HttpParams, JwtAuthConfig, MainDBConfig, ServerParams},
     kms_server::start_kms_server,
 };
 use cosmian_kms_server_database::ExtraStoreParams;
@@ -32,7 +32,7 @@ use crate::test_jwt::{get_auth0_jwt_config, AUTH0_TOKEN};
 pub(crate) static ONCE: OnceCell<TestsContext> = OnceCell::const_new();
 pub(crate) static ONCE_SERVER_WITH_AUTH: OnceCell<TestsContext> = OnceCell::const_new();
 
-fn sqlite_db_config() -> DBConfig {
+fn sqlite_db_config() -> MainDBConfig {
     trace!("TESTS: using sqlite");
     let tmp_dir = TempDir::new().unwrap();
     let file_path = tmp_dir.path().join("test_sqlite.db");
@@ -40,15 +40,15 @@ fn sqlite_db_config() -> DBConfig {
     if file_path.exists() {
         std::fs::remove_file(&file_path).unwrap();
     }
-    DBConfig {
+    MainDBConfig {
         database_type: Some("sqlite".to_string()),
         clear_database: true,
         sqlite_path: file_path,
-        ..DBConfig::default()
+        ..MainDBConfig::default()
     }
 }
 
-fn sqlite_enc_db_config() -> DBConfig {
+fn sqlite_enc_db_config() -> MainDBConfig {
     trace!("TESTS: using sqlite-enc");
     let tmp_dir = TempDir::new().unwrap();
     // SQLCipher uses a directory
@@ -57,48 +57,48 @@ fn sqlite_enc_db_config() -> DBConfig {
         std::fs::remove_dir_all(&dir_path).unwrap();
     }
     std::fs::create_dir_all(&dir_path).unwrap();
-    DBConfig {
+    MainDBConfig {
         database_type: Some("sqlite-enc".to_string()),
         clear_database: true,
         sqlite_path: dir_path,
-        ..DBConfig::default()
+        ..MainDBConfig::default()
     }
 }
 
-fn mysql_db_config() -> DBConfig {
+fn mysql_db_config() -> MainDBConfig {
     trace!("TESTS: using mysql");
     let mysql_url = option_env!("KMS_MYSQL_URL")
         .unwrap_or("mysql://kms:kms@localhost:3306/kms")
         .to_string();
-    DBConfig {
+    MainDBConfig {
         database_type: Some("mysql".to_string()),
         clear_database: true,
         database_url: Some(mysql_url),
-        ..DBConfig::default()
+        ..MainDBConfig::default()
     }
 }
 
-fn postgres_db_config() -> DBConfig {
+fn postgres_db_config() -> MainDBConfig {
     trace!("TESTS: using postgres");
     let postgresql_url = option_env!("KMS_POSTGRES_URL")
         .unwrap_or("postgresql://kms:kms@127.0.0.1:5432/kms")
         .to_string();
-    DBConfig {
+    MainDBConfig {
         database_type: Some("postgresql".to_string()),
         clear_database: true,
         database_url: Some(postgresql_url),
-        ..DBConfig::default()
+        ..MainDBConfig::default()
     }
 }
 
-fn redis_findex_db_config() -> DBConfig {
+fn redis_findex_db_config() -> MainDBConfig {
     trace!("TESTS: using redis-findex");
     let url = if let Ok(var_env) = env::var("REDIS_HOST") {
         format!("redis://{var_env}:6379")
     } else {
         "redis://localhost:6379".to_owned()
     };
-    DBConfig {
+    MainDBConfig {
         database_type: Some("redis-findex".to_string()),
         clear_database: true,
         database_url: Some(url),
@@ -108,7 +108,7 @@ fn redis_findex_db_config() -> DBConfig {
     }
 }
 
-fn get_db_config() -> DBConfig {
+fn get_db_config() -> MainDBConfig {
     env::var_os("KMS_TEST_DB").map_or_else(sqlite_enc_db_config, |v| {
         match v.to_str().unwrap_or("") {
             "redis-findex" => redis_findex_db_config(),
@@ -188,7 +188,7 @@ pub struct AuthenticationOptions {
 
 /// Start a KMS server in a thread with the given options
 pub async fn start_test_server_with_options(
-    db_config: DBConfig,
+    db_config: MainDBConfig,
     port: u16,
     authentication_options: AuthenticationOptions,
 ) -> Result<TestsContext, ClientError> {
@@ -324,7 +324,7 @@ fn generate_http_config(
 }
 
 fn generate_server_params(
-    db_config: DBConfig,
+    db_config: MainDBConfig,
     port: u16,
     authentication_options: &AuthenticationOptions,
 ) -> Result<ServerParams, ClientError> {

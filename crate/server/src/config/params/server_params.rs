@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt, path::PathBuf};
 
-use cosmian_kms_server_database::DbParams;
+use cosmian_kms_server_database::{AdditionalObjectStoresParams, DbParams};
 use openssl::x509::X509;
 
 use super::HttpParams;
@@ -118,9 +118,24 @@ impl ServerParams {
             })
             .collect();
 
+        let extra_stores = if slot_passwords.is_empty() {
+            vec![]
+        } else {
+            if &conf.hsm_model != "proteccio" {
+                kms_bail!("The only support HSM model is Proteccio for now")
+            }
+            vec![AdditionalObjectStoresParams::ProteccioHsm((
+                String::from("hsm"),
+                conf.hsm_admin.clone(),
+                slot_passwords.clone(),
+            ))]
+        };
+
+        let db_params = DbParams::new(conf.db.init(&conf.workspace.init()?)?, extra_stores);
+
         Ok(Self {
             identity_provider_configurations: conf.auth.extract_idp_configs()?,
-            db_params: conf.db.init(&conf.workspace.init()?)?,
+            db_params: Some(db_params),
             clear_db_on_start: conf.db.clear_database,
             hostname: conf.http.hostname,
             port: conf.http.port,

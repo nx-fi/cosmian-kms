@@ -8,7 +8,6 @@ use actix_web::{
     web::{self, Data, JsonConfig, PayloadConfig},
     App, HttpServer,
 };
-use cosmian_kms_server_database::MainDbParams;
 use openssl::{
     ssl::{SslAcceptor, SslAcceptorBuilder, SslMethod, SslVerifyMode},
     x509::store::X509StoreBuilder,
@@ -61,7 +60,7 @@ pub async fn start_kms_server(
     let _provider = openssl::provider::Provider::load(None, "fips")?;
 
     // Not in FIPS mode and version > 3.0: load the default provider and the legacy provider
-    // so that we can use the legacy algorithms
+    // so that we can use the legacy algorithms,
     // particularly those used for old PKCS#12 formats
     #[cfg(not(feature = "fips"))]
     let _provider = if openssl::version::number() >= 0x3000_0000 {
@@ -243,13 +242,6 @@ pub async fn prepare_kms_server(
     // Determine if Client Cert Auth should be used for authentication.
     let use_cert_auth = kms_server.params.authority_cert_file.is_some();
 
-    // Determine if the application is using an encrypted SQLite database.
-    let is_using_sqlite_enc = if let Some(db_params) = &kms_server.params.db_params {
-        matches!(db_params.main_database(), MainDbParams::SqliteEnc(_))
-    } else {
-        false
-    };
-
     // Determine the address to bind the server to.
     let address = format!("{}:{}", kms_server.params.hostname, kms_server.params.port);
 
@@ -336,7 +328,7 @@ pub async fn prepare_kms_server(
             .service(get_version);
 
         // The default scope is extended with the /new_database endpoint if the application is using an encrypted SQLite database.
-        let default_scope = if is_using_sqlite_enc {
+        let default_scope = if kms_server.is_using_sqlite_enc() {
             default_scope.service(add_new_database)
         } else {
             default_scope
