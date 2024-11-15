@@ -338,7 +338,7 @@ impl Session {
         }
     }
 
-    pub fn export_key(&self, key_handle: CK_OBJECT_HANDLE) -> PResult<HsmObject> {
+    pub fn export_key(&self, key_handle: CK_OBJECT_HANDLE) -> PResult<Option<HsmObject>> {
         let mut key_type: CK_KEY_TYPE = CKK_VENDOR_DEFINED;
         let mut class: CK_OBJECT_CLASS = CKO_VENDOR_DEFINED;
         let mut template = [
@@ -372,16 +372,13 @@ impl Session {
         };
 
         match object_type {
-            HsmObjectType::Aes => self.export_aes_key(key_handle)?,
-            HsmObjectType::RsaPrivate => self.export_rsa_private_key(key_handle)?,
-            HsmObjectType::RsaPublic => self.export_rsa_public_key(key_handle)?,
+            HsmObjectType::Aes => self.export_aes_key(key_handle),
+            HsmObjectType::RsaPrivate => self.export_rsa_private_key(key_handle),
+            HsmObjectType::RsaPublic => self.export_rsa_public_key(key_handle),
         }
     }
 
-    fn export_rsa_private_key(
-        &self,
-        key_handle: CK_OBJECT_HANDLE,
-    ) -> Result<Result<HsmObject, PError>, PError> {
+    fn export_rsa_private_key(&self, key_handle: CK_OBJECT_HANDLE) -> PResult<Option<HsmObject>> {
         // Get the key size
         let mut template = [
             CK_ATTRIBUTE {
@@ -430,7 +427,12 @@ impl Session {
                 ulValueLen: 0,
             },
         ];
-        self.call_get_attributes(key_handle, &mut template)?;
+        if self
+            .call_get_attributes(key_handle, &mut template)?
+            .is_none()
+        {
+            return Ok(None);
+        }
         let public_exponent_len = template[0].ulValueLen;
         let private_exponent_len = template[1].ulValueLen;
         let prime_1_len = template[2].ulValueLen;
@@ -496,10 +498,15 @@ impl Session {
                 ulValueLen: modulus_len,
             },
         ];
-        self.call_get_attributes(key_handle, &mut template)?;
+        if self
+            .call_get_attributes(key_handle, &mut template)?
+            .is_none()
+        {
+            return Ok(None);
+        }
         let label = String::from_utf8(label_bytes)
             .map_err(|e| PError::Default(format!("Failed to convert label to string: {}", e)))?;
-        Ok(Ok(HsmObject::new(
+        Ok(Some(HsmObject::new(
             KeyMaterial::RsaPrivateKey(RsaPrivateKeyMaterial {
                 modulus,
                 public_exponent,
@@ -514,10 +521,7 @@ impl Session {
         )))
     }
 
-    fn export_rsa_public_key(
-        &self,
-        key_handle: CK_OBJECT_HANDLE,
-    ) -> Result<Result<HsmObject, PError>, PError> {
+    fn export_rsa_public_key(&self, key_handle: CK_OBJECT_HANDLE) -> PResult<Option<HsmObject>> {
         // Get the key size
         let mut template = [
             CK_ATTRIBUTE {
@@ -536,7 +540,12 @@ impl Session {
                 ulValueLen: 0,
             },
         ];
-        self.call_get_attributes(key_handle, &mut template)?;
+        if self
+            .call_get_attributes(key_handle, &mut template)?
+            .is_none()
+        {
+            return Ok(None);
+        }
         let public_exponent_len = template[0].ulValueLen;
         let modulus_len = template[1].ulValueLen;
         let label_len = template[2].ulValueLen;
@@ -560,10 +569,15 @@ impl Session {
                 ulValueLen: modulus_len,
             },
         ];
-        self.call_get_attributes(key_handle, &mut template)?;
+        if self
+            .call_get_attributes(key_handle, &mut template)?
+            .is_none()
+        {
+            return Ok(None);
+        }
         let label = String::from_utf8(label_bytes)
             .map_err(|e| PError::Default(format!("Failed to convert label to string: {}", e)))?;
-        Ok(Ok(HsmObject::new(
+        Ok(Some(HsmObject::new(
             KeyMaterial::RsaPublicKey(RsaPublicKeyMaterial {
                 modulus,
                 public_exponent,
@@ -572,10 +586,7 @@ impl Session {
         )))
     }
 
-    fn export_aes_key(
-        &self,
-        key_handle: CK_OBJECT_HANDLE,
-    ) -> Result<Result<HsmObject, PError>, PError> {
+    fn export_aes_key(&self, key_handle: CK_OBJECT_HANDLE) -> PResult<Option<HsmObject>> {
         // Get the key size
         let mut template = [
             CK_ATTRIBUTE {
@@ -589,7 +600,12 @@ impl Session {
                 ulValueLen: 0,
             },
         ];
-        self.call_get_attributes(key_handle, &mut template)?;
+        if self
+            .call_get_attributes(key_handle, &mut template)?
+            .is_none()
+        {
+            return Ok(None);
+        }
         // Export the value
         let value_len = template[0].ulValueLen;
         let label_len = template[1].ulValueLen;
@@ -613,10 +629,15 @@ impl Session {
                 ulValueLen: size_of::<CK_ULONG>() as CK_ULONG,
             },
         ];
-        self.call_get_attributes(key_handle, &mut template)?;
+        if self
+            .call_get_attributes(key_handle, &mut template)?
+            .is_none()
+        {
+            return Ok(None);
+        }
         let label = String::from_utf8(label_bytes)
             .map_err(|e| PError::Default(format!("Failed to convert label to string: {}", e)))?;
-        Ok(Ok(HsmObject::new(
+        Ok(Some(HsmObject::new(
             KeyMaterial::AesKey(Zeroizing::new(key_value)),
             label,
         )))
@@ -626,7 +647,7 @@ impl Session {
         &self,
         key_handle: CK_OBJECT_HANDLE,
         template: &mut [CK_ATTRIBUTE],
-    ) -> PResult<()> {
+    ) -> PResult<Option<()>> {
         unsafe {
             // Get the length of the key value
             let rv = self.hsm.C_GetAttributeValue.ok_or_else(|| {
@@ -643,16 +664,15 @@ impl Session {
                 )));
             }
             if rv == CKR_OBJECT_HANDLE_INVALID {
-                return Err(PError::Default(format!(
-                    "Invalid HSM object id: {key_handle}"
-                )));
+                // The key was not found
+                return Ok(None);
             }
             if rv != CKR_OK {
                 return Err(PError::Default(format!(
                     "Failed to get the HSM attributes for key {key_handle}"
                 )));
             }
-            Ok(())
+            Ok(Some(()))
         }
     }
 }

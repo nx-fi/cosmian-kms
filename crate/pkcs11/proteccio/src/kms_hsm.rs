@@ -73,7 +73,7 @@ impl HSM for Proteccio {
         }
     }
 
-    async fn export(&self, slot_id: usize, object_id: usize) -> HsmResult<HsmObject> {
+    async fn export(&self, slot_id: usize, object_id: usize) -> HsmResult<Option<HsmObject>> {
         let slot = self.get_slot(slot_id)?;
         let session = slot.open_session(true)?;
         let object = session.export_key(object_id as CK_OBJECT_HANDLE)?;

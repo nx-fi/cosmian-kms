@@ -21,6 +21,12 @@ cosmian_kmip = { path = "../kmip" }
 hex = { workspace = true }
 lazy_static = "1.5"
 lru = "0.12.5"
+num-bigint-dig = { workspace = true, features = [
+    "std",
+    "rand",
+    "serde",
+    "zeroize",
+] }
 num_cpus = "1.16.0"
 proteccio_pkcs11_loader = { path = "../pkcs11/proteccio" }
 rawsql = "0.1"

@@ -1462,6 +1462,7 @@ dependencies = [
  "hex",
  "lazy_static",
  "lru",
+ "num-bigint-dig",
  "num_cpus",
  "proteccio_pkcs11_loader",
  "rand_chacha 0.3.1",

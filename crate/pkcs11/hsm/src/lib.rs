@@ -112,7 +112,7 @@ pub trait HSM {
     /// Export objects from the HSN.
     ///
     /// To be exportable, the object must have been created with the exportable flag set to true.
-    async fn export(&self, slot_id: usize, object_id: usize) -> HsmResult<HsmObject>;
+    async fn export(&self, slot_id: usize, object_id: usize) -> HsmResult<Option<HsmObject>>;
 
     /// Delete an object from the HSM.
     async fn delete(&self, slot_id: usize, object_id: usize) -> HsmResult<()>;

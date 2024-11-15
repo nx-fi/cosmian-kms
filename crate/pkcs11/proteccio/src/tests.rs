@@ -96,7 +96,9 @@ fn test_generate_aes_key() -> PResult<()> {
     let key_handle = session.generate_aes_key(AesKeySize::Aes256, "label", true)?;
     info!("Generated exportable AES key: {}", key_handle);
     // re-export the key
-    let key = session.export_key(key_handle)?;
+    let key = session
+        .export_key(key_handle)?
+        .expect("Failed to find the key");
     let key_bytes = match key.key_material() {
         KeyMaterial::AesKey(v) => v,
         KeyMaterial::RsaPrivateKey(_) | KeyMaterial::RsaPublicKey(_) => {
@@ -131,7 +133,9 @@ fn test_generate_rsa_keypair() -> PResult<()> {
     let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label", true)?;
     info!("Generated exportable RSA key: sk: {sk}, pk: {pk}");
     // export the private key
-    let key = session.export_key(sk)?;
+    let key = session
+        .export_key(sk)?
+        .expect("Failed to find the private key");
     assert_eq!(key.label(), "label");
     match key.key_material() {
         KeyMaterial::RsaPrivateKey(v) => {
@@ -142,7 +146,9 @@ fn test_generate_rsa_keypair() -> PResult<()> {
         }
     }
     // export the public key
-    let key = session.export_key(pk)?;
+    let key = session
+        .export_key(pk)?
+        .expect("Failed to find the public key");
     assert_eq!(key.label(), "label");
     match key.key_material() {
         KeyMaterial::RsaPublicKey(v) => {

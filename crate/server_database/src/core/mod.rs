@@ -49,7 +49,11 @@ impl Database {
         for extra_store in db_params.additional_stores() {
             match extra_store {
                 #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
-                AdditionalObjectStoresParams::ProteccioHsm((prefix, hsm_admin, slot_passwords)) => {
+                AdditionalObjectStoresParams::ProteccioHsm((
+                    _prefix,
+                    _hsm_admin,
+                    _slot_passwords,
+                )) => {
                     db_bail!("Fatal: Proteccio HSM is only supported on Linux x86_64");
                 }
                 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
