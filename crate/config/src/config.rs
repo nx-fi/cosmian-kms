@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use cosmian_http_client::HttpClientConfig;
 use serde::{Deserialize, Serialize};
@@ -27,7 +27,8 @@ pub struct GmailApiConf {
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Debug, Clone)]
 pub struct KmsClientConfig {
-    pub conf_path: PathBuf,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub conf_path: Option<PathBuf>,
     pub http_config: HttpClientConfig,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gmail_api_conf: Option<GmailApiConf>,
@@ -43,7 +44,7 @@ impl Default for KmsClientConfig {
                 server_url: "http://0.0.0.0:9998".to_owned(),
                 ..HttpClientConfig::default()
             },
-            conf_path: Path::new(KMS_CLI_CONF_PATH).to_path_buf(),
+            conf_path: None,
             gmail_api_conf: None,
             print_json: None,
         }

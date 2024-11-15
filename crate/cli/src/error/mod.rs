@@ -77,6 +77,10 @@ pub enum CliError {
     #[error(transparent)]
     UrlParsing(#[from] url::ParseError),
 
+    // Configuration errors
+    #[error(transparent)]
+    ConfigError(#[from] KmsConfigError),
+
     // When an error occurs fetching Gmail API
     #[error("Error interacting with Gmail API: {0}")]
     GmailApiError(String),
@@ -205,12 +209,6 @@ impl From<FromHexError> for CliError {
 
 impl From<KmsClientError> for CliError {
     fn from(e: KmsClientError) -> Self {
-        Self::KmsClientError(e.to_string())
-    }
-}
-
-impl From<KmsConfigError> for CliError {
-    fn from(e: KmsConfigError) -> Self {
         Self::KmsClientError(e.to_string())
     }
 }

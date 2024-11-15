@@ -1,7 +1,7 @@
 use clap::Parser;
-use cosmian_kms_client::reexport::cosmian_kms_config::KmsClientConfig;
+use cosmian_kms_client::reexport::cosmian_kms_config::{KmsClientConfig, KmsConfigError};
 
-use crate::error::result::CliResult;
+use crate::error::{result::CliResult, CliError};
 
 /// Logout from the Identity Provider.
 ///
@@ -25,7 +25,12 @@ impl LogoutAction {
     pub fn process(&self, conf: &KmsClientConfig) -> CliResult<()> {
         let mut conf = conf.clone();
         conf.http_config.access_token = None;
-        conf.save(&conf.conf_path)?;
+        let conf_path = conf.conf_path.clone().ok_or_else(|| {
+            CliError::ConfigError(KmsConfigError::Default(
+                "Configuration path `conf_path` must be filled".to_owned(),
+            ))
+        })?;
+        conf.save(&conf_path)?;
 
         println!(
             "\nThe access token was removed from the KMS configuration file: {:?}",

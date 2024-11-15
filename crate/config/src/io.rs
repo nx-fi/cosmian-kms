@@ -200,12 +200,13 @@ mod tests {
         let conf_path = Path::new("/tmp/kms.json").to_path_buf();
         log_init(None);
         let conf = KmsClientConfig {
-            conf_path: conf_path.clone(),
+            conf_path: Some(conf_path.clone()),
             ..Default::default()
         };
         conf.save(&conf_path).unwrap();
 
-        KmsClientConfig::load(&conf_path).unwrap();
+        let loaded_config = KmsClientConfig::load(&conf_path).unwrap();
+        assert_eq!(loaded_config.conf_path, conf.conf_path);
     }
 
     #[test]
@@ -216,7 +217,6 @@ mod tests {
             env::set_var(KMS_CLI_CONF_ENV, "../../test_data/configs/kms.json");
         }
         let conf_path = KmsClientConfig::location(None).unwrap();
-        println!("conf_path: {:?}", conf_path);
         assert!(KmsClientConfig::load(&conf_path).is_ok());
 
         // another valid conf

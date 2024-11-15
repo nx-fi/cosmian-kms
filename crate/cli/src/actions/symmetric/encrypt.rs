@@ -338,7 +338,7 @@ impl EncryptAction {
     pub async fn client_side_encrypt_with_buffer(
         &self,
         kms_rest_client: &KmsClient,
-        key_id: &str,
+        key_encryption_key_id: &str,
         key_encryption_algorithm: KeyEncryptionAlgorithm,
         data_encryption_algorithm: DataEncryptionAlgorithm,
         nonce: Option<Vec<u8>>,
@@ -371,7 +371,7 @@ impl EncryptAction {
         let (kem_nonce, kem_ciphertext, kem_tag) = self
             .server_side_encrypt(
                 kms_rest_client,
-                key_id,
+                key_encryption_key_id,
                 key_encryption_algorithm.into(),
                 None,
                 dek.to_vec(),
@@ -387,7 +387,6 @@ impl EncryptAction {
         let encapsulation_len = u64::try_from(encapsulation.len())?;
         trace!("encapsulation_len: {}", encapsulation_len);
         leb128::write::unsigned(&mut output_buffer, encapsulation_len)?;
-        // leb128::write::unsigned(output_file, encapsulation.len() as u64)?;
         output_buffer.write_all(&encapsulation)?;
 
         // Determine the DEM parameters

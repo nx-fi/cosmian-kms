@@ -1,6 +1,7 @@
 use clap::Parser;
 use cosmian_kms_client::reexport::{
-    cosmian_http_client::LoginState, cosmian_kms_config::KmsClientConfig,
+    cosmian_http_client::LoginState,
+    cosmian_kms_config::{KmsClientConfig, KmsConfigError},
 };
 
 use crate::error::{result::CliResult, CliError};
@@ -63,7 +64,12 @@ impl LoginAction {
 
         // update the configuration and save it
         conf.http_config.access_token = Some(access_token);
-        conf.save(&conf.conf_path)?;
+        let conf_path = conf.conf_path.clone().ok_or_else(|| {
+            CliError::ConfigError(KmsConfigError::Default(
+                "Configuration path `conf_path` must be filled".to_owned(),
+            ))
+        })?;
+        conf.save(&conf_path)?;
 
         println!(
             "\nSuccess! The access token was saved in the KMS configuration file: {:?}",
