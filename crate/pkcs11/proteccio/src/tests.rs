@@ -57,7 +57,6 @@ fn get_slot() -> PResult<Arc<SlotManager>> {
 }
 
 #[test]
-#[ignore]
 fn low_level_test() -> PResult<()> {
     let path = "/lib/libnethsm.so";
     let library = unsafe { Library::new(path) }?;
@@ -78,7 +77,6 @@ fn low_level_test() -> PResult<()> {
 }
 
 #[test]
-#[ignore]
 fn test_hsm_get_info() -> PResult<()> {
     initialize_logging();
     let hsm = Proteccio::instantiate("/lib/libnethsm.so", HashMap::new())?;
@@ -88,7 +86,6 @@ fn test_hsm_get_info() -> PResult<()> {
 }
 
 #[test]
-#[ignore]
 fn test_generate_aes_key() -> PResult<()> {
     initialize_logging();
     let slot = get_slot()?;
@@ -125,7 +122,6 @@ fn test_generate_aes_key() -> PResult<()> {
 }
 
 #[test]
-#[ignore]
 fn test_generate_rsa_keypair() -> PResult<()> {
     initialize_logging();
     let slot = get_slot()?;
@@ -169,7 +165,6 @@ fn test_generate_rsa_keypair() -> PResult<()> {
 }
 
 #[test]
-#[ignore]
 fn test_rsa_key_wrap() -> PResult<()> {
     initialize_logging();
     let slot = get_slot()?;
@@ -187,7 +182,6 @@ fn test_rsa_key_wrap() -> PResult<()> {
 }
 
 #[test]
-#[ignore]
 fn test_rsa_pkcs_encrypt() -> PResult<()> {
     initialize_logging();
     let slot = get_slot()?;
@@ -203,7 +197,6 @@ fn test_rsa_pkcs_encrypt() -> PResult<()> {
 }
 
 #[test]
-#[ignore]
 fn test_rsa_oaep_encrypt() -> PResult<()> {
     initialize_logging();
     let slot = get_slot()?;
@@ -219,7 +212,6 @@ fn test_rsa_oaep_encrypt() -> PResult<()> {
 }
 
 #[test]
-#[ignore]
 fn test_aes_gcm_encrypt() -> PResult<()> {
     initialize_logging();
     let slot = get_slot()?;
@@ -235,7 +227,6 @@ fn test_aes_gcm_encrypt() -> PResult<()> {
 }
 
 #[test]
-#[ignore]
 fn multi_threaded_rsa_encrypt_decrypt_test() -> PResult<()> {
     initialize_logging();
 
@@ -267,7 +258,6 @@ fn multi_threaded_rsa_encrypt_decrypt_test() -> PResult<()> {
 }
 
 #[test]
-#[ignore]
 fn test_list_objects() -> PResult<()> {
     initialize_logging();
     let slot = get_slot()?;
