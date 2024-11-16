@@ -12,11 +12,7 @@ use cosmian_kmip::{
     },
 };
 use cosmian_kms_server_database::{Database, ExtraStoreParams};
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-use log::info;
 use openssl::rand::rand_bytes;
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-use proteccio_pkcs11_loader::Proteccio;
 use tracing::trace;
 use zeroize::Zeroizing;
 

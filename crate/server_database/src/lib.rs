@@ -44,7 +44,7 @@ pub use error::{DbError, DbResult};
 mod migrate;
 mod stores;
 pub use stores::{
-    redis_master_key_from_password, AtomicOperation, ExtraStoreParams,
+    redis_master_key_from_password, AtomicOperation, ExtraStoreParams, HsmStore,
     REDIS_WITH_FINDEX_MASTER_KEY_LENGTH,
 };
 

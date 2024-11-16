@@ -1,3 +1,4 @@
+#![allow(unused_variables)]
 use std::{collections::HashSet, path::PathBuf};
 
 use async_trait::async_trait;
@@ -17,8 +18,10 @@ use num_bigint_dig::BigUint;
 use tracing::debug;
 use KmipKeyMaterial::TransparentRSAPublicKey;
 
-use super::super::store_traits::ObjectsStore;
-use crate::{db_bail, AtomicOperation, DbError, DbResult, ExtraStoreParams, ObjectWithMetadata};
+use crate::{
+    db_bail, stores::ObjectsStore, AtomicOperation, DbError, DbResult, ExtraStoreParams,
+    ObjectWithMetadata,
+};
 
 pub struct HsmStore {
     hsm: Box<dyn HSM + Send + Sync>,

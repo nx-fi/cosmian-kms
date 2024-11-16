@@ -1,25 +1,27 @@
 //! This module contains the core database functionalities, including object management,
 //! permission checks, and caching mechanisms for unwrapped keys.
+mod database_objects;
+mod database_permissions;
 
 use std::{collections::HashMap, sync::Arc};
 
 use cloudproof::reexport::crypto_core::FixedSizeCBytes;
 use cosmian_kmip::crypto::secret::Secret;
 use tokio::sync::RwLock;
-
-mod database_objects;
-mod database_permissions;
-
 mod db_params;
 pub use db_params::{AdditionalObjectStoresParams, DbParams, MainDbParams};
 mod object_with_metadata;
 mod unwrapped_cache;
-
 pub use object_with_metadata::ObjectWithMetadata;
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+use proteccio_pkcs11_loader::Proteccio;
 
 pub use crate::core::unwrapped_cache::{CachedUnwrappedObject, UnwrappedCache};
+#[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+use crate::db_bail;
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+use crate::HsmStore;
 use crate::{
-    db_bail,
     stores::{
         CachedSqlCipher, MySqlPool, ObjectsStore, PermissionsStore, PgPool, RedisWithFindex,
         SqlitePool, REDIS_WITH_FINDEX_MASTER_KEY_LENGTH,

@@ -1,7 +1,7 @@
 mod cached_sqlcipher;
 mod cached_sqlite_struct;
 mod extra_store_params;
-pub(crate) mod hsm;
+mod hsm;
 mod locate_query;
 mod mysql;
 mod pgsql;
@@ -12,6 +12,7 @@ mod store_traits;
 pub use cached_sqlcipher::CachedSqlCipher;
 use cosmian_kmip::kmip::kmip_objects::{Object, ObjectType};
 pub use extra_store_params::ExtraStoreParams;
+pub use hsm::HsmStore;
 use lazy_static::lazy_static;
 pub(crate) use mysql::MySqlPool;
 pub(crate) use pgsql::PgPool;
