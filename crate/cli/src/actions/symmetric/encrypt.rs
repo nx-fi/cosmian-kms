@@ -13,7 +13,6 @@ use cosmian_kms_client::{
     kmip::kmip_types::CryptographicParameters,
     read_bytes_from_file, KmsClient,
 };
-use tracing::trace;
 use zeroize::Zeroizing;
 
 use crate::{
@@ -354,7 +353,6 @@ impl EncryptAction {
             DataEncryptionAlgorithm::AesGcmSiv => random_key(SymCipher::Aes256Gcm)?,
             DataEncryptionAlgorithm::AesXts => random_key(SymCipher::Aes256Xts)?,
         };
-        trace!("dek: {:?}", dek);
 
         // Additional authenticated data (AAD) for AEAD ciphers
         // (empty for XTS)
@@ -385,7 +383,6 @@ impl EncryptAction {
         // as an unsigned LEB128 integer
         let mut output_buffer = Vec::with_capacity(encapsulation.len() + 2 * plaintext.len());
         let encapsulation_len = u64::try_from(encapsulation.len())?;
-        trace!("encapsulation_len: {}", encapsulation_len);
         leb128::write::unsigned(&mut output_buffer, encapsulation_len)?;
         output_buffer.write_all(&encapsulation)?;
 
@@ -408,12 +405,9 @@ impl EncryptAction {
             Some(n) => n,
             None => random_nonce(sym_cipher)?,
         };
-        trace!("nonce: {:?}", nonce);
         output_buffer.write_all(&nonce)?;
 
         let ciphertext = encrypt(sym_cipher, &dek, &nonce, &aad, plaintext)?;
-        trace!("ct: {:?}", ciphertext.0);
-        trace!("tag: {:?}", ciphertext.1);
         // write the tag
         output_buffer.write_all(&ciphertext.0)?;
         output_buffer.write_all(&ciphertext.1)?;

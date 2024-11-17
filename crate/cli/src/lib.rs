@@ -32,7 +32,11 @@ pub mod actions;
 pub mod commands;
 pub mod error;
 
-pub use commands::{ckms_main, kms_process, KmsActions};
+pub use commands::{ckms_main, KmsActions, KmsOptions};
+
+pub mod reexport {
+    pub use cosmian_kms_client;
+}
 
 #[cfg(test)]
 mod tests;

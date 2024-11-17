@@ -1,5 +1,6 @@
 use std::{array::TryFromSliceError, str::Utf8Error};
 
+use cosmian_config_utils::ConfigUtilsError;
 use cosmian_kmip::{kmip::kmip_operations::ErrorReason, KmipError};
 use cosmian_kms_client::KmsClientError;
 use cosmian_kms_config::KmsConfigError;
@@ -37,6 +38,9 @@ pub enum Pkcs11Error {
     // Other errors
     #[error("{0}")]
     Default(String),
+
+    #[error(transparent)]
+    ConfigUtilsError(#[from] ConfigUtilsError),
 }
 
 impl Pkcs11Error {}
@@ -57,6 +61,8 @@ impl From<KmipError> for Pkcs11Error {
             | KmipError::ConversionError(s)
             | KmipError::IndexingSlicing(s)
             | KmipError::ObjectNotFound(s) => Self::NotSupported(s),
+            KmipError::TryFromSliceError(e) => Self::Conversion(e.to_string()),
+            KmipError::SerdeJsonError(e) => Self::Conversion(e.to_string()),
         }
     }
 }

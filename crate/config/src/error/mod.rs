@@ -1,28 +1,16 @@
 use std::io;
 
+use cosmian_config_utils::ConfigUtilsError;
 use thiserror::Error;
 
 pub(crate) mod result;
 
 #[derive(Error, Debug)]
 pub enum KmsConfigError {
-    #[error(transparent)]
-    Base64DecodeError(#[from] base64::DecodeError),
-
-    #[error("Invalid conversion: {0}")]
-    Conversion(String),
-
     #[error("{0}")]
     Default(String),
-
-    #[error("Not Supported: {0}")]
-    NotSupported(String),
-
-    #[error("Unexpected Error: {0}")]
-    UnexpectedError(String),
-
     #[error(transparent)]
-    UrlError(#[from] url::ParseError),
+    ConfigUtilsError(#[from] ConfigUtilsError),
 }
 
 impl From<io::Error> for KmsConfigError {

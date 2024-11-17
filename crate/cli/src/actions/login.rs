@@ -1,4 +1,5 @@
 use clap::Parser;
+use cosmian_config_utils::ConfigUtils;
 use cosmian_kms_client::reexport::{
     cosmian_http_client::LoginState,
     cosmian_kms_config::{KmsClientConfig, KmsConfigError},

@@ -947,6 +947,7 @@ dependencies = [
 name = "ckms_pkcs11"
 version = "4.19.3"
 dependencies = [
+ "cosmian_config_utils",
  "cosmian_kmip",
  "cosmian_kms_client",
  "cosmian_kms_config",
@@ -1231,6 +1232,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06ea2b9bc92be3c2baa9334a323ebca2d6f074ff852cd1d7b11064035cd3868f"
 
 [[package]]
+name = "cosmian_config_utils"
+version = "0.1.0"
+source = "git+https://www.github.com/Cosmian/http_client_server?branch=add_http_client#cd098c83ff5f6aefe369bc8ad4242e0f4418891e"
+dependencies = [
+ "base64 0.21.7",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tracing",
+ "url",
+]
+
+[[package]]
 name = "cosmian_cover_crypt"
 version = "14.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1328,7 +1342,7 @@ dependencies = [
 [[package]]
 name = "cosmian_http_client"
 version = "0.1.0"
-source = "git+https://www.github.com/Cosmian/http_client_server?branch=add_http_client#49d4de89865f23d14bc1948d6db48fd690239eec"
+source = "git+https://www.github.com/Cosmian/http_client_server?branch=add_http_client#cd098c83ff5f6aefe369bc8ad4242e0f4418891e"
 dependencies = [
  "actix-web",
  "oauth2",
@@ -1391,6 +1405,7 @@ dependencies = [
  "clap",
  "cloudproof",
  "const-oid",
+ "cosmian_config_utils",
  "cosmian_kms_client",
  "cosmian_logger",
  "der",
@@ -1441,14 +1456,11 @@ dependencies = [
 name = "cosmian_kms_config"
 version = "4.19.3"
 dependencies = [
- "base64 0.21.7",
+ "cosmian_config_utils",
  "cosmian_http_client",
  "cosmian_logger",
  "serde",
- "serde_json",
  "thiserror",
- "tracing",
- "url",
 ]
 
 [[package]]
@@ -1524,7 +1536,7 @@ dependencies = [
 [[package]]
 name = "cosmian_logger"
 version = "0.1.0"
-source = "git+https://www.github.com/Cosmian/http_client_server?branch=add_http_client#49d4de89865f23d14bc1948d6db48fd690239eec"
+source = "git+https://www.github.com/Cosmian/http_client_server?branch=add_http_client#cd098c83ff5f6aefe369bc8ad4242e0f4418891e"
 dependencies = [
  "tracing",
  "tracing-subscriber",
@@ -2424,7 +2436,7 @@ dependencies = [
  "httpdate",
  "itoa",
  "pin-project-lite",
- "socket2 0.5.7",
+ "socket2 0.4.10",
  "tokio",
  "tower-service",
  "tracing",

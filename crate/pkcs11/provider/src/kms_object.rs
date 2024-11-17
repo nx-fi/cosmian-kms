@@ -1,3 +1,4 @@
+use cosmian_config_utils::ConfigUtils;
 use cosmian_kmip::kmip::{
     kmip_objects::Object,
     kmip_operations::{Decrypt, Locate},

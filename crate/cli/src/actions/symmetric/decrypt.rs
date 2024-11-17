@@ -21,7 +21,7 @@ use cosmian_kms_client::{
     kmip::kmip_types::{BlockCipherMode, CryptographicAlgorithm, CryptographicParameters},
     read_bytes_from_file, KmsClient,
 };
-use tracing::{debug, trace};
+use tracing::debug;
 use zeroize::Zeroizing;
 
 use crate::{
@@ -364,8 +364,6 @@ impl DecryptAction {
             ))
         })?;
 
-        trace!("Encapsulation length: {encaps_length}");
-
         // read the encapsulated data
         #[allow(clippy::cast_possible_truncation)]
         let mut encapsulation = vec![0; encaps_length as usize];
@@ -380,7 +378,6 @@ impl DecryptAction {
                 None,
             )
             .await?;
-        trace!("dek: {:?}", dek);
 
         // determine the DEM parameters
         let dem_cryptographic_parameters: CryptographicParameters =
@@ -396,15 +393,12 @@ impl DecryptAction {
         let mut nonce = vec![0; sym_cipher.nonce_size()];
 
         ct.read_exact(&mut nonce)?;
-        trace!("nonce: {:?}", nonce);
 
         // decrypt the file
         // let mut stream_cipher = cipher.stream_cipher(Mode::Decrypt, &dek, &nonce, &aad)?;
         let tag_size = sym_cipher.tag_size();
 
         let (ciphertext, tag) = ct.split_at(ct.len() - tag_size);
-        trace!("ct: {:?}", ciphertext);
-        trace!("tag: {:?}", tag);
 
         let cleartext = decrypt(sym_cipher, &dek, &nonce, &aad, ciphertext, tag)?;
 
