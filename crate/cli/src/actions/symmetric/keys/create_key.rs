@@ -67,6 +67,10 @@ pub struct CreateKeyAction {
     /// is generated if not specified.
     #[clap(required = false)]
     key_id: Option<String>,
+
+    /// Sensitive: if set, the key will not be exportable
+    #[clap(long = "sensitive", default_value = "false")]
+    sensitive: bool,
 }
 
 impl CreateKeyAction {
@@ -102,7 +106,8 @@ impl CreateKeyAction {
         };
 
         let unique_identifier = if let Some(key_bytes) = key_bytes {
-            let object = create_symmetric_key_kmip_object(key_bytes.as_slice(), algorithm)?;
+            let object =
+                create_symmetric_key_kmip_object(key_bytes.as_slice(), algorithm, self.sensitive)?;
             import_object(
                 kms_rest_client,
                 self.key_id.clone(),
@@ -118,8 +123,13 @@ impl CreateKeyAction {
                 .key_id
                 .as_ref()
                 .map(|id| UniqueIdentifier::TextString(id.clone()));
-            let create_key_request =
-                symmetric_key_create_request(key_id, number_of_bits, algorithm, &self.tags)?;
+            let create_key_request = symmetric_key_create_request(
+                key_id,
+                number_of_bits,
+                algorithm,
+                &self.tags,
+                self.sensitive,
+            )?;
             kms_rest_client
                 .create(create_key_request)
                 .await

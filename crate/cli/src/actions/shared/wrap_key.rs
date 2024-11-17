@@ -40,7 +40,7 @@ pub struct WrapKeyAction {
     #[clap(required = true)]
     key_file_in: PathBuf,
 
-    /// The KMIP JSON output file. When not specified the input file is overwritten.
+    /// The KMIP JSON output file. When not specified, the input file is overwritten.
     #[clap(required = false)]
     key_file_out: Option<PathBuf>,
 
@@ -96,15 +96,18 @@ impl WrapKeyAction {
             let key_bytes = general_purpose::STANDARD
                 .decode(b64)
                 .with_context(|| "failed decoding the wrap key")?;
-            create_symmetric_key_kmip_object(&key_bytes, CryptographicAlgorithm::AES)?
+            create_symmetric_key_kmip_object(&key_bytes, CryptographicAlgorithm::AES, false)?
         } else if let Some(password) = &self.wrap_password {
             let key_bytes = derive_key_from_password::<SYMMETRIC_WRAPPING_KEY_SIZE>(
                 &[0_u8; 16],
                 password.as_bytes(),
             )?;
 
-            let symmetric_key_object =
-                create_symmetric_key_kmip_object(key_bytes.as_ref(), CryptographicAlgorithm::AES)?;
+            let symmetric_key_object = create_symmetric_key_kmip_object(
+                key_bytes.as_ref(),
+                CryptographicAlgorithm::AES,
+                false,
+            )?;
 
             // Print the wrapping key for user.
             println!(

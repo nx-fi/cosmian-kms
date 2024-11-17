@@ -19,9 +19,9 @@ pub enum AesKeySize {
 pub(crate) const fn aes_key_template(
     label: &str,
     size: CK_ULONG,
-    exportable: bool,
+    sensitive: bool,
 ) -> [CK_ATTRIBUTE; 10] {
-    let sensitive: CK_BBOOL = if !exportable { CK_TRUE } else { CK_FALSE };
+    let sensitive: CK_BBOOL = if sensitive { CK_TRUE } else { CK_FALSE };
     [
         CK_ATTRIBUTE {
             type_: CKA_CLASS,
@@ -85,7 +85,7 @@ impl Session {
         &self,
         size: AesKeySize,
         label: &str,
-        exportable: bool,
+        sensititve: bool,
     ) -> PResult<CK_OBJECT_HANDLE> {
         unsafe {
             let ck_fn = self.hsm.C_GenerateKey.ok_or_else(|| {
@@ -100,7 +100,7 @@ impl Session {
                 pParameter: ptr::null_mut(),
                 ulParameterLen: 0,
             };
-            let mut template = aes_key_template(label, size, exportable);
+            let mut template = aes_key_template(label, size, sensititve);
             let pMechanism: CK_MECHANISM_PTR = &mut mechanism;
             let pMutTemplate: CK_ATTRIBUTE_PTR = template.as_mut_ptr();
             let mut aes_key_handle = CK_OBJECT_HANDLE::default();

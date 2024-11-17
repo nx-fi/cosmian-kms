@@ -61,6 +61,14 @@ pub(crate) async fn export_get(
         .context("Export: unique_identifier or tags must be a string")?;
     let mut owm =
         retrieve_object_for_operation(uid_or_tags, operation_type, kms, user, params).await?;
+
+    // The object cannot be exported if it is sensitive and is not wrapped on export,
+    if owm.attributes().sensitive && request.key_wrapping_specification.is_none() {
+        return Err(KmsError::InvalidRequest(
+            "this object is marked sensitive and cannot be exported".to_owned(),
+        ))
+    }
+
     let object_type = owm.object().object_type();
     let export = operation_type == KmipOperation::Export;
 

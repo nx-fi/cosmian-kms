@@ -121,7 +121,7 @@ async fn test_rsa_encrypt_decrypt_using_ckm_rsa_pkcs() -> CliResult<()> {
     assert!(!output_file.exists());
 
     let (private_key_id, public_key_id) =
-        create_rsa_4096_bits_key_pair(&ctx.owner_client_conf_path, &[])?;
+        create_rsa_4096_bits_key_pair(&ctx.owner_client_conf_path, &[], false)?;
 
     trace!("private_key_id: {private_key_id}");
     trace!("public_key_id: {public_key_id}");
@@ -193,7 +193,7 @@ async fn test_rsa_encrypt_decrypt_using_ckm_rsa_pkcs_oaep() -> CliResult<()> {
     assert!(!output_file.exists());
 
     let (private_key_id, public_key_id) =
-        create_rsa_4096_bits_key_pair(&ctx.owner_client_conf_path, &[])?;
+        create_rsa_4096_bits_key_pair(&ctx.owner_client_conf_path, &[], false)?;
 
     trace!("private_key_id: {private_key_id}");
     trace!("public_key_id: {public_key_id}");
@@ -277,7 +277,7 @@ async fn test_rsa_encrypt_decrypt_using_rsa_aes_key_wrap() -> CliResult<()> {
     assert!(!output_file.exists());
 
     let (private_key_id, public_key_id) =
-        create_rsa_4096_bits_key_pair(&ctx.owner_client_conf_path, &[])?;
+        create_rsa_4096_bits_key_pair(&ctx.owner_client_conf_path, &[], false)?;
 
     trace!("private_key_id: {private_key_id}");
     trace!("public_key_id: {public_key_id}");
@@ -353,7 +353,7 @@ async fn test_rsa_encrypt_decrypt_using_tags() -> CliResult<()> {
     assert!(!output_file.exists());
 
     let (_private_key_id, _public_key_id) =
-        create_rsa_4096_bits_key_pair(&ctx.owner_client_conf_path, &["tag_rsa"])?;
+        create_rsa_4096_bits_key_pair(&ctx.owner_client_conf_path, &["tag_rsa"], false)?;
 
     encrypt(
         &ctx.owner_client_conf_path,

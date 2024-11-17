@@ -139,6 +139,7 @@ fn create_master_public_key_object(
     master_private_key_uid: &str,
 ) -> Result<Object, KmipError> {
     let mut attributes = attributes.cloned().unwrap_or_default();
+    attributes.sensitive = false;
     attributes.object_type = Some(ObjectType::PublicKey);
     attributes.key_format_type = Some(KeyFormatType::CoverCryptPublicKey);
     // Covercrypt keys are set to have unrestricted usage.

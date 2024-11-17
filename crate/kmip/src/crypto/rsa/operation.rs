@@ -126,6 +126,7 @@ pub fn to_rsa_private_key(
     pkey_bits_number: u32,
     public_key_uid: &str,
     private_key_mask: Option<CryptographicUsageMask>,
+    sensitive: bool,
 ) -> Object {
     let cryptographic_length_in_bits = private_key.d().num_bits();
 
@@ -183,6 +184,7 @@ pub fn to_rsa_private_key(
                             public_key_uid.to_owned(),
                         ),
                     }]),
+                    sensitive,
                     ..Attributes::default()
                 }),
             },
@@ -199,6 +201,7 @@ pub fn create_rsa_key_pair(
     algorithm: Option<CryptographicAlgorithm>,
     private_key_mask: Option<CryptographicUsageMask>,
     public_key_mask: Option<CryptographicUsageMask>,
+    sensitive: bool,
 ) -> Result<KeyPair, KmipError> {
     #[cfg(feature = "fips")]
     if key_size_in_bits < FIPS_MIN_RSA_MODULUS_LENGTH {
@@ -221,6 +224,7 @@ pub fn create_rsa_key_pair(
         key_size_in_bits,
         public_key_uid,
         private_key_mask,
+        sensitive,
     );
     let public_key = to_rsa_public_key(
         &rsa_private,

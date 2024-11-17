@@ -32,7 +32,7 @@ pub(crate) async fn list_uids_for_tags_test<DB: ObjectsStore + PermissionsStore>
     let mut symmetric_key_bytes = vec![0; 32];
     rng.fill_bytes(&mut symmetric_key_bytes);
     let symmetric_key =
-        create_symmetric_key_kmip_object(&symmetric_key_bytes, CryptographicAlgorithm::AES)?;
+        create_symmetric_key_kmip_object(&symmetric_key_bytes, CryptographicAlgorithm::AES, false)?;
 
     let uid1 = Uuid::new_v4().to_string();
 
@@ -51,7 +51,7 @@ pub(crate) async fn list_uids_for_tags_test<DB: ObjectsStore + PermissionsStore>
     let mut symmetric_key_bytes = vec![0; 32];
     rng.fill_bytes(&mut symmetric_key_bytes);
     let symmetric_key =
-        create_symmetric_key_kmip_object(&symmetric_key_bytes, CryptographicAlgorithm::AES)?;
+        create_symmetric_key_kmip_object(&symmetric_key_bytes, CryptographicAlgorithm::AES, false)?;
 
     let uid2 = Uuid::new_v4().to_string();
 

@@ -20,7 +20,7 @@ pub(crate) const SUB_COMMAND: &str = "access-rights";
 
 /// Generates a symmetric key
 fn gen_key(cli_conf_path: &str) -> CliResult<String> {
-    create_symmetric_key(cli_conf_path, None, None, None, &[])
+    create_symmetric_key(cli_conf_path, None, None, None, &[], false)
 }
 
 /// Grants access to a user

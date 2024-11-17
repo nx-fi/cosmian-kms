@@ -28,7 +28,7 @@ async fn test_kmip_messages() -> KResult<()> {
 
     // request key pair creation
     let ec_create_request =
-        create_ec_key_pair_request(None, EMPTY_TAGS, RecommendedCurve::CURVE25519)?;
+        create_ec_key_pair_request(None, EMPTY_TAGS, RecommendedCurve::CURVE25519, false)?;
 
     // prepare and send the single message
     let items = vec![

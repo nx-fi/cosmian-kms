@@ -13,7 +13,7 @@ impl HSM for Proteccio {
         slot_id: usize,
         algorithm: HsmKeyAlgorithm,
         key_length_in_bits: usize,
-        exportable: bool,
+        sensitive: bool,
         label: &str,
     ) -> HsmResult<usize> {
         let slot = self.get_slot(slot_id)?;
@@ -30,7 +30,7 @@ impl HSM for Proteccio {
                         )))
                     }
                 };
-                let id = session.generate_aes_key(key_size, label, exportable)?;
+                let id = session.generate_aes_key(key_size, label, sensitive)?;
                 Ok(id as usize)
             } // _ => Err(HsmError::Default(
               //     "Only AES or RSA keys can be created on the Proteccio HSM".to_string(),
@@ -43,7 +43,7 @@ impl HSM for Proteccio {
         slot_id: usize,
         algorithm: HsmKeypairAlgorithm,
         key_length_in_bits: usize,
-        exportable: bool,
+        sensitive: bool,
         label: &str,
     ) -> HsmResult<(usize, usize)> {
         let slot = self.get_slot(slot_id)?;
@@ -65,7 +65,7 @@ impl HSM for Proteccio {
         match algorithm {
             HsmKeypairAlgorithm::RSA => {
                 let (sk, pk) =
-                    session.generate_rsa_key_pair(key_length_in_bits, label, exportable)?;
+                    session.generate_rsa_key_pair(key_length_in_bits, label, sensitive)?;
                 Ok((sk as usize, pk as usize))
             } // _ => Err(HsmError::Default(
               //     "Only AES or RSA keys can be created on the Proteccio HSM".to_string(),

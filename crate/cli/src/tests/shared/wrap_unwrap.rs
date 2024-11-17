@@ -140,16 +140,17 @@ pub(crate) async fn test_password_wrap_import() -> CliResult<()> {
         "--policy-specifications",
         "test_data/policy_specifications.json",
         &[],
+        false,
     )?;
     password_wrap_import_test(ctx, "cc", &private_key_id)?;
 
     // EC
     let (private_key_id, _public_key_id) =
-        create_ec_key_pair(&ctx.owner_client_conf_path, "nist-p256", &[])?;
+        create_ec_key_pair(&ctx.owner_client_conf_path, "nist-p256", &[], false)?;
     password_wrap_import_test(ctx, "ec", &private_key_id)?;
 
     // sym
-    let key_id = create_symmetric_key(&ctx.owner_client_conf_path, None, None, None, &[])?;
+    let key_id = create_symmetric_key(&ctx.owner_client_conf_path, None, None, None, &[], false)?;
     password_wrap_import_test(ctx, "sym", &key_id)?;
 
     Ok(())

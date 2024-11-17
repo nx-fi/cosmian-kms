@@ -81,7 +81,7 @@ async fn test_revoke_symmetric_key() -> CliResult<()> {
     let ctx = start_default_test_kms_server().await;
 
     // syn
-    let key_id = create_symmetric_key(&ctx.owner_client_conf_path, None, None, None, &[])?;
+    let key_id = create_symmetric_key(&ctx.owner_client_conf_path, None, None, None, &[], false)?;
 
     // revoke
     revoke(
@@ -104,7 +104,7 @@ async fn test_revoke_ec_key() -> CliResult<()> {
     {
         // syn
         let (private_key_id, public_key_id) =
-            create_ec_key_pair(&ctx.owner_client_conf_path, "nist-p256", &[])?;
+            create_ec_key_pair(&ctx.owner_client_conf_path, "nist-p256", &[], false)?;
 
         // revoke via the private key
         revoke(
@@ -123,7 +123,7 @@ async fn test_revoke_ec_key() -> CliResult<()> {
     {
         // syn
         let (private_key_id, public_key_id) =
-            create_ec_key_pair(&ctx.owner_client_conf_path, "nist-p256", &[])?;
+            create_ec_key_pair(&ctx.owner_client_conf_path, "nist-p256", &[], false)?;
 
         // revoke via the private key
         revoke(
@@ -155,6 +155,7 @@ async fn test_revoke_cover_crypt() -> CliResult<()> {
             "--policy-specifications",
             "test_data/policy_specifications.json",
             &[],
+            false,
         )?;
 
         let user_key_id_1 = create_user_decryption_key(
@@ -162,12 +163,14 @@ async fn test_revoke_cover_crypt() -> CliResult<()> {
             &master_private_key_id,
             "(Department::MKG || Department::FIN) && Security Level::Top Secret",
             &[],
+            false,
         )?;
         let user_key_id_2 = create_user_decryption_key(
             &ctx.owner_client_conf_path,
             &master_private_key_id,
             "(Department::MKG || Department::FIN) && Security Level::Top Secret",
             &[],
+            false,
         )?;
 
         revoke(
@@ -192,6 +195,7 @@ async fn test_revoke_cover_crypt() -> CliResult<()> {
             "--policy-specifications",
             "test_data/policy_specifications.json",
             &[],
+            false,
         )?;
 
         let user_key_id_1 = create_user_decryption_key(
@@ -199,12 +203,14 @@ async fn test_revoke_cover_crypt() -> CliResult<()> {
             &master_private_key_id,
             "(Department::MKG || Department::FIN) && Security Level::Top Secret",
             &[],
+            false,
         )?;
         let user_key_id_2 = create_user_decryption_key(
             &ctx.owner_client_conf_path,
             &master_private_key_id,
             "(Department::MKG || Department::FIN) && Security Level::Top Secret",
             &[],
+            false,
         )?;
 
         revoke(
@@ -229,6 +235,7 @@ async fn test_revoke_cover_crypt() -> CliResult<()> {
             "--policy-specifications",
             "test_data/policy_specifications.json",
             &[],
+            false,
         )?;
 
         let user_key_id_1 = create_user_decryption_key(
@@ -236,6 +243,7 @@ async fn test_revoke_cover_crypt() -> CliResult<()> {
             &master_private_key_id,
             "(Department::MKG || Department::FIN) && Security Level::Top Secret",
             &[],
+            false,
         )?;
 
         let user_key_id_2 = create_user_decryption_key(
@@ -243,6 +251,7 @@ async fn test_revoke_cover_crypt() -> CliResult<()> {
             &master_private_key_id,
             "(Department::MKG || Department::FIN) && Security Level::Top Secret",
             &[],
+            false,
         )?;
 
         revoke(

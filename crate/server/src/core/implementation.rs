@@ -85,8 +85,11 @@ impl KMS {
                         .map_or(AES_256_GCM_KEY_LENGTH, |v| v);
                     let mut symmetric_key = Zeroizing::from(vec![0; key_len]);
                     rand_bytes(&mut symmetric_key)?;
-                    let object =
-                        create_symmetric_key_kmip_object(&symmetric_key, *cryptographic_algorithm)?;
+                    let object = create_symmetric_key_kmip_object(
+                        &symmetric_key,
+                        *cryptographic_algorithm,
+                        attributes.sensitive,
+                    )?;
 
                     //return the object and the tags
                     Ok((uid, object, tags))

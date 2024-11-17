@@ -94,6 +94,7 @@ pub fn create_ec_key_pair_request<T: IntoIterator<Item = impl AsRef<str>>>(
     private_key_id: Option<UniqueIdentifier>,
     tags: T,
     recommended_curve: RecommendedCurve,
+    sensitive: bool,
 ) -> Result<CreateKeyPair, KmipError> {
     let private_key_mask = build_mask_from_curve(recommended_curve, true)?;
     let public_key_mask = build_mask_from_curve(recommended_curve, false)?;
@@ -124,6 +125,7 @@ pub fn create_ec_key_pair_request<T: IntoIterator<Item = impl AsRef<str>>>(
         key_format_type: Some(KeyFormatType::ECPrivateKey),
         object_type: Some(ObjectType::PrivateKey),
         unique_identifier: private_key_id,
+        sensitive,
         ..Attributes::default()
     };
 

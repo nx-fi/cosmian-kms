@@ -59,7 +59,7 @@ fn initialize_backend() -> Result<CkmsBackend, Pkcs11Error> {
 }
 
 async fn create_keys(kms_client: &KmsClient) -> Result<(), Pkcs11Error> {
-    let vol1 = create_symmetric_key_kmip_object(&[1, 2, 3, 4], CryptographicAlgorithm::AES)?;
+    let vol1 = create_symmetric_key_kmip_object(&[1, 2, 3, 4], CryptographicAlgorithm::AES, false)?;
     debug!("vol1: {}", vol1);
     let _vol1_id = import_object(
         kms_client,
@@ -72,7 +72,7 @@ async fn create_keys(kms_client: &KmsClient) -> Result<(), Pkcs11Error> {
     )
     .await?;
 
-    let vol2 = create_symmetric_key_kmip_object(&[4, 5, 6, 7], CryptographicAlgorithm::AES)?;
+    let vol2 = create_symmetric_key_kmip_object(&[4, 5, 6, 7], CryptographicAlgorithm::AES, false)?;
     let _vol2_id = import_object(
         kms_client,
         Some("vol2".to_owned()),
@@ -105,7 +105,7 @@ async fn load_p12() -> Result<String, Pkcs11Error> {
             },
             // According to the KMIP spec, the cryptographic algorithm is not required
             // as long as it can be recovered from the Key Format Type or the Key Value.
-            // Also it should not be specified if the cryptographic length is not specified.
+            // Also, it should not be specified if the cryptographic length is not specified.
             cryptographic_algorithm: None,
             // See comment above
             cryptographic_length: None,

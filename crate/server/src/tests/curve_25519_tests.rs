@@ -42,6 +42,7 @@ async fn test_curve_25519_key_pair() -> KResult<()> {
         Some(UniqueIdentifier::TextString("ec_sk_uid".to_owned())),
         EMPTY_TAGS,
         RecommendedCurve::CURVE25519,
+        false,
     )?;
     let response = kms.create_key_pair(request, owner, None).await?;
     // check that the private and public key exist
@@ -219,6 +220,7 @@ async fn test_curve_25519_multiple() -> KResult<()> {
                 None,
                 EMPTY_TAGS,
                 RecommendedCurve::CURVE25519,
+                false,
             )?)),
             MessageBatchItem::new(Operation::Locate(
                 cosmian_kmip::kmip::kmip_operations::Locate::default(),
@@ -244,21 +246,25 @@ async fn test_curve_25519_multiple() -> KResult<()> {
                 None,
                 EMPTY_TAGS,
                 RecommendedCurve::CURVE25519,
+                false,
             )?)),
             MessageBatchItem::new(Operation::CreateKeyPair(create_ec_key_pair_request(
                 None,
                 EMPTY_TAGS,
                 RecommendedCurve::CURVEED25519,
+                false,
             )?)),
             MessageBatchItem::new(Operation::CreateKeyPair(create_ec_key_pair_request(
                 None,
                 EMPTY_TAGS,
                 RecommendedCurve::SECP256K1,
+                false,
             )?)),
             MessageBatchItem::new(Operation::CreateKeyPair(create_ec_key_pair_request(
                 None,
                 EMPTY_TAGS,
                 RecommendedCurve::CURVEED25519,
+                false,
             )?)),
         ],
     };

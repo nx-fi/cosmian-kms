@@ -23,6 +23,7 @@ use crate::{
 pub fn build_create_master_keypair_request<T: IntoIterator<Item = impl AsRef<str>>>(
     policy: &Policy,
     tags: T,
+    sensitive: bool,
 ) -> Result<CreateKeyPair, KmipError> {
     let mut attributes = Attributes {
         object_type: Some(ObjectType::PrivateKey),
@@ -30,6 +31,7 @@ pub fn build_create_master_keypair_request<T: IntoIterator<Item = impl AsRef<str
         key_format_type: Some(KeyFormatType::CoverCryptSecretKey),
         vendor_attributes: Some(vec![policy_as_vendor_attribute(policy)?]),
         cryptographic_usage_mask: Some(CryptographicUsageMask::Unrestricted),
+        sensitive,
         ..Attributes::default()
     };
     attributes.set_tags(tags)?;
@@ -44,6 +46,7 @@ pub fn build_create_user_decryption_private_key_request<T: IntoIterator<Item = i
     access_policy: &str,
     cover_crypt_master_private_key_id: &str,
     tags: T,
+    sensitive: bool,
 ) -> Result<Create, KmipError> {
     let mut attributes = Attributes {
         object_type: Some(ObjectType::PrivateKey),
@@ -57,6 +60,7 @@ pub fn build_create_user_decryption_private_key_request<T: IntoIterator<Item = i
             ),
         }]),
         cryptographic_usage_mask: Some(CryptographicUsageMask::Unrestricted),
+        sensitive,
         ..Attributes::default()
     };
     attributes.set_tags(tags)?;

@@ -709,12 +709,14 @@ impl KmsClient {
         key_len_in_bits,
         algorithm = "AES",
         tags = None,
+        sensitive = false
     ))]
     pub fn create_symmetric_key<'p>(
         &'p self,
         key_len_in_bits: usize,
         algorithm: &str,
         tags: Option<Vec<String>>,
+        sensitive: bool,
         py: Python<'p>,
     ) -> PyResult<&PyAny> {
         let cryptographic_algorithm = match algorithm {
@@ -727,6 +729,7 @@ impl KmsClient {
             key_len_in_bits,
             cryptographic_algorithm,
             tags.unwrap_or_default(),
+            sensitive,
         )
         .map_err(|e| PyException::new_err(e.to_string()))?;
 

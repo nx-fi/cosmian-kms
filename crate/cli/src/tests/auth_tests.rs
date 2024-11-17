@@ -33,7 +33,8 @@ fn run_owned_cli_command(owner_client_conf_path: &str) {
 
 fn create_api_token(ctx: &TestsContext) -> CliResult<(String, String)> {
     // Create and export an API token
-    let api_token_id = create_symmetric_key(&ctx.owner_client_conf_path, None, None, None, &[])?;
+    let api_token_id =
+        create_symmetric_key(&ctx.owner_client_conf_path, None, None, None, &[], false)?;
     trace!("Symmetric key created of unique identifier: {api_token_id:?}");
 
     // Export as default (JsonTTLV with Raw Key Format Type)

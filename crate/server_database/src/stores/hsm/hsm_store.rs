@@ -106,7 +106,7 @@ impl ObjectsStore for HsmStore {
                 slot_id,
                 HsmKeyAlgorithm::AES,
                 usize::try_from(*key_length)?,
-                tags.contains("exportable"),
+                attributes.sensitive,
                 label.as_str(),
             )
             .await?;

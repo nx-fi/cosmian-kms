@@ -43,7 +43,8 @@ async fn test_curve_25519_key_pair() -> KResult<()> {
     let owner = "eyJhbGciOiJSUzI1Ni";
 
     // request key pair creation
-    let request = create_ec_key_pair_request(None, EMPTY_TAGS, RecommendedCurve::CURVE25519)?;
+    let request =
+        create_ec_key_pair_request(None, EMPTY_TAGS, RecommendedCurve::CURVE25519, false)?;
     let response = kms.create_key_pair(request, owner, None).await?;
     // check that the private and public key exist
     // check secret key
@@ -266,8 +267,8 @@ async fn test_create_transparent_symmetric_key() -> KResult<()> {
         256,
         CryptographicAlgorithm::AES,
         EMPTY_TAGS,
-    )
-    .unwrap();
+        false,
+    )?;
 
     trace!("request: {}", request);
     let response = kms.create(request, owner, None).await?;
@@ -319,7 +320,8 @@ async fn test_database_user_tenant() -> KResult<()> {
     let owner = "eyJhbGciOiJSUzI1Ni";
 
     // request key pair creation
-    let request = create_ec_key_pair_request(None, EMPTY_TAGS, RecommendedCurve::CURVE25519)?;
+    let request =
+        create_ec_key_pair_request(None, EMPTY_TAGS, RecommendedCurve::CURVE25519, false)?;
     let response = kms.create_key_pair(request, owner, None).await?;
 
     // check that we can get the private and public key

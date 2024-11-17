@@ -19,6 +19,7 @@ use crate::{
 pub(crate) fn create_rsa_4096_bits_key_pair(
     cli_conf_path: &str,
     tags: &[&str],
+    sensitive: bool,
 ) -> CliResult<(String, String)> {
     let mut cmd = Command::cargo_bin(PROG_NAME)?;
     cmd.env(KMS_CLI_CONF_ENV, cli_conf_path);
@@ -28,6 +29,9 @@ pub(crate) fn create_rsa_4096_bits_key_pair(
     for tag in tags {
         args.push("--tag");
         args.push(tag);
+    }
+    if sensitive {
+        args.push("--sensitive");
     }
     cmd.arg(SUB_COMMAND).args(args);
 
@@ -54,6 +58,6 @@ pub(crate) fn create_rsa_4096_bits_key_pair(
 pub(crate) async fn test_rsa_create_key_pair() -> CliResult<()> {
     // from specs
     let ctx = start_default_test_kms_server().await;
-    create_rsa_4096_bits_key_pair(&ctx.owner_client_conf_path, &["tag1", "tag2"])?;
+    create_rsa_4096_bits_key_pair(&ctx.owner_client_conf_path, &["tag1", "tag2"], false)?;
     Ok(())
 }

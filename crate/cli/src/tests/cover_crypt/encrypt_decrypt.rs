@@ -102,6 +102,7 @@ async fn test_encrypt_decrypt_using_object_ids() -> CliResult<()> {
         "--policy-specifications",
         "test_data/policy_specifications.json",
         &[],
+        false,
     )?;
 
     encrypt(
@@ -119,6 +120,7 @@ async fn test_encrypt_decrypt_using_object_ids() -> CliResult<()> {
         &master_private_key_id,
         "(Department::MKG || Department::FIN) && Security Level::Top Secret",
         &[],
+        false,
     )?;
 
     // the user key should be able to decrypt the file
@@ -141,6 +143,7 @@ async fn test_encrypt_decrypt_using_object_ids() -> CliResult<()> {
         &master_private_key_id,
         "Department::FIN && Security Level::Top Secret",
         &[],
+        false,
     )?;
     assert!(
         decrypt(
@@ -189,6 +192,7 @@ async fn test_encrypt_decrypt_bulk_using_object_ids() -> CliResult<()> {
         "--policy-specifications",
         "test_data/policy_specifications.json",
         &[],
+        false,
     )?;
 
     encrypt(
@@ -214,6 +218,7 @@ async fn test_encrypt_decrypt_bulk_using_object_ids() -> CliResult<()> {
         &master_private_key_id,
         "(Department::MKG || Department::FIN) && Security Level::Top Secret",
         &[],
+        false,
     )?;
 
     // the user key should be able to decrypt the file
@@ -252,6 +257,7 @@ async fn test_encrypt_decrypt_bulk_using_object_ids() -> CliResult<()> {
         &master_private_key_id,
         "Department::FIN && Security Level::Top Secret",
         &[],
+        false,
     )?;
     assert!(
         decrypt(
@@ -306,6 +312,7 @@ async fn test_encrypt_decrypt_using_tags() -> CliResult<()> {
         "--policy-specifications",
         "test_data/policy_specifications.json",
         &["tag"],
+        false,
     )?;
 
     encrypt(
@@ -323,6 +330,7 @@ async fn test_encrypt_decrypt_using_tags() -> CliResult<()> {
         "[\"tag\"]",
         "(Department::MKG || Department::FIN) && Security Level::Top Secret",
         &["tag"],
+        false,
     )?;
 
     // the user key should be able to decrypt the file
@@ -347,7 +355,7 @@ async fn test_encrypt_decrypt_using_tags() -> CliResult<()> {
     //     &ctx.owner_client_conf_path,
     //     "[\"tag\"]",
     //     "Department::FIN && Security Level::Top Secret",
-    //     &["tag"],
+    //     &["tag"], false
     // )?;
     // assert!(
     //     decrypt(
@@ -366,6 +374,7 @@ async fn test_encrypt_decrypt_using_tags() -> CliResult<()> {
         "[\"tag\"]",
         "Department::FIN && Security Level::Top Secret",
         &["tag_ko"],
+        false,
     )?;
     assert!(
         decrypt(
@@ -426,6 +435,7 @@ async fn test_encrypt_decrypt_bulk_using_tags() -> CliResult<()> {
         "--policy-specifications",
         "test_data/policy_specifications.json",
         &["tag_bulk"],
+        false,
     )?;
 
     encrypt(
@@ -451,6 +461,7 @@ async fn test_encrypt_decrypt_bulk_using_tags() -> CliResult<()> {
         "[\"tag_bulk\"]",
         "(Department::MKG || Department::FIN) && Security Level::Top Secret",
         &["tag_bulk"],
+        false,
     )?;
 
     // the user key should be able to decrypt the file

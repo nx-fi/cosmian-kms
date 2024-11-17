@@ -20,6 +20,7 @@ use cosmian_kmip::{
     },
 };
 use cosmian_kms_server_database::{AtomicOperation, ExtraStoreParams};
+use log::info;
 #[cfg(not(feature = "fips"))]
 use tracing::warn;
 use tracing::{debug, trace};
@@ -113,6 +114,18 @@ pub(crate) fn generate_key_pair_and_tags(
     let mut pk_tags = tags;
     pk_tags.insert("_pk".to_owned());
 
+    let sensitive = request
+        .private_key_attributes
+        .as_ref()
+        .map_or(false, |attr| attr.sensitive)
+        || common_attributes.sensitive;
+
+    info!(
+        "private key attributes: {:?}",
+        request.private_key_attributes
+    );
+    info!("Sensitive: {sensitive}");
+
     // Grab whatever attributes were supplied on the  create request.
     let any_attributes = Some(&common_attributes)
         .or(request.private_key_attributes.as_ref())
@@ -164,6 +177,7 @@ pub(crate) fn generate_key_pair_and_tags(
                     any_attributes.cryptographic_algorithm,
                     private_key_mask,
                     public_key_mask,
+                    sensitive,
                 ),
                 RecommendedCurve::P224
                 | RecommendedCurve::P256
@@ -175,6 +189,7 @@ pub(crate) fn generate_key_pair_and_tags(
                     any_attributes.cryptographic_algorithm,
                     private_key_mask,
                     public_key_mask,
+                    sensitive,
                 ),
                 #[cfg(not(feature = "fips"))]
                 RecommendedCurve::CURVE25519 => create_x25519_key_pair(
@@ -183,6 +198,7 @@ pub(crate) fn generate_key_pair_and_tags(
                     any_attributes.cryptographic_algorithm,
                     private_key_mask,
                     public_key_mask,
+                    sensitive,
                 ),
                 #[cfg(not(feature = "fips"))]
                 RecommendedCurve::CURVE448 => create_x448_key_pair(
@@ -191,6 +207,7 @@ pub(crate) fn generate_key_pair_and_tags(
                     any_attributes.cryptographic_algorithm,
                     private_key_mask,
                     public_key_mask,
+                    sensitive,
                 ),
                 #[cfg(not(feature = "fips"))]
                 RecommendedCurve::CURVEED25519 => {
@@ -211,6 +228,7 @@ pub(crate) fn generate_key_pair_and_tags(
                         any_attributes.cryptographic_algorithm,
                         private_key_mask,
                         public_key_mask,
+                        sensitive,
                     )
                 }
                 #[cfg(feature = "fips")]
@@ -242,6 +260,7 @@ pub(crate) fn generate_key_pair_and_tags(
                         any_attributes.cryptographic_algorithm,
                         private_key_mask,
                         public_key_mask,
+                        sensitive,
                     )
                 }
                 #[cfg(feature = "fips")]
@@ -274,6 +293,7 @@ pub(crate) fn generate_key_pair_and_tags(
                 any_attributes.cryptographic_algorithm,
                 private_key_mask,
                 public_key_mask,
+                sensitive,
             )
         }
         CryptographicAlgorithm::Ed25519 => create_ed25519_key_pair(
@@ -282,6 +302,7 @@ pub(crate) fn generate_key_pair_and_tags(
             any_attributes.cryptographic_algorithm,
             private_key_mask,
             public_key_mask,
+            sensitive,
         ),
         CryptographicAlgorithm::Ed448 => create_ed448_key_pair(
             private_key_uid,
@@ -289,6 +310,7 @@ pub(crate) fn generate_key_pair_and_tags(
             any_attributes.cryptographic_algorithm,
             private_key_mask,
             public_key_mask,
+            sensitive,
         ),
         CryptographicAlgorithm::CoverCrypt => create_master_keypair(
             &Covercrypt::default(),

@@ -33,15 +33,21 @@ pub(crate) async fn tx_and_list<DB: ObjectsStore>(
     // Create key
     let mut symmetric_key = vec![0; 32];
     rng.fill_bytes(&mut symmetric_key);
-    let symmetric_key_1 =
-        create_symmetric_key_kmip_object(symmetric_key.as_slice(), CryptographicAlgorithm::AES)?;
+    let symmetric_key_1 = create_symmetric_key_kmip_object(
+        symmetric_key.as_slice(),
+        CryptographicAlgorithm::AES,
+        false,
+    )?;
 
     let uid_1 = Uuid::new_v4().to_string();
 
     let mut symmetric_key = vec![0; 32];
     rng.fill_bytes(&mut symmetric_key);
-    let symmetric_key_2 =
-        create_symmetric_key_kmip_object(symmetric_key.as_slice(), CryptographicAlgorithm::AES)?;
+    let symmetric_key_2 = create_symmetric_key_kmip_object(
+        symmetric_key.as_slice(),
+        CryptographicAlgorithm::AES,
+        false,
+    )?;
 
     let uid_2 = Uuid::new_v4().to_string();
 
@@ -104,15 +110,21 @@ pub(crate) async fn atomic<DB: ObjectsStore>(
 
     let mut symmetric_key = vec![0; 32];
     rng.fill_bytes(&mut symmetric_key);
-    let symmetric_key_1 =
-        create_symmetric_key_kmip_object(symmetric_key.as_slice(), CryptographicAlgorithm::AES)?;
+    let symmetric_key_1 = create_symmetric_key_kmip_object(
+        symmetric_key.as_slice(),
+        CryptographicAlgorithm::AES,
+        false,
+    )?;
 
     let uid_1 = Uuid::new_v4().to_string();
 
     let mut symmetric_key = vec![0; 32];
     rng.fill_bytes(&mut symmetric_key);
-    let symmetric_key_2 =
-        create_symmetric_key_kmip_object(symmetric_key.as_slice(), CryptographicAlgorithm::AES)?;
+    let symmetric_key_2 = create_symmetric_key_kmip_object(
+        symmetric_key.as_slice(),
+        CryptographicAlgorithm::AES,
+        false,
+    )?;
 
     let uid_2 = Uuid::new_v4().to_string();
 
@@ -215,8 +227,11 @@ pub(crate) async fn upsert<DB: ObjectsStore>(
 
     let mut symmetric_key = vec![0; 32];
     rng.fill_bytes(&mut symmetric_key);
-    let mut symmetric_key =
-        create_symmetric_key_kmip_object(symmetric_key.as_slice(), CryptographicAlgorithm::AES)?;
+    let mut symmetric_key = create_symmetric_key_kmip_object(
+        symmetric_key.as_slice(),
+        CryptographicAlgorithm::AES,
+        false,
+    )?;
 
     let uid = Uuid::new_v4().to_string();
 
@@ -299,8 +314,11 @@ pub(crate) async fn crud<DB: ObjectsStore>(
     // Insert an object and query it, update it, delete it, query it
     let mut symmetric_key = vec![0; 32];
     rng.fill_bytes(&mut symmetric_key);
-    let mut symmetric_key =
-        create_symmetric_key_kmip_object(symmetric_key.as_slice(), CryptographicAlgorithm::AES)?;
+    let mut symmetric_key = create_symmetric_key_kmip_object(
+        symmetric_key.as_slice(),
+        CryptographicAlgorithm::AES,
+        false,
+    )?;
 
     let uid = Uuid::new_v4().to_string();
 

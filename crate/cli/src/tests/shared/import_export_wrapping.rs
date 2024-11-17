@@ -46,7 +46,8 @@ pub(crate) async fn test_import_export_wrap_rfc_5649() -> CliResult<()> {
     let mut rng = CsRng::from_entropy();
     let mut wrap_key_bytes = vec![0; 32];
     rng.fill_bytes(&mut wrap_key_bytes);
-    let wrap_key = create_symmetric_key_kmip_object(&wrap_key_bytes, CryptographicAlgorithm::AES)?;
+    let wrap_key =
+        create_symmetric_key_kmip_object(&wrap_key_bytes, CryptographicAlgorithm::AES, false)?;
     write_kmip_object_to_file(&wrap_key, &wrap_key_path)?;
 
     // import the wrapping key
@@ -64,6 +65,7 @@ pub(crate) async fn test_import_export_wrap_rfc_5649() -> CliResult<()> {
         "--policy-specifications",
         "test_data/policy_specifications.json",
         &[],
+        false,
     )?;
     test_import_export_wrap_private_key(
         &ctx.owner_client_conf_path,
@@ -78,6 +80,7 @@ pub(crate) async fn test_import_export_wrap_rfc_5649() -> CliResult<()> {
         &ctx.owner_client_conf_path,
         "nist-p256",
         &[],
+        false,
     )?;
     test_import_export_wrap_private_key(
         &ctx.owner_client_conf_path,
@@ -94,6 +97,7 @@ pub(crate) async fn test_import_export_wrap_rfc_5649() -> CliResult<()> {
         None,
         None,
         &EMPTY_TAGS,
+        false,
     )?;
     test_import_export_wrap_private_key(
         &ctx.owner_client_conf_path,
@@ -124,6 +128,7 @@ pub(crate) async fn test_import_export_wrap_ecies() -> CliResult<()> {
         Some(CryptographicAlgorithm::EC),
         Some(CryptographicUsageMask::Decrypt | CryptographicUsageMask::UnwrapKey),
         Some(CryptographicUsageMask::Encrypt | CryptographicUsageMask::WrapKey),
+        false,
     )?;
     // Write the private key to a file and import it
     let wrap_private_key_path = tmp_path.join("wrap.private.key");
@@ -154,6 +159,7 @@ pub(crate) async fn test_import_export_wrap_ecies() -> CliResult<()> {
         "--policy-specifications",
         "test_data/policy_specifications.json",
         &[],
+        false,
     )?;
     test_import_export_wrap_private_key(
         &ctx.owner_client_conf_path,
@@ -168,6 +174,7 @@ pub(crate) async fn test_import_export_wrap_ecies() -> CliResult<()> {
         &ctx.owner_client_conf_path,
         "nist-p256",
         &[],
+        false,
     )?;
     test_import_export_wrap_private_key(
         &ctx.owner_client_conf_path,
@@ -184,6 +191,7 @@ pub(crate) async fn test_import_export_wrap_ecies() -> CliResult<()> {
         None,
         None,
         &EMPTY_TAGS,
+        false,
     )?;
     test_import_export_wrap_private_key(
         &ctx.owner_client_conf_path,

@@ -28,7 +28,7 @@ impl Session {
         &self,
         key_size: RsaKeySize,
         label: &str,
-        exportable: bool,
+        sensitive: bool,
     ) -> PResult<(CK_OBJECT_HANDLE, CK_OBJECT_HANDLE)> {
         let key_size = match key_size {
             RsaKeySize::Rsa1024 => 1024,
@@ -37,7 +37,7 @@ impl Session {
             RsaKeySize::Rsa4096 => 4096,
         };
         let public_exponent: [u8; 3] = [0x01, 0x00, 0x01];
-        let sensitive = if !exportable { CK_TRUE } else { CK_FALSE };
+        let sensitive = if sensitive { CK_TRUE } else { CK_FALSE };
         unsafe {
             let mut pub_key_template = vec![
                 CK_ATTRIBUTE {

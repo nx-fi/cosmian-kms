@@ -54,6 +54,10 @@ pub struct CreateKeyPairsAction {
     #[clap(long, short = 'k')]
     rsa_private_key_id: Option<String>,
 
+    /// Sensitive: if set, the key will not be exportable
+    #[clap(long = "sensitive", default_value = "false")]
+    sensitive: bool,
+
     /// Dry run mode. If set, the action will not be executed.
     #[clap(long, default_value = "false")]
     dry_run: bool,
@@ -150,6 +154,7 @@ impl CreateKeyPairsAction {
                         None,
                         Vec::<String>::new(),
                         RSA_4096,
+                        self.sensitive,
                     )?)
                     .await?;
                 (
