@@ -1,3 +1,5 @@
+use async_trait::async_trait;
+
 use crate::error::PluginResult;
 
 pub struct KeyMetadata {
@@ -13,6 +15,7 @@ pub enum CryptographicAlgorithm {
     RsaOaep,
 }
 
+#[async_trait(?Send)]
 pub trait EncryptionOracle {
     /// Encrypt data
     /// # Arguments
@@ -22,7 +25,7 @@ pub trait EncryptionOracle {
     /// * `authenticated_encryption_additional_data` - the additional data to use for authenticated encryption
     /// # Returns
     /// * `Vec<u8>` - the encrypted data
-    fn encrypt(
+    async fn encrypt(
         &self,
         key_id: &str,
         data: &[u8],
@@ -38,7 +41,7 @@ pub trait EncryptionOracle {
     /// * `authenticated_encryption_additional_data` - the additional data to use for authenticated decryption
     /// # Returns
     /// * `Vec<u8>` - the decrypted data
-    fn decrypt(
+    async fn decrypt(
         &self,
         key_id: &str,
         data: &[u8],
@@ -51,5 +54,5 @@ pub trait EncryptionOracle {
     /// * `key_id` - the ID of the key
     /// # Returns
     /// * `KeyMetadata` - the metadata of the key
-    fn get_key_metadata(&self, key_id: &str) -> PluginResult<KeyMetadata>;
+    async fn get_key_metadata(&self, key_id: &str) -> PluginResult<KeyMetadata>;
 }

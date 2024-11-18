@@ -1,8 +1,9 @@
+use async_trait::async_trait;
 use cosmian_kms_plugins::{
     CryptographicAlgorithm, EncryptionOracle, KeyMetadata, PluginError, PluginResult,
 };
 
-use crate::HSM;
+use crate::{EncryptionAlgorithm, HSM};
 
 struct HsmEncryptionOracle {
     hsm: Box<dyn HSM + Send + Sync>,
@@ -15,34 +16,67 @@ impl HsmEncryptionOracle {
     }
 }
 
+impl From<CryptographicAlgorithm> for EncryptionAlgorithm {
+    fn from(algorithm: CryptographicAlgorithm) -> Self {
+        match algorithm {
+            CryptographicAlgorithm::AesGcm => EncryptionAlgorithm::AesGcm,
+            CryptographicAlgorithm::RsaPkcsV15 => EncryptionAlgorithm::RsaPkcsV15,
+            CryptographicAlgorithm::RsaOaep => EncryptionAlgorithm::RsaOaep,
+        }
+    }
+}
+
+#[async_trait(?Send)]
 impl EncryptionOracle for HsmEncryptionOracle {
-    fn encrypt(
+    async fn encrypt(
         &self,
         key_id: &str,
         data: &[u8],
         cryptographic_algorithm: Option<CryptographicAlgorithm>,
         authenticated_encryption_additional_data: Option<Vec<u8>>,
     ) -> PluginResult<Vec<u8>> {
+        if authenticated_encryption_additional_data.is_some() {
+            return Err(PluginError::InvalidRequest(
+                "Additional authenticated data are not supported on HSMs for now".to_owned(),
+            ));
+        }
         let (slot_id, key_id) = parse_uid(key_id)?;
-        self.hsm.encrypt(
-            key_id,
-            cryptographic_algorithm,
-            authenticated_encryption_additional_data,
-            data,
-        )
+        self.hsm
+            .encrypt(
+                slot_id,
+                key_id,
+                cryptographic_algorithm.map(|a| a.into()),
+                data,
+            )
+            .await
+            .map_err(Into::into)
     }
 
-    fn decrypt(
+    async fn decrypt(
         &self,
         key_id: &str,
         data: &[u8],
         cryptographic_algorithm: Option<CryptographicAlgorithm>,
         authenticated_encryption_additional_data: Option<Vec<u8>>,
     ) -> PluginResult<Vec<u8>> {
-        todo!()
+        if authenticated_encryption_additional_data.is_some() {
+            return Err(PluginError::InvalidRequest(
+                "Additional authenticated data are not supported on HSMs for now".to_owned(),
+            ));
+        }
+        let (slot_id, key_id) = parse_uid(key_id)?;
+        self.hsm
+            .decrypt(
+                slot_id,
+                key_id,
+                cryptographic_algorithm.map(|a| a.into()),
+                data,
+            )
+            .await
+            .map_err(Into::into)
     }
 
-    fn get_key_metadata(&self, key_id: &str) -> PluginResult<KeyMetadata> {
+    async fn get_key_metadata(&self, key_id: &str) -> PluginResult<KeyMetadata> {
         todo!()
     }
 }

@@ -182,7 +182,7 @@ pub trait HSM {
         &self,
         slot_id: usize,
         key_id: usize,
-        algorithm: Option<EncryptionAlgorithm>,
+        algorithm: EncryptionAlgorithm,
         data: &[u8],
     ) -> HsmResult<Vec<u8>>;
 
@@ -198,7 +198,7 @@ pub trait HSM {
         &self,
         slot_id: usize,
         key_id: usize,
-        algorithm: Option<EncryptionAlgorithm>,
+        algorithm: EncryptionAlgorithm,
         data: &[u8],
     ) -> HsmResult<Vec<u8>>;
 }

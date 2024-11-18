@@ -11,4 +11,7 @@ pub enum PluginError {
 
     #[error("Invalid Request: {0}")]
     InvalidRequest(String),
+
+    #[error("HSM Error: {0}")]
+    Hsm(String),
 }
