@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use cosmian_hsm_traits::{
-    HsmError, HsmKeyAlgorithm, HsmKeypairAlgorithm, HsmObject, HsmObjectFilter, HsmResult, HSM,
+    EncryptionAlgorithm, HsmError, HsmKeyAlgorithm, HsmKeypairAlgorithm, HsmObject,
+    HsmObjectFilter, HsmResult, HSM,
 };
 use pkcs11_sys::CK_OBJECT_HANDLE;
 
@@ -92,5 +93,31 @@ impl HSM for Proteccio {
         let session = slot.open_session(true)?;
         let objects = session.list_objects(object_type)?;
         Ok(objects.into_iter().map(|id| id as usize).collect())
+    }
+
+    async fn encrypt(
+        &self,
+        slot_id: usize,
+        key_id: usize,
+        algorithm: EncryptionAlgorithm,
+        data: &[u8],
+    ) -> HsmResult<Vec<u8>> {
+        let slot = self.get_slot(slot_id)?;
+        let session = slot.open_session(true)?;
+        let ciphertext = session.encrypt(key_id as CK_OBJECT_HANDLE, algorithm.into(), data)?;
+        Ok(ciphertext)
+    }
+
+    async fn decrypt(
+        &self,
+        slot_id: usize,
+        key_id: usize,
+        algorithm: EncryptionAlgorithm,
+        data: &[u8],
+    ) -> HsmResult<Vec<u8>> {
+        let slot = self.get_slot(slot_id)?;
+        let session = slot.open_session(true)?;
+        let plaintext = session.decrypt(key_id as CK_OBJECT_HANDLE, algorithm.into(), data)?;
+        Ok(plaintext)
     }
 }

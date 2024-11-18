@@ -22,10 +22,25 @@ pub(crate) async fn test_wrap_export_import() -> CliResult<()> {
     let wrap_key_path = tmp_path.join("wrap.key");
     let key_file = wrap_key_path.to_str().unwrap().to_string();
 
-    let sym_wrapping_key_id =
-        create_symmetric_key(&ctx.owner_client_conf_path, None, None, None, &[], false)?;
+    let sym_wrapping_key_id = create_symmetric_key(
+        &ctx.owner_client_conf_path,
+        None,
+        None,
+        None,
+        &[],
+        false,
+        None,
+    )?;
 
-    let key_id = create_symmetric_key(&ctx.owner_client_conf_path, None, None, None, &[], false)?;
+    let key_id = create_symmetric_key(
+        &ctx.owner_client_conf_path,
+        None,
+        None,
+        None,
+        &[],
+        false,
+        None,
+    )?;
 
     // Export and import the key with different block cipher modes
     for block_cipher_mode in [BlockCipherMode::GCM, BlockCipherMode::NISTKeyWrap] {

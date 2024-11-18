@@ -124,8 +124,15 @@ async fn test_rekey_error() -> CliResult<()> {
     let tmp_dir = TempDir::new()?;
     let tmp_path = tmp_dir.path();
     // create a symmetric key
-    let symmetric_key_id =
-        create_symmetric_key(&ctx.owner_client_conf_path, None, None, None, &[], false)?;
+    let symmetric_key_id = create_symmetric_key(
+        &ctx.owner_client_conf_path,
+        None,
+        None,
+        None,
+        &[],
+        false,
+        None,
+    )?;
     // export a wrapped key
     let exported_wrapped_key_file = tmp_path.join("exported_wrapped_master_private.key");
     export_key(ExportKeyParams {

@@ -9,7 +9,7 @@ mod error;
 pub use error::{PError, PResult};
 pub use proteccio::{Proteccio, SlotManager};
 use rand::{rngs::OsRng, TryRngCore};
-pub use session::{AesKeySize, EncryptionAlgorithm, RsaKeySize, Session};
+pub use session::{AesKeySize, ProteccioEncryptionAlgorithm, RsaKeySize, Session};
 
 mod proteccio;
 mod session;
@@ -43,12 +43,12 @@ macro_rules! aes_mechanism {
 macro_rules! rsa_mechanism {
     ($algorithm:expr) => {
         match $algorithm {
-            EncryptionAlgorithm::RsaPkcsv15 => CK_MECHANISM {
+            ProteccioEncryptionAlgorithm::RsaPkcsV15 => CK_MECHANISM {
                 mechanism: CKM_RSA_PKCS,
                 pParameter: std::ptr::null_mut(),
                 ulParameterLen: 0,
             },
-            EncryptionAlgorithm::RsaOaep => {
+            ProteccioEncryptionAlgorithm::RsaOaep => {
                 let mut params = CK_RSA_PKCS_OAEP_PARAMS {
                     hashAlg: CKM_SHA256,
                     mgf: CKG_MGF1_SHA256,

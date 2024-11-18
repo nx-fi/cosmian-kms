@@ -26,6 +26,7 @@ pub(crate) fn create_symmetric_key(
     algorithm: Option<&str>,
     tags: &[&str],
     sensitive: bool,
+    wrapping_key_id: Option<&str>,
 ) -> CliResult<String> {
     let mut cmd = Command::cargo_bin(PROG_NAME)?;
     cmd.env(KMS_CLI_CONF_ENV, cli_conf_path);
@@ -49,6 +50,9 @@ pub(crate) fn create_symmetric_key(
     }
     if sensitive {
         args.push("--sensitive");
+    }
+    if let Some(wrapping_key_id) = wrapping_key_id {
+        args.extend(vec!["--wrapping-key-id", wrapping_key_id]);
     }
     cmd.arg(SUB_COMMAND).args(args);
 
@@ -75,7 +79,15 @@ pub(crate) async fn test_create_symmetric_key() -> CliResult<()> {
     // AES
     {
         // AES 256 bit key
-        create_symmetric_key(&ctx.owner_client_conf_path, None, None, None, &[], false)?;
+        create_symmetric_key(
+            &ctx.owner_client_conf_path,
+            None,
+            None,
+            None,
+            &[],
+            false,
+            None,
+        )?;
         // AES 128 bit key
         create_symmetric_key(
             &ctx.owner_client_conf_path,
@@ -84,6 +96,7 @@ pub(crate) async fn test_create_symmetric_key() -> CliResult<()> {
             None,
             &EMPTY_TAGS,
             false,
+            None,
         )?;
         //  AES 256 bit key from a base64 encoded key
         rng.fill_bytes(&mut key);
@@ -95,6 +108,7 @@ pub(crate) async fn test_create_symmetric_key() -> CliResult<()> {
             None,
             &EMPTY_TAGS,
             false,
+            None,
         )?;
     }
 
@@ -108,6 +122,7 @@ pub(crate) async fn test_create_symmetric_key() -> CliResult<()> {
             Some("chacha20"),
             &EMPTY_TAGS,
             false,
+            None,
         )?;
         // ChaCha20 128 bit key
         create_symmetric_key(
@@ -117,6 +132,7 @@ pub(crate) async fn test_create_symmetric_key() -> CliResult<()> {
             Some("chacha20"),
             &EMPTY_TAGS,
             false,
+            None,
         )?;
         //  ChaCha20 256 bit key from a base64 encoded key
         let mut rng = CsRng::from_entropy();
@@ -130,6 +146,7 @@ pub(crate) async fn test_create_symmetric_key() -> CliResult<()> {
             Some("chacha20"),
             &EMPTY_TAGS,
             false,
+            None,
         )?;
     }
 
@@ -143,6 +160,7 @@ pub(crate) async fn test_create_symmetric_key() -> CliResult<()> {
             Some("sha3"),
             &EMPTY_TAGS,
             false,
+            None,
         )?;
         // ChaCha20 salts
         create_symmetric_key(
@@ -152,6 +170,7 @@ pub(crate) async fn test_create_symmetric_key() -> CliResult<()> {
             Some("sha3"),
             &EMPTY_TAGS,
             false,
+            None,
         )?;
         create_symmetric_key(
             &ctx.owner_client_conf_path,
@@ -160,6 +179,7 @@ pub(crate) async fn test_create_symmetric_key() -> CliResult<()> {
             Some("sha3"),
             &EMPTY_TAGS,
             false,
+            None,
         )?;
         create_symmetric_key(
             &ctx.owner_client_conf_path,
@@ -168,6 +188,7 @@ pub(crate) async fn test_create_symmetric_key() -> CliResult<()> {
             Some("sha3"),
             &EMPTY_TAGS,
             false,
+            None,
         )?;
         create_symmetric_key(
             &ctx.owner_client_conf_path,
@@ -176,6 +197,7 @@ pub(crate) async fn test_create_symmetric_key() -> CliResult<()> {
             Some("sha3"),
             &EMPTY_TAGS,
             false,
+            None,
         )?;
         //  ChaCha20 256 bit salt from a base64 encoded salt
         let mut rng = CsRng::from_entropy();
@@ -189,7 +211,36 @@ pub(crate) async fn test_create_symmetric_key() -> CliResult<()> {
             Some("sha3"),
             &EMPTY_TAGS,
             false,
+            None,
         )?;
     }
+    Ok(())
+}
+
+#[tokio::test]
+pub(crate) async fn test_create_wrapped_symmetric_key() -> CliResult<()> {
+    let ctx = start_default_test_kms_server().await;
+    // let mut rng = CsRng::from_entropy();
+    // let mut key = vec![0u8; 32];
+
+    let wrapping_key_id = create_symmetric_key(
+        &ctx.owner_client_conf_path,
+        None,
+        None,
+        None,
+        &EMPTY_TAGS,
+        false,
+        None,
+    )?;
+    // AES 128 bit key
+    let _wrapped_symmetric_key = create_symmetric_key(
+        &ctx.owner_client_conf_path,
+        Some(128),
+        None,
+        None,
+        &EMPTY_TAGS,
+        false,
+        Some(&wrapping_key_id),
+    )?;
     Ok(())
 }

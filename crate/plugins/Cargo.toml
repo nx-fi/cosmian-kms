@@ -1,0 +1,24 @@
+[package]
+name = "cosmian_kms_plugins"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Crate exposing APIs for plugins to the Cosmian KMS"
+
+[lib]
+doctest = false
+
+[dependencies]
+async-trait = "0.1"
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+cosmian_logger = { path = "../logger" }
+tempfile = "3.11"
+tracing-subscriber = { version = "0.3.18", default-features = false, features = [
+    "env-filter",
+] }

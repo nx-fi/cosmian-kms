@@ -67,6 +67,7 @@ pub fn symmetric_key_create_request<T: IntoIterator<Item = impl AsRef<str>>>(
     cryptographic_algorithm: CryptographicAlgorithm,
     tags: T,
     sensitive: bool,
+    wrap_key_id: Option<&String>,
 ) -> Result<Create, KmipError> {
     let cryptographic_length = Some(i32::try_from(key_len_in_bits)?);
     let mut attributes = Attributes {
@@ -87,6 +88,9 @@ pub fn symmetric_key_create_request<T: IntoIterator<Item = impl AsRef<str>>>(
         ..Attributes::default()
     };
     attributes.set_tags(tags)?;
+    if let Some(wrap_key_id) = wrap_key_id {
+        attributes.set_wrapping_key_id(wrap_key_id);
+    }
     Ok(Create {
         object_type: ObjectType::SymmetricKey,
         attributes,

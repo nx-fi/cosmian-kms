@@ -201,6 +201,7 @@ async fn test_aes_gcm_server_side() -> CliResult<()> {
         Some("aes"),
         &[],
         false,
+        None,
     )?;
     run_encrypt_decrypt_test(
         &ctx.owner_client_conf_path,
@@ -221,6 +222,7 @@ async fn test_aes_xts_server_side() -> CliResult<()> {
         Some("aes"),
         &[],
         false,
+        None,
     )?;
     run_encrypt_decrypt_test(
         &ctx.owner_client_conf_path,
@@ -242,6 +244,7 @@ async fn test_aes_gcm_siv_server_side() -> CliResult<()> {
         Some("aes"),
         &[],
         false,
+        None,
     )?;
     run_encrypt_decrypt_test(
         &ctx.owner_client_conf_path,
@@ -263,6 +266,7 @@ async fn test_chacha20_poly1305_server_side() -> CliResult<()> {
         Some("chacha20"),
         &[],
         false,
+        None,
     )?;
     run_encrypt_decrypt_test(
         &ctx.owner_client_conf_path,
@@ -288,6 +292,7 @@ async fn test_encrypt_decrypt_with_tags() -> CliResult<()> {
         None,
         &["tag_sym"],
         false,
+        None,
     )?;
 
     let input_file = PathBuf::from("test_data/plain.txt");
@@ -352,6 +357,7 @@ async fn test_aes_gcm_aes_gcm_client_side() -> CliResult<()> {
         Some("aes"),
         &[],
         false,
+        None,
     )?;
     run_encrypt_decrypt_test(
         &ctx.owner_client_conf_path,
@@ -374,6 +380,7 @@ async fn test_aes_gcm_aes_xts_client_side() -> CliResult<()> {
         Some("aes"),
         &[],
         false,
+        None,
     )?;
     run_encrypt_decrypt_test(
         &ctx.owner_client_conf_path,
@@ -397,6 +404,7 @@ async fn test_aes_gcm_chacha20_client_side() -> CliResult<()> {
         Some("aes"),
         &[],
         false,
+        None,
     )?;
     run_encrypt_decrypt_test(
         &ctx.owner_client_conf_path,
@@ -419,6 +427,7 @@ async fn test_rfc5649_aes_gcm_client_side() -> CliResult<()> {
         Some("aes"),
         &[],
         false,
+        None,
     )?;
     run_encrypt_decrypt_test(
         &ctx.owner_client_conf_path,

@@ -5,8 +5,8 @@ use std::{ptr, sync::Arc};
 
 pub use aes::AesKeySize;
 use cosmian_hsm_traits::{
-    HsmObject, HsmObjectFilter, HsmObjectType, KeyMaterial, RsaPrivateKeyMaterial,
-    RsaPublicKeyMaterial,
+    EncryptionAlgorithm, HsmObject, HsmObjectFilter, HsmObjectType, KeyMaterial,
+    RsaPrivateKeyMaterial, RsaPublicKeyMaterial,
 };
 use pkcs11_sys::*;
 pub use rsa::RsaKeySize;
@@ -14,10 +14,20 @@ use zeroize::Zeroizing;
 
 use crate::{aes_mechanism, generate_random_nonce, rsa_mechanism, PError, PResult};
 
-pub enum EncryptionAlgorithm {
+pub enum ProteccioEncryptionAlgorithm {
     AesGcm,
-    RsaPkcsv15,
+    RsaPkcsV15,
     RsaOaep,
+}
+
+impl From<EncryptionAlgorithm> for ProteccioEncryptionAlgorithm {
+    fn from(algorithm: EncryptionAlgorithm) -> Self {
+        match algorithm {
+            EncryptionAlgorithm::AesGcm => ProteccioEncryptionAlgorithm::AesGcm,
+            EncryptionAlgorithm::RsaPkcsV15 => ProteccioEncryptionAlgorithm::RsaPkcsV15,
+            EncryptionAlgorithm::RsaOaep => ProteccioEncryptionAlgorithm::RsaOaep,
+        }
+    }
 }
 
 pub struct Session {
@@ -184,11 +194,11 @@ impl Session {
     pub fn encrypt(
         &self,
         key_handle: CK_OBJECT_HANDLE,
-        algorithm: EncryptionAlgorithm,
+        algorithm: ProteccioEncryptionAlgorithm,
         plaintext: &[u8],
     ) -> PResult<Vec<u8>> {
         match algorithm {
-            EncryptionAlgorithm::AesGcm => {
+            ProteccioEncryptionAlgorithm::AesGcm => {
                 let mut nonce = generate_random_nonce::<12>()?;
                 let ciphertext = self.encrypt_with_mechanism(
                     key_handle,
@@ -204,11 +214,11 @@ impl Session {
     pub fn decrypt(
         &self,
         key_handle: CK_OBJECT_HANDLE,
-        algorithm: EncryptionAlgorithm,
+        algorithm: ProteccioEncryptionAlgorithm,
         ciphertext: &[u8],
     ) -> PResult<Vec<u8>> {
         match algorithm {
-            EncryptionAlgorithm::AesGcm => {
+            ProteccioEncryptionAlgorithm::AesGcm => {
                 if ciphertext.len() < 12 {
                     return Err(PError::Default("Invalid AES GCM ciphertext".to_string()));
                 }

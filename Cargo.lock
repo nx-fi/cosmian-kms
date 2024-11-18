@@ -1375,6 +1375,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "cosmian_kms_plugins"
+version = "4.19.1"
+dependencies = [
+ "async-trait",
+ "cosmian_logger",
+ "tempfile",
+ "thiserror 2.0.3",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "cosmian_kms_python"
 version = "4.19.1"
 dependencies = [
@@ -1410,6 +1422,7 @@ dependencies = [
  "cloudproof_findex 5.0.4",
  "cosmian_kmip",
  "cosmian_kms_client",
+ "cosmian_kms_plugins",
  "cosmian_kms_server_database",
  "cosmian_logger",
  "dotenvy",

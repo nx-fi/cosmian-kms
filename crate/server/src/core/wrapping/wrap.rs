@@ -8,6 +8,7 @@ use cosmian_kmip::{
     },
 };
 use cosmian_kms_server_database::ExtraStoreParams;
+use tracing::info;
 
 use crate::{
     core::{retrieve_object_utils::retrieve_object_for_operation, KMS},
@@ -39,8 +40,8 @@ pub(crate) async fn wrap_key(
         Some(eki) => eki
             .unique_identifier
             .as_str()
-            .context("unable to unwrap key: unwrapping key uid is not a string")?,
-        None => kms_bail!("unable to unwrap key: unwrapping key uid is missing"),
+            .context("unable to wrap key: wrapping key uid is not a string")?,
+        None => kms_bail!("unable to wrap key: wrapping key uid is missing"),
     };
 
     // fetch the wrapping key
@@ -77,6 +78,8 @@ pub(crate) async fn wrap_key(
         wrapping_key.object(),
         key_wrapping_specification,
     )?;
+
+    info!("Key wrapped successfully by key {}", wrapping_key_uid);
 
     Ok(())
 }

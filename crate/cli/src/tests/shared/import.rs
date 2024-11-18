@@ -173,7 +173,15 @@ pub(crate) async fn test_generate_export_import() -> CliResult<()> {
     )?;
 
     // generate a symmetric key
-    let key_id = create_symmetric_key(&ctx.owner_client_conf_path, None, None, None, &[], false)?;
+    let key_id = create_symmetric_key(
+        &ctx.owner_client_conf_path,
+        None,
+        None,
+        None,
+        &[],
+        false,
+        None,
+    )?;
     export_import_test(
         &ctx.owner_client_conf_path,
         "sym",

@@ -150,7 +150,15 @@ pub(crate) async fn test_password_wrap_import() -> CliResult<()> {
     password_wrap_import_test(ctx, "ec", &private_key_id)?;
 
     // sym
-    let key_id = create_symmetric_key(&ctx.owner_client_conf_path, None, None, None, &[], false)?;
+    let key_id = create_symmetric_key(
+        &ctx.owner_client_conf_path,
+        None,
+        None,
+        None,
+        &[],
+        false,
+        None,
+    )?;
     password_wrap_import_test(ctx, "sym", &key_id)?;
 
     Ok(())

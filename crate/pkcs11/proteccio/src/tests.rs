@@ -19,7 +19,7 @@ use tracing_subscriber::FmtSubscriber;
 
 use crate::{
     proteccio::{Proteccio, SlotManager},
-    session::{AesKeySize, EncryptionAlgorithm, RsaKeySize},
+    session::{AesKeySize, ProteccioEncryptionAlgorithm, RsaKeySize},
     PError, PResult,
 };
 
@@ -189,9 +189,9 @@ fn test_rsa_pkcs_encrypt() -> PResult<()> {
     let data = b"Hello, World!";
     let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label", false)?;
     info!("RSA handles sk: {sk}, pl: {pk}");
-    let ciphertext = session.encrypt(pk, EncryptionAlgorithm::RsaPkcsv15, data)?;
+    let ciphertext = session.encrypt(pk, ProteccioEncryptionAlgorithm::RsaPkcsV15, data)?;
     assert_eq!(ciphertext.len(), 2048 / 8);
-    let plaintext = session.decrypt(sk, EncryptionAlgorithm::RsaPkcsv15, &ciphertext)?;
+    let plaintext = session.decrypt(sk, ProteccioEncryptionAlgorithm::RsaPkcsV15, &ciphertext)?;
     assert_eq!(&plaintext, data);
     Ok(())
 }
@@ -204,9 +204,9 @@ fn test_rsa_oaep_encrypt() -> PResult<()> {
     let data = b"Hello, World!";
     let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label", false)?;
     info!("RSA handles sk: {sk}, pl: {pk}");
-    let ciphertext = session.encrypt(pk, EncryptionAlgorithm::RsaOaep, data)?;
+    let ciphertext = session.encrypt(pk, ProteccioEncryptionAlgorithm::RsaOaep, data)?;
     assert_eq!(ciphertext.len(), 2048 / 8);
-    let plaintext = session.decrypt(sk, EncryptionAlgorithm::RsaOaep, &ciphertext)?;
+    let plaintext = session.decrypt(sk, ProteccioEncryptionAlgorithm::RsaOaep, &ciphertext)?;
     assert_eq!(&plaintext, data);
     Ok(())
 }
@@ -219,9 +219,9 @@ fn test_aes_gcm_encrypt() -> PResult<()> {
     let data = b"Hello, World!";
     let sk = session.generate_aes_key(AesKeySize::Aes256, "label", false)?;
     info!("AES key handle: {sk}");
-    let ciphertext = session.encrypt(sk, EncryptionAlgorithm::AesGcm, data)?;
+    let ciphertext = session.encrypt(sk, ProteccioEncryptionAlgorithm::AesGcm, data)?;
     assert_eq!(ciphertext.len(), data.len() + 12 + 16);
-    let plaintext = session.decrypt(sk, EncryptionAlgorithm::AesGcm, &ciphertext)?;
+    let plaintext = session.decrypt(sk, ProteccioEncryptionAlgorithm::AesGcm, &ciphertext)?;
     assert_eq!(&plaintext, data);
     Ok(())
 }
@@ -241,9 +241,10 @@ fn multi_threaded_rsa_encrypt_decrypt_test() -> PResult<()> {
             let data = b"Hello, World!";
             let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label", false)?;
             info!("RSA handles sk: {sk}, pk: {pk}");
-            let ciphertext = session.encrypt(pk, EncryptionAlgorithm::RsaOaep, data)?;
+            let ciphertext = session.encrypt(pk, ProteccioEncryptionAlgorithm::RsaOaep, data)?;
             assert_eq!(ciphertext.len(), 2048 / 8);
-            let plaintext = session.decrypt(sk, EncryptionAlgorithm::RsaOaep, &ciphertext)?;
+            let plaintext =
+                session.decrypt(sk, ProteccioEncryptionAlgorithm::RsaOaep, &ciphertext)?;
             assert_eq!(&plaintext, data);
             Ok::<(), PError>(())
         });

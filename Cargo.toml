@@ -5,6 +5,7 @@ members = [
     "crate/client",
     "crate/kmip",
     "crate/logger",
+    "crate/plugins",
     "crate/pyo3",
     "crate/server",
     "crate/server_database",

@@ -60,6 +60,7 @@ pub(crate) async fn test_rekey_symmetric_key() -> CliResult<()> {
         None,
         &[],
         false,
+        None,
     )?;
 
     // Export as default (JsonTTLV with Raw Key Format Type)

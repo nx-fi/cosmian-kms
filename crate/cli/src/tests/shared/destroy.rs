@@ -87,7 +87,15 @@ async fn test_destroy_symmetric_key() -> CliResult<()> {
     let ctx = start_default_test_kms_server().await;
 
     // syn
-    let key_id = create_symmetric_key(&ctx.owner_client_conf_path, None, None, None, &[], false)?;
+    let key_id = create_symmetric_key(
+        &ctx.owner_client_conf_path,
+        None,
+        None,
+        None,
+        &[],
+        false,
+        None,
+    )?;
 
     // destroy should not work when not revoked
     assert!(destroy(&ctx.owner_client_conf_path, "sym", &key_id).is_err());

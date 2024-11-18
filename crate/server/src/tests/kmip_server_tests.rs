@@ -268,6 +268,7 @@ async fn test_create_transparent_symmetric_key() -> KResult<()> {
         CryptographicAlgorithm::AES,
         EMPTY_TAGS,
         false,
+        None,
     )?;
 
     trace!("request: {}", request);

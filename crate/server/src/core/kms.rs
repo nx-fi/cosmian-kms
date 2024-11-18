@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeSet, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     fs,
 };
 
@@ -27,6 +27,7 @@ use cosmian_kmip::{
 use cosmian_kms_client::access::{
     Access, AccessRightsObtainedResponse, ObjectOwnedResponse, UserAccessResponse,
 };
+use cosmian_kms_plugins::EncryptionOracle;
 use cosmian_kms_server_database::{
     CachedUnwrappedObject, Database, ExtraStoreParams, MainDbParams,
 };
@@ -53,6 +54,11 @@ pub struct KMS {
     ///    Objects are spread across the underlying stores based on their ID prefix.
     /// - The permissions store that stores the permissions granted to users on the objects.
     pub(crate) database: Database,
+
+    /// Encryption Oracles are used to encrypt/decrypt data using keys with specific prefixes.
+    /// A typical use case is delegating encryption/decryption to an HSM.
+    /// This is a map of key prefixes to encryption oracles.
+    pub(crate) encryption_oracles: HashMap<String, Box<dyn EncryptionOracle + Sync + Send>>,
 }
 
 /// Implement the KMIP Server operations and dispatches the actual actions

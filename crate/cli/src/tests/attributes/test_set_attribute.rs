@@ -319,7 +319,15 @@ async fn test_set_attribute_ckms() -> CliResult<()> {
     let ctx = start_default_test_kms_server().await;
 
     // AES 256 bit key
-    let uid = create_symmetric_key(&ctx.owner_client_conf_path, None, None, None, &[], false)?;
+    let uid = create_symmetric_key(
+        &ctx.owner_client_conf_path,
+        None,
+        None,
+        None,
+        &[],
+        false,
+        None,
+    )?;
     check_set_delete_attributes(&uid, ctx)?;
 
     // Certify the CSR without issuer i.e. self signed

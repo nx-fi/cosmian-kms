@@ -318,6 +318,7 @@ pub(crate) async fn test_locate_symmetric_key() -> CliResult<()> {
         None,
         &["test_sym"],
         false,
+        None,
     )?;
 
     // Locate with Tags

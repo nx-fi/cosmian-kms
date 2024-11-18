@@ -132,7 +132,7 @@ pub fn wrap_key_block(
         .attribute_name
         .as_ref()
         .and_then(|attributes| attributes.first())
-        .map(std::string::String::as_bytes);
+        .map(String::as_bytes);
     trace!(
         "wrap_key_block: additional_data_encryption: {:?}",
         additional_data_encryption

@@ -138,7 +138,15 @@ async fn test_multiple_databases() -> CliResult<()> {
     .await?;
 
     // create a symmetric key in the default encrypted database
-    let key_1 = create_symmetric_key(&ctx.owner_client_conf_path, None, None, None, &[], false)?;
+    let key_1 = create_symmetric_key(
+        &ctx.owner_client_conf_path,
+        None,
+        None,
+        None,
+        &[],
+        false,
+        None,
+    )?;
     // export the key 1
     // Export
     export_key(ExportKeyParams {
@@ -163,7 +171,15 @@ async fn test_multiple_databases() -> CliResult<()> {
         .expect("Can't write the new conf");
 
     // create a symmetric key in the default encrypted database
-    let key_2 = create_symmetric_key(&ctx.owner_client_conf_path, None, None, None, &[], false)?;
+    let key_2 = create_symmetric_key(
+        &ctx.owner_client_conf_path,
+        None,
+        None,
+        None,
+        &[],
+        false,
+        None,
+    )?;
     // export the key 1
     // Export
     export_key(ExportKeyParams {

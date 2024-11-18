@@ -98,6 +98,7 @@ pub(crate) async fn test_import_export_wrap_rfc_5649() -> CliResult<()> {
         None,
         &EMPTY_TAGS,
         false,
+        None,
     )?;
     test_import_export_wrap_private_key(
         &ctx.owner_client_conf_path,
@@ -192,6 +193,7 @@ pub(crate) async fn test_import_export_wrap_ecies() -> CliResult<()> {
         None,
         &EMPTY_TAGS,
         false,
+        None,
     )?;
     test_import_export_wrap_private_key(
         &ctx.owner_client_conf_path,
@@ -290,15 +292,15 @@ fn test_import_export_wrap_private_key(
             re_exported_key.key_block()?.key_value.key_material
                 == private_key.key_block()?.key_value.key_material
         );
-        assert!(
+        assert_eq!(
             re_exported_key
                 .key_block()?
                 .attributes()?
+                .get_link(LinkType::PublicKeyLink),
+            private_key
+                .key_block()?
+                .attributes()?
                 .get_link(LinkType::PublicKeyLink)
-                == private_key
-                    .key_block()?
-                    .attributes()?
-                    .get_link(LinkType::PublicKeyLink)
         );
         assert!(re_exported_key.key_wrapping_data().is_none());
     }

@@ -1155,7 +1155,7 @@ impl Attributes {
         })
     }
 
-    /// Return the vendor attribute with the given vendor identification and
+    /// Return the vendor attribute with the given vendor identification
     /// and remove it from the vendor attributes.
     #[must_use]
     pub fn extract_vendor_attribute_value(

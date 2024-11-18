@@ -71,6 +71,19 @@ pub struct CreateKeyAction {
     /// Sensitive: if set, the key will not be exportable
     #[clap(long = "sensitive", default_value = "false")]
     sensitive: bool,
+
+    /// The key to wrap this new key with.    
+    /// If the wrapping key is:
+    /// -  a symmetric key, AES-GCM will be used
+    /// -  a RSA key, RSA-OAEP will be used
+    /// -  a EC key, ECIES will be used (salsa20poly1305 for X25519)
+    #[clap(
+        long = "wrapping-key-id",
+        short = 'w',
+        required = false,
+        verbatim_doc_comment
+    )]
+    wrapping_key_id: Option<String>,
 }
 
 impl CreateKeyAction {
@@ -106,8 +119,12 @@ impl CreateKeyAction {
         };
 
         let unique_identifier = if let Some(key_bytes) = key_bytes {
-            let object =
+            let mut object =
                 create_symmetric_key_kmip_object(key_bytes.as_slice(), algorithm, self.sensitive)?;
+            if let Some(wrapping_key_id) = &self.wrapping_key_id {
+                let attributes = object.attributes_mut()?;
+                attributes.set_wrapping_key_id(wrapping_key_id);
+            }
             import_object(
                 kms_rest_client,
                 self.key_id.clone(),
@@ -129,6 +146,7 @@ impl CreateKeyAction {
                 algorithm,
                 &self.tags,
                 self.sensitive,
+                self.wrapping_key_id.as_ref(),
             )?;
             kms_rest_client
                 .create(create_key_request)

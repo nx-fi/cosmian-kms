@@ -119,7 +119,15 @@ pub(crate) async fn test_export_sym() -> CliResult<()> {
     let ctx = start_default_test_kms_server().await;
 
     // generate a symmetric key
-    let key_id = create_symmetric_key(&ctx.owner_client_conf_path, None, None, None, &[], false)?;
+    let key_id = create_symmetric_key(
+        &ctx.owner_client_conf_path,
+        None,
+        None,
+        None,
+        &[],
+        false,
+        None,
+    )?;
 
     // Export as default (JsonTTLV with Raw Key Format Type)
     export_key(ExportKeyParams {
@@ -181,7 +189,15 @@ pub(crate) async fn test_export_sym_allow_revoked() -> CliResult<()> {
     let ctx = start_default_test_kms_server().await;
 
     // generate a symmetric key
-    let key_id = create_symmetric_key(&ctx.owner_client_conf_path, None, None, None, &[], false)?;
+    let key_id = create_symmetric_key(
+        &ctx.owner_client_conf_path,
+        None,
+        None,
+        None,
+        &[],
+        false,
+        None,
+    )?;
     // Export
     export_key(ExportKeyParams {
         cli_conf_path: ctx.owner_client_conf_path.clone(),
@@ -207,8 +223,15 @@ pub(crate) async fn test_export_wrapped() -> CliResult<()> {
         create_rsa_4096_bits_key_pair(&ctx.owner_client_conf_path, &[], false)?;
 
     // generate a symmetric key
-    let sym_key_id =
-        create_symmetric_key(&ctx.owner_client_conf_path, None, None, None, &[], false)?;
+    let sym_key_id = create_symmetric_key(
+        &ctx.owner_client_conf_path,
+        None,
+        None,
+        None,
+        &[],
+        false,
+        None,
+    )?;
 
     // Export wrapped key with symmetric key as default (JsonTTLV with Raw Key Format Type)
     export_key(ExportKeyParams {
@@ -586,7 +609,15 @@ pub(crate) async fn test_sensitive_sym() -> CliResult<()> {
     let ctx = start_default_test_kms_server().await;
 
     // generate a symmetric key
-    let key_id = create_symmetric_key(&ctx.owner_client_conf_path, None, None, None, &[], true)?;
+    let key_id = create_symmetric_key(
+        &ctx.owner_client_conf_path,
+        None,
+        None,
+        None,
+        &[],
+        true,
+        None,
+    )?;
 
     // the key should not be exportable
     assert!(
