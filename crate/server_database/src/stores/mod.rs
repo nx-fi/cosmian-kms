@@ -1,6 +1,6 @@
 mod cached_sqlcipher;
 mod cached_sqlite_struct;
-mod extra_store_params;
+pub mod extra_store_params;
 mod hsm;
 mod locate_query;
 mod mysql;

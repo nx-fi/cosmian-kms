@@ -60,10 +60,10 @@ pub struct ServerParams {
     pub ms_dke_service_url: Option<String>,
 
     /// The username of the HSM admin.
-    /// The HSM admin can create objects on the HSM, destroy them and potentially export them.
+    /// The HSM admin can create objects on the HSM.
     pub hsm_admin: String,
 
-    /// The HSM model if any
+    /// The HSM model, if any
     pub hsm_model: Option<String>,
 
     /// HSM slot passwords number
@@ -122,7 +122,7 @@ impl ServerParams {
             vec![]
         } else {
             if &conf.hsm_model != "proteccio" {
-                kms_bail!("The only support HSM model is Proteccio for now")
+                kms_bail!("The only supported HSM model is Proteccio for now")
             }
             vec![AdditionalObjectStoresParams::ProteccioHsm((
                 String::from("hsm"),

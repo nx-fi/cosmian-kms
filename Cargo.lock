@@ -1280,7 +1280,8 @@ name = "cosmian_hsm_traits"
 version = "4.19.1"
 dependencies = [
  "async-trait",
- "thiserror 1.0.63",
+ "cosmian_kms_plugins",
+ "thiserror 2.0.3",
  "zeroize",
 ]
 
@@ -3500,6 +3501,7 @@ version = "4.19.1"
 dependencies = [
  "async-trait",
  "cosmian_hsm_traits",
+ "cosmian_kms_plugins",
  "hex",
  "libloading",
  "pkcs11_sys",

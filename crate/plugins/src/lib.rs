@@ -1,2 +1,6 @@
 mod encryption_oracle;
-pub use encryption_oracle::EncryptionOracle;
+mod error;
+mod stores;
+
+pub use encryption_oracle::{CryptographicAlgorithm, EncryptionOracle, KeyMetadata};
+pub use error::{PluginError, PluginResult};

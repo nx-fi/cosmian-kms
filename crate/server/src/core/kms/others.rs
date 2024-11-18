@@ -331,6 +331,11 @@ impl KMS {
         }
     }
 
+    /// Register an encryption oracle for a given key prefix.
+    /// The encryption oracle will be used to encrypt/decrypt data using keys with the given prefix.
+    /// # Arguments
+    /// * `prefix` - The key prefix for which the encryption oracle will be used.
+    /// * `oracle` - The encryption oracle to register.
     pub async fn register_encryption_oracles(
         &self,
         prefix: &str,

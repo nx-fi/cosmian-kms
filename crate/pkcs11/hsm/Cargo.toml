@@ -12,8 +12,9 @@ description = "Traits to implement to integrate HSMs to the KMS"
 doctest = false
 
 [dependencies]
-async-trait = "0.1"
-thiserror = "1.0.61"
-zeroize = "1.8"
+async-trait = { workspace = true }
+cosmian_kms_plugins = { path = "../../plugins" }
+thiserror = { workspace = true }
+zeroize = { workspace = true }
 
 [dev-dependencies]

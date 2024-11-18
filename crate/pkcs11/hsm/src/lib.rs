@@ -1,4 +1,5 @@
 //! # HSM
+mod encryption_oracle_impl;
 mod error;
 
 use async_trait::async_trait;
@@ -181,7 +182,7 @@ pub trait HSM {
         &self,
         slot_id: usize,
         key_id: usize,
-        algorithm: EncryptionAlgorithm,
+        algorithm: Option<EncryptionAlgorithm>,
         data: &[u8],
     ) -> HsmResult<Vec<u8>>;
 
@@ -197,7 +198,7 @@ pub trait HSM {
         &self,
         slot_id: usize,
         key_id: usize,
-        algorithm: EncryptionAlgorithm,
+        algorithm: Option<EncryptionAlgorithm>,
         data: &[u8],
     ) -> HsmResult<Vec<u8>>;
 }

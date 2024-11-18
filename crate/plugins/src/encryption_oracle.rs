@@ -1,3 +1,5 @@
+use crate::error::PluginResult;
+
 pub struct KeyMetadata {
     pub key_algorithm: CryptographicAlgorithm,
     pub key_length_in_bits: usize,
@@ -26,7 +28,7 @@ pub trait EncryptionOracle {
         data: &[u8],
         cryptographic_algorithm: Option<CryptographicAlgorithm>,
         authenticated_encryption_additional_data: Option<Vec<u8>>,
-    ) -> Vec<u8>;
+    ) -> PluginResult<Vec<u8>>;
 
     /// Decrypt data
     /// # Arguments
@@ -42,12 +44,12 @@ pub trait EncryptionOracle {
         data: &[u8],
         cryptographic_algorithm: Option<CryptographicAlgorithm>,
         authenticated_encryption_additional_data: Option<Vec<u8>>,
-    ) -> Vec<u8>;
+    ) -> PluginResult<Vec<u8>>;
 
     /// Get the metadata of a key
     /// # Arguments
     /// * `key_id` - the ID of the key
     /// # Returns
     /// * `KeyMetadata` - the metadata of the key
-    fn get_key_metadata(&self, key_id: &str) -> KeyMetadata;
+    fn get_key_metadata(&self, key_id: &str) -> PluginResult<KeyMetadata>;
 }

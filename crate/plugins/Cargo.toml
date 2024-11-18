@@ -12,7 +12,7 @@ description = "Crate exposing APIs for plugins to the Cosmian KMS"
 doctest = false
 
 [dependencies]
-async-trait = "0.1"
+async-trait = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 
