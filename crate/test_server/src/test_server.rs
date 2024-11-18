@@ -15,7 +15,7 @@ use cosmian_kms_client::{
 };
 use cosmian_kms_server::{
     config::{ClapConfig, HttpConfig, HttpParams, JwtAuthConfig, MainDBConfig, ServerParams},
-    kms_server::start_kms_server,
+    start_kms_server::start_kms_server,
 };
 use cosmian_kms_server_database::ExtraStoreParams;
 use tempfile::TempDir;

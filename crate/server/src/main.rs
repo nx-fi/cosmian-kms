@@ -7,8 +7,8 @@ use cosmian_kms_server::{
     config::{ClapConfig, ServerParams},
     error::KmsError,
     kms_bail,
-    kms_server::start_kms_server,
     result::KResult,
+    start_kms_server::start_kms_server,
     telemetry::initialize_telemetry,
 };
 use dotenvy::dotenv;
