@@ -1,7 +1,7 @@
 use async_trait::async_trait;
-use cosmian_hsm_traits::{
-    EncryptionAlgorithm, HsmError, HsmKeyAlgorithm, HsmKeypairAlgorithm, HsmObject,
-    HsmObjectFilter, HsmResult, HSM,
+use cosmian_kms_plugins::{
+    CryptographicAlgorithm, HsmKeyAlgorithm, HsmKeypairAlgorithm, HsmObject, HsmObjectFilter,
+    KeyMetadata, KeyType, PluginError, PluginResult, HSM,
 };
 use pkcs11_sys::CK_OBJECT_HANDLE;
 
@@ -16,7 +16,7 @@ impl HSM for Proteccio {
         key_length_in_bits: usize,
         sensitive: bool,
         label: &str,
-    ) -> HsmResult<usize> {
+    ) -> PluginResult<usize> {
         let slot = self.get_slot(slot_id)?;
         let session = slot.open_session(true)?;
 
@@ -26,14 +26,14 @@ impl HSM for Proteccio {
                     128 => AesKeySize::Aes128,
                     256 => AesKeySize::Aes256,
                     x => {
-                        return Err(HsmError::Default(format!(
+                        return Err(PluginError::Default(format!(
                             "Invalid key length: {x} bits, for and HSM AES key"
                         )))
                     }
                 };
                 let id = session.generate_aes_key(key_size, label, sensitive)?;
                 Ok(id as usize)
-            } // _ => Err(HsmError::Default(
+            } // _ => Err(PluginError::Default(
               //     "Only AES or RSA keys can be created on the Proteccio HSM".to_string(),
               // )),
         }
@@ -46,7 +46,7 @@ impl HSM for Proteccio {
         key_length_in_bits: usize,
         sensitive: bool,
         label: &str,
-    ) -> HsmResult<(usize, usize)> {
+    ) -> PluginResult<(usize, usize)> {
         let slot = self.get_slot(slot_id)?;
         let session = slot.open_session(true)?;
 
@@ -56,7 +56,7 @@ impl HSM for Proteccio {
             3072 => RsaKeySize::Rsa3072,
             4096 => RsaKeySize::Rsa4096,
             x => {
-                return Err(HsmError::Default(format!(
+                return Err(PluginError::Default(format!(
                     "Invalid key length: {x} bits, for and HSM RSA key (valid values are 1024, \
                      2048, 3072, 4096)"
                 )))
@@ -68,27 +68,27 @@ impl HSM for Proteccio {
                 let (sk, pk) =
                     session.generate_rsa_key_pair(key_length_in_bits, label, sensitive)?;
                 Ok((sk as usize, pk as usize))
-            } // _ => Err(HsmError::Default(
+            } // _ => Err(PluginError::Default(
               //     "Only AES or RSA keys can be created on the Proteccio HSM".to_string(),
               // )),
         }
     }
 
-    async fn export(&self, slot_id: usize, object_id: usize) -> HsmResult<Option<HsmObject>> {
+    async fn export(&self, slot_id: usize, object_id: usize) -> PluginResult<Option<HsmObject>> {
         let slot = self.get_slot(slot_id)?;
         let session = slot.open_session(true)?;
         let object = session.export_key(object_id as CK_OBJECT_HANDLE)?;
         Ok(object)
     }
 
-    async fn delete(&self, slot_id: usize, object_id: usize) -> HsmResult<()> {
+    async fn delete(&self, slot_id: usize, object_id: usize) -> PluginResult<()> {
         let slot = self.get_slot(slot_id)?;
         let session = slot.open_session(true)?;
         session.destroy_object(object_id as CK_OBJECT_HANDLE)?;
         Ok(())
     }
 
-    async fn find(&self, slot_id: usize, object_type: HsmObjectFilter) -> HsmResult<Vec<usize>> {
+    async fn find(&self, slot_id: usize, object_type: HsmObjectFilter) -> PluginResult<Vec<usize>> {
         let slot = self.get_slot(slot_id)?;
         let session = slot.open_session(true)?;
         let objects = session.list_objects(object_type)?;
@@ -99,9 +99,9 @@ impl HSM for Proteccio {
         &self,
         slot_id: usize,
         key_id: usize,
-        algorithm: EncryptionAlgorithm,
+        algorithm: CryptographicAlgorithm,
         data: &[u8],
-    ) -> HsmResult<Vec<u8>> {
+    ) -> PluginResult<Vec<u8>> {
         let slot = self.get_slot(slot_id)?;
         let session = slot.open_session(true)?;
         let ciphertext = session.encrypt(key_id as CK_OBJECT_HANDLE, algorithm.into(), data)?;
@@ -112,12 +112,27 @@ impl HSM for Proteccio {
         &self,
         slot_id: usize,
         key_id: usize,
-        algorithm: EncryptionAlgorithm,
+        algorithm: CryptographicAlgorithm,
         data: &[u8],
-    ) -> HsmResult<Vec<u8>> {
+    ) -> PluginResult<Vec<u8>> {
         let slot = self.get_slot(slot_id)?;
         let session = slot.open_session(true)?;
         let plaintext = session.decrypt(key_id as CK_OBJECT_HANDLE, algorithm.into(), data)?;
         Ok(plaintext)
+    }
+
+    async fn get_key_type(&self, slot_id: usize, key_id: usize) -> PluginResult<KeyType> {
+        let slot = self.get_slot(slot_id)?;
+        let session = slot.open_session(true)?;
+        let (key_type, ..) = session.get_key_basics(key_id as CK_OBJECT_HANDLE)?;
+        Ok(key_type)
+    }
+
+    async fn get_key_metadata(&self, slot_id: usize, key_id: usize) -> PluginResult<KeyMetadata> {
+        let slot = self.get_slot(slot_id)?;
+        let session = slot.open_session(true)?;
+        todo!("Implement get_key_metadata");
+        // let metadata = session.get_key_metadata(key_id as CK_OBJECT_HANDLE)?;
+        // Ok(metadata)
     }
 }

@@ -16,7 +16,7 @@ async-trait = "0.1"
 clap = { workspace = true }
 cloudproof = { workspace = true }
 cloudproof_findex = { version = "5.0", features = ["findex-redis"] }
-cosmian_hsm_traits = { path = "../pkcs11/hsm" }
+cosmian_kms_plugins = { path = "../plugins" }
 cosmian_kmip = { path = "../kmip" }
 hex = { workspace = true }
 lazy_static = "1.5"

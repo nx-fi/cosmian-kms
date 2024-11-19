@@ -4,8 +4,8 @@ mod rsa;
 use std::{ptr, sync::Arc};
 
 pub use aes::AesKeySize;
-use cosmian_hsm_traits::{
-    EncryptionAlgorithm, HsmObject, HsmObjectFilter, HsmObjectType, KeyMaterial,
+use cosmian_kms_plugins::{
+    CryptographicAlgorithm, HsmObject, HsmObjectFilter, KeyMaterial, KeyMetadata, KeyType,
     RsaPrivateKeyMaterial, RsaPublicKeyMaterial,
 };
 use pkcs11_sys::*;
@@ -20,12 +20,12 @@ pub enum ProteccioEncryptionAlgorithm {
     RsaOaep,
 }
 
-impl From<EncryptionAlgorithm> for ProteccioEncryptionAlgorithm {
-    fn from(algorithm: EncryptionAlgorithm) -> Self {
+impl From<CryptographicAlgorithm> for ProteccioEncryptionAlgorithm {
+    fn from(algorithm: CryptographicAlgorithm) -> Self {
         match algorithm {
-            EncryptionAlgorithm::AesGcm => ProteccioEncryptionAlgorithm::AesGcm,
-            EncryptionAlgorithm::RsaPkcsV15 => ProteccioEncryptionAlgorithm::RsaPkcsV15,
-            EncryptionAlgorithm::RsaOaep => ProteccioEncryptionAlgorithm::RsaOaep,
+            CryptographicAlgorithm::AesGcm => ProteccioEncryptionAlgorithm::AesGcm,
+            CryptographicAlgorithm::RsaPkcsV15 => ProteccioEncryptionAlgorithm::RsaPkcsV15,
+            CryptographicAlgorithm::RsaOaep => ProteccioEncryptionAlgorithm::RsaOaep,
         }
     }
 }
@@ -366,12 +366,12 @@ impl Session {
 
         self.call_get_attributes(key_handle, &mut template)?;
         let object_type = match key_type {
-            CKK_AES => HsmObjectType::Aes,
+            CKK_AES => KeyType::AesKey,
             CKK_RSA => {
                 if class == CKO_PRIVATE_KEY {
-                    HsmObjectType::RsaPrivate
+                    KeyType::RsaPrivateKey
                 } else {
-                    HsmObjectType::RsaPublic
+                    KeyType::RsaPublicKey
                 }
             }
             x => {
@@ -382,9 +382,9 @@ impl Session {
         };
 
         match object_type {
-            HsmObjectType::Aes => self.export_aes_key(key_handle),
-            HsmObjectType::RsaPrivate => self.export_rsa_private_key(key_handle),
-            HsmObjectType::RsaPublic => self.export_rsa_public_key(key_handle),
+            KeyType::AesKey => self.export_aes_key(key_handle),
+            KeyType::RsaPrivateKey => self.export_rsa_private_key(key_handle),
+            KeyType::RsaPublicKey => self.export_rsa_public_key(key_handle),
         }
     }
 
@@ -684,6 +684,80 @@ impl Session {
             }
             Ok(Some(()))
         }
+    }
+
+    ///  Get the key type, sensitivity and label length
+    /// # Arguments
+    /// * `key_handle` - The key handle
+    /// # Returns
+    /// * `Result<(KeyType, bool, usize)` - The key type, sensitivity and label length
+    pub(crate) fn get_key_basics(
+        &self,
+        key_handle: CK_OBJECT_HANDLE,
+    ) -> PResult<(KeyType, bool, usize)> {
+        let mut key_type: CK_KEY_TYPE = CKK_VENDOR_DEFINED;
+        let mut class: CK_OBJECT_CLASS = CKO_VENDOR_DEFINED;
+        let mut sensitive: CK_BBOOL = CK_FALSE;
+        let mut template = [
+            CK_ATTRIBUTE {
+                type_: CKA_CLASS,
+                pValue: &mut class as *mut _ as CK_VOID_PTR,
+                ulValueLen: size_of::<CK_OBJECT_CLASS>() as CK_ULONG,
+            },
+            CK_ATTRIBUTE {
+                type_: CKA_KEY_TYPE,
+                pValue: &mut key_type as *mut _ as CK_VOID_PTR,
+                ulValueLen: size_of::<CK_ULONG>() as CK_ULONG,
+            },
+            CK_ATTRIBUTE {
+                type_: CKA_SENSITIVE,
+                pValue: &mut sensitive as *mut _ as CK_VOID_PTR,
+                ulValueLen: size_of::<CK_BBOOL>() as CK_ULONG,
+            },
+            CK_ATTRIBUTE {
+                type_: CKA_LABEL,
+                pValue: ptr::null_mut(),
+                ulValueLen: 0,
+            },
+        ];
+
+        self.call_get_attributes(key_handle, &mut template)?;
+        let label_len = template[3].ulValueLen;
+        let key_type = match key_type {
+            CKK_AES => KeyType::AesKey,
+            CKK_RSA => {
+                if class == CKO_PRIVATE_KEY {
+                    KeyType::RsaPrivateKey
+                } else {
+                    KeyType::RsaPublicKey
+                }
+            }
+            x => {
+                return Err(PError::Default(format!(
+                    "Export: unsupported key type: {x}"
+                )));
+            }
+        };
+        // // filla string with label len spaces
+        // let label = if label_len > 0 {
+        //     let label_bytes: Vec<u8> = vec![b' '; label_len as usize];
+        //     Some(String::from_utf8(label_bytes).map_err(|e| {
+        //         PError::Default(format!("Failed to convert label to string: {}", e))
+        //     })?)
+        //     // let mut template = [
+        //     //     CK_ATTRIBUTE {
+        //     //         type_: CKA_LABEL,
+        //     //         pValue: label_bytes.as_mut_ptr() as CK_VOID_PTR,
+        //     //         ulValueLen: label_len,
+        //     //     },
+        //     // ];
+        //     // self.call_get_attributes(key_handle, &mut template)?;
+        //     // String::from_utf8(label_bytes)
+        //     //     .map_err(|e| PError::Default(format!("Failed to convert label to string: {}", e)))?
+        // } else {
+        //     None
+        // };
+        Ok((key_type, sensitive == CK_TRUE, label_len as usize))
     }
 }
 

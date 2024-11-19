@@ -11,7 +11,7 @@ use std::{
     thread,
 };
 
-use cosmian_hsm_traits::{HsmObjectFilter, KeyMaterial};
+use cosmian_kms_plugins::{HsmObjectFilter, KeyMaterial, KeyType};
 use libloading::Library;
 use pkcs11_sys::{CKF_OS_LOCKING_OK, CKR_OK, CK_C_INITIALIZE_ARGS, CK_RV, CK_VOID_PTR};
 use tracing::{info, Level};
@@ -90,7 +90,7 @@ fn test_generate_aes_key() -> PResult<()> {
     initialize_logging();
     let slot = get_slot()?;
     let session = slot.open_session(true)?;
-    let key_handle = session.generate_aes_key(AesKeySize::Aes256, "label", true)?;
+    let key_handle = session.generate_aes_key(AesKeySize::Aes256, "label", false)?;
     info!("Generated exportable AES key: {}", key_handle);
     // re-export the key
     let key = session
@@ -114,7 +114,7 @@ fn test_generate_aes_key() -> PResult<()> {
     }
 
     // Generate a sensitive AES key
-    let key_handle = session.generate_aes_key(AesKeySize::Aes256, "label", false)?;
+    let key_handle = session.generate_aes_key(AesKeySize::Aes256, "label", true)?;
     info!("Generated non-exportable AES key: {}", key_handle);
     // it should not be exportable
     assert!(session.export_key(key_handle).is_err());
@@ -126,7 +126,7 @@ fn test_generate_rsa_keypair() -> PResult<()> {
     initialize_logging();
     let slot = get_slot()?;
     let session = slot.open_session(true)?;
-    let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label", true)?;
+    let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label", false)?;
     info!("Generated exportable RSA key: sk: {sk}, pk: {pk}");
     // export the private key
     let key = session
@@ -155,7 +155,7 @@ fn test_generate_rsa_keypair() -> PResult<()> {
         }
     }
     // Generate a sensitive AES key
-    let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label", false)?;
+    let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label", true)?;
     info!("Generated exportable RSA key: sk: {sk}, pk: {pk}");
     // the private key should not be exportable
     assert!(session.export_key(sk).is_err());
@@ -169,9 +169,9 @@ fn test_rsa_key_wrap() -> PResult<()> {
     initialize_logging();
     let slot = get_slot()?;
     let session = slot.open_session(true)?;
-    let symmetric_key = session.generate_aes_key(AesKeySize::Aes256, "label", false)?;
+    let symmetric_key = session.generate_aes_key(AesKeySize::Aes256, "label", true)?;
     info!("Symmetric key handle: {symmetric_key}");
-    let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label", false)?;
+    let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label", true)?;
     info!("RSA handles sk: {sk}, pl: {pk}");
     let encrypted_key = session.wrap_aes_key_with_rsa_oaep(pk, symmetric_key)?;
     assert_eq!(encrypted_key.len(), 2048 / 8);
@@ -187,7 +187,7 @@ fn test_rsa_pkcs_encrypt() -> PResult<()> {
     let slot = get_slot()?;
     let session = slot.open_session(true)?;
     let data = b"Hello, World!";
-    let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label", false)?;
+    let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label", true)?;
     info!("RSA handles sk: {sk}, pl: {pk}");
     let ciphertext = session.encrypt(pk, ProteccioEncryptionAlgorithm::RsaPkcsV15, data)?;
     assert_eq!(ciphertext.len(), 2048 / 8);
@@ -202,7 +202,7 @@ fn test_rsa_oaep_encrypt() -> PResult<()> {
     let slot = get_slot()?;
     let session = slot.open_session(true)?;
     let data = b"Hello, World!";
-    let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label", false)?;
+    let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label", true)?;
     info!("RSA handles sk: {sk}, pl: {pk}");
     let ciphertext = session.encrypt(pk, ProteccioEncryptionAlgorithm::RsaOaep, data)?;
     assert_eq!(ciphertext.len(), 2048 / 8);
@@ -217,7 +217,7 @@ fn test_aes_gcm_encrypt() -> PResult<()> {
     let slot = get_slot()?;
     let session = slot.open_session(true)?;
     let data = b"Hello, World!";
-    let sk = session.generate_aes_key(AesKeySize::Aes256, "label", false)?;
+    let sk = session.generate_aes_key(AesKeySize::Aes256, "label", true)?;
     info!("AES key handle: {sk}");
     let ciphertext = session.encrypt(sk, ProteccioEncryptionAlgorithm::AesGcm, data)?;
     assert_eq!(ciphertext.len(), data.len() + 12 + 16);
@@ -239,7 +239,7 @@ fn multi_threaded_rsa_encrypt_decrypt_test() -> PResult<()> {
         let handle = thread::spawn(move || {
             let session = slot.open_session(true)?;
             let data = b"Hello, World!";
-            let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label", false)?;
+            let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label", true)?;
             info!("RSA handles sk: {sk}, pk: {pk}");
             let ciphertext = session.encrypt(pk, ProteccioEncryptionAlgorithm::RsaOaep, data)?;
             assert_eq!(ciphertext.len(), 2048 / 8);
@@ -298,5 +298,19 @@ fn test_list_objects() -> PResult<()> {
     assert_eq!(objects.len(), 5);
     let objects = session.list_objects(HsmObjectFilter::AesKey)?;
     assert_eq!(objects.len(), 1);
+    Ok(())
+}
+
+#[test]
+fn test_get_key_metadata() -> PResult<()> {
+    initialize_logging();
+    let slot = get_slot()?;
+    let session = slot.open_session(true)?;
+    let key_handle = session.generate_aes_key(AesKeySize::Aes256, "label", true)?;
+    // get the key basics
+    let (key_type, sensistive, label_len) = session.get_key_basics(key_handle)?;
+    assert_eq!(key_type, KeyType::AesKey);
+    assert!(sensistive);
+    assert_eq!(label_len, "label".len());
     Ok(())
 }

@@ -47,7 +47,9 @@ impl KMS {
         .await?;
 
         // Encryption Oracles are used to encrypt/decrypt data using keys with specific prefixes.
-        let encryption_oracles = if !server_params.slot_passwords.is_empty() {
+        let encryption_oracles = if server_params.slot_passwords.is_empty() {
+            HashMap::new()
+        } else {
             if server_params
                 .hsm_model
                 .as_ref()
@@ -73,8 +75,6 @@ impl KMS {
                 );
                 encryption_oracles
             }
-        } else {
-            HashMap::new()
         };
 
         Ok(Self {

@@ -1,8 +1,13 @@
+//! The HSM Store is a store that allows to create, retrieve, update and delete objects on an HSM.
+//! It is the link between the database and the HSM.
+//TODO This file should be moved to the plugins crate, as soon a the Sore traits are moved there
+// The Store traits require a refactoring of the KMIP crate to be moved so that the KMIP crate does
+// not pull openssl as a dependency
+
 #![allow(unused_variables)]
 use std::{collections::HashSet, path::PathBuf};
 
 use async_trait::async_trait;
-use cosmian_hsm_traits::{HsmKeyAlgorithm, HsmKeypairAlgorithm, HsmObject, KeyMaterial, HSM};
 use cosmian_kmip::{
     crypto::secret::SafeBigUint,
     kmip::{
@@ -14,6 +19,7 @@ use cosmian_kmip::{
         },
     },
 };
+use cosmian_kms_plugins::{HsmKeyAlgorithm, HsmKeypairAlgorithm, HsmObject, KeyMaterial, HSM};
 use num_bigint_dig::BigUint;
 use tracing::debug;
 use KmipKeyMaterial::TransparentRSAPublicKey;

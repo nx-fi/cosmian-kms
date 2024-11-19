@@ -1,3 +1,7 @@
+//! Traits that must be implemented by all the stores (DBs, HSMs, etc.) that store objects
+//! and/or permissions
+//TODO This traits must be moved to the `plugins` crate as soon as the KMIP crate is refactoed to NOT pull the openssl dependency
+
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,

@@ -1,6 +1,6 @@
 //! Copyright 2024 Cosmian Tech SAS
 
-use cosmian_hsm_traits::HsmError;
+use cosmian_kms_plugins::PluginError;
 use thiserror::Error;
 
 pub type PResult<T> = Result<T, PError>;
@@ -20,14 +20,14 @@ pub enum PError {
     Hsm(String),
 }
 
-impl From<HsmError> for PError {
-    fn from(e: HsmError) -> Self {
+impl From<PluginError> for PError {
+    fn from(e: PluginError) -> Self {
         PError::Hsm(e.to_string())
     }
 }
 
-impl From<PError> for HsmError {
+impl From<PError> for PluginError {
     fn from(e: PError) -> Self {
-        HsmError::Default(e.to_string())
+        PluginError::Default(e.to_string())
     }
 }

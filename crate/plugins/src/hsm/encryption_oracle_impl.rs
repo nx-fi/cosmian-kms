@@ -1,9 +1,12 @@
+//! This module contains the implementation of the `EncryptionOracle` trait for the `Hsm` plugin.
+//! The `HsmEncryptionOracle` struct is a wrapper around an `HSM` instance and is responsible for
+//! encrypting and decrypting data using the HSM.
+//! This blanket implementation "glues" the `Hsm` interface with the `EncryptionOracle` interface.
 use async_trait::async_trait;
-use cosmian_kms_plugins::{
-    CryptographicAlgorithm, EncryptionOracle, KeyMetadata, PluginError, PluginResult,
-};
 
-use crate::{EncryptionAlgorithm, HSM};
+use crate::{
+    CryptographicAlgorithm, EncryptionOracle, KeyMetadata, PluginError, PluginResult, HSM,
+};
 
 struct HsmEncryptionOracle {
     hsm: Box<dyn HSM + Send + Sync>,
@@ -13,16 +16,6 @@ struct HsmEncryptionOracle {
 impl HsmEncryptionOracle {
     pub fn new(hsm: Box<dyn HSM + Send + Sync>, hsm_admin: String) -> Self {
         HsmEncryptionOracle { hsm, hsm_admin }
-    }
-}
-
-impl From<CryptographicAlgorithm> for EncryptionAlgorithm {
-    fn from(algorithm: CryptographicAlgorithm) -> Self {
-        match algorithm {
-            CryptographicAlgorithm::AesGcm => EncryptionAlgorithm::AesGcm,
-            CryptographicAlgorithm::RsaPkcsV15 => EncryptionAlgorithm::RsaPkcsV15,
-            CryptographicAlgorithm::RsaOaep => EncryptionAlgorithm::RsaOaep,
-        }
     }
 }
 
@@ -77,6 +70,10 @@ impl EncryptionOracle for HsmEncryptionOracle {
     }
 
     async fn get_key_metadata(&self, key_id: &str) -> PluginResult<KeyMetadata> {
+        todo!()
+    }
+
+    async fn get_key_type(&self, key_id: &str) -> PluginResult<KeyType> {
         todo!()
     }
 }

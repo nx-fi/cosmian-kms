@@ -2,8 +2,8 @@ use std::array::TryFromSliceError;
 
 use cloudproof::reexport::crypto_core::CryptoCoreError;
 use cloudproof_findex::implementations::redis::FindexRedisError;
-use cosmian_hsm_traits::HsmError;
 use cosmian_kmip::{kmip::kmip_operations::ErrorReason, KmipError};
+use cosmian_kms_plugins::PluginError;
 use proteccio_pkcs11_loader::PError;
 use redis::ErrorKind;
 use thiserror::Error;
@@ -76,8 +76,8 @@ pub enum DbError {
     #[error("Invalid URL: {0}")]
     UrlError(String),
 
-    #[error("HSM error: {0}")]
-    Hsm(String),
+    #[error("Plugin error: {0}")]
+    Plugin(String),
 
     #[error("Proteccio error: {0}")]
     Proteccio(String),
@@ -145,9 +145,9 @@ impl From<tracing::dispatcher::SetGlobalDefaultError> for DbError {
     }
 }
 
-impl From<HsmError> for DbError {
-    fn from(value: HsmError) -> Self {
-        Self::Hsm(value.to_string())
+impl From<PluginError> for DbError {
+    fn from(value: PluginError) -> Self {
+        Self::Plugin(value.to_string())
     }
 }
 

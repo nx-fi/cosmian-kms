@@ -1,14 +1,22 @@
+//! # Encryption Oracle
+//! The encryption oracle interface should be implemented by plugins that provide encryption and
+//! decryption capabilities for a given key prefix.
+//! Once implemented, an encryption oracle must be registered on the KMS instance for that prefix.
+//! HSMs that implement the `HSM` interface have a blanket implementation of this interface called
+//! `HsmEncryptionOracle`.
 use async_trait::async_trait;
 
-use crate::error::PluginResult;
+use crate::{error::PluginResult, KeyType};
 
+#[derive(Debug)]
 pub struct KeyMetadata {
-    pub key_algorithm: CryptographicAlgorithm,
+    pub key_type: KeyType,
     pub key_length_in_bits: usize,
     pub sensitive: bool,
     pub label: Option<String>,
 }
 
+#[derive(Debug)]
 pub enum CryptographicAlgorithm {
     AesGcm,
     RsaPkcsV15,
@@ -49,7 +57,16 @@ pub trait EncryptionOracle {
         authenticated_encryption_additional_data: Option<Vec<u8>>,
     ) -> PluginResult<Vec<u8>>;
 
+    /// Get the key type
+    /// On HSMs, this should be a single call to the HSM.
+    /// # Arguments
+    /// * `key_id` - the ID of the key
+    /// # Returns
+    /// * `KeyType` - the type of the key
+    async fn get_key_type(&self, key_id: &str) -> PluginResult<KeyType>;
+
     /// Get the metadata of a key
+    /// On HSMs, this should be a double call to the HSM.
     /// # Arguments
     /// * `key_id` - the ID of the key
     /// # Returns

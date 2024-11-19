@@ -10,7 +10,6 @@ members = [
     "crate/server",
     "crate/server_database",
     "crate/test_server",
-    "crate/pkcs11/hsm",
     "crate/pkcs11/module",
     "crate/pkcs11/provider",
     "crate/pkcs11/proteccio",
