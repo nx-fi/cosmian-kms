@@ -16,7 +16,6 @@ async-trait = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 zeroize = { workspace = true, default-features = true }
-clap = { version = "4.5.21", features = ["derive"] }
 
 [dev-dependencies]
 cosmian_logger = { path = "../logger" }

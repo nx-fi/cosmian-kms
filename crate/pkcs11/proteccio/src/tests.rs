@@ -56,6 +56,7 @@ fn get_slot() -> PResult<Arc<SlotManager>> {
     Ok(manager)
 }
 
+#[cfg(feature = "proteccio")]
 #[test]
 fn low_level_test() -> PResult<()> {
     let path = "/lib/libnethsm64.so";
@@ -76,6 +77,7 @@ fn low_level_test() -> PResult<()> {
     Ok(())
 }
 
+#[cfg(feature = "proteccio")]
 #[test]
 fn test_hsm_get_info() -> PResult<()> {
     initialize_logging();
@@ -85,6 +87,7 @@ fn test_hsm_get_info() -> PResult<()> {
     Ok(())
 }
 
+#[cfg(feature = "proteccio")]
 #[test]
 fn test_generate_aes_key() -> PResult<()> {
     initialize_logging();
@@ -121,6 +124,7 @@ fn test_generate_aes_key() -> PResult<()> {
     Ok(())
 }
 
+#[cfg(feature = "proteccio")]
 #[test]
 fn test_generate_rsa_keypair() -> PResult<()> {
     initialize_logging();
@@ -164,6 +168,7 @@ fn test_generate_rsa_keypair() -> PResult<()> {
     Ok(())
 }
 
+#[cfg(feature = "proteccio")]
 #[test]
 fn test_rsa_key_wrap() -> PResult<()> {
     initialize_logging();
@@ -181,6 +186,7 @@ fn test_rsa_key_wrap() -> PResult<()> {
     Ok(())
 }
 
+#[cfg(feature = "proteccio")]
 #[test]
 fn test_rsa_pkcs_encrypt() -> PResult<()> {
     initialize_logging();
@@ -196,6 +202,7 @@ fn test_rsa_pkcs_encrypt() -> PResult<()> {
     Ok(())
 }
 
+#[cfg(feature = "proteccio")]
 #[test]
 fn test_rsa_oaep_encrypt() -> PResult<()> {
     initialize_logging();
@@ -211,6 +218,7 @@ fn test_rsa_oaep_encrypt() -> PResult<()> {
     Ok(())
 }
 
+#[cfg(feature = "proteccio")]
 #[test]
 fn test_aes_gcm_encrypt() -> PResult<()> {
     initialize_logging();
@@ -226,6 +234,7 @@ fn test_aes_gcm_encrypt() -> PResult<()> {
     Ok(())
 }
 
+#[cfg(feature = "proteccio")]
 #[test]
 fn multi_threaded_rsa_encrypt_decrypt_test() -> PResult<()> {
     initialize_logging();
@@ -258,6 +267,7 @@ fn multi_threaded_rsa_encrypt_decrypt_test() -> PResult<()> {
     Ok(())
 }
 
+#[cfg(feature = "proteccio")]
 #[test]
 fn test_list_objects() -> PResult<()> {
     initialize_logging();
@@ -301,16 +311,59 @@ fn test_list_objects() -> PResult<()> {
     Ok(())
 }
 
+#[cfg(feature = "proteccio")]
 #[test]
 fn test_get_key_metadata() -> PResult<()> {
     initialize_logging();
     let slot = get_slot()?;
     let session = slot.open_session(true)?;
+
+    // generate an AES key
     let key_handle = session.generate_aes_key(AesKeySize::Aes256, "label", true)?;
     // get the key basics
-    let (key_type, sensistive, label_len) = session.get_key_basics(key_handle)?;
+    let key_type = session
+        .get_key_type(key_handle)?
+        .ok_or_else(|| PError::Default("Key not found".to_string()))?;
     assert_eq!(key_type, KeyType::AesKey);
-    assert!(sensistive);
-    assert_eq!(label_len, "label".len());
+    // get the metadata
+    let metadata = session
+        .get_key_metadata(key_handle)?
+        .ok_or_else(|| PError::Default("Key not found".to_string()))?;
+    assert_eq!(metadata.key_type, KeyType::AesKey);
+    assert!(metadata.sensitive);
+    assert_eq!(metadata.key_length_in_bits, 256);
+    assert_eq!(metadata.label, Some("label".to_string()));
+
+    // generate an RSA keypair
+    let (sk, pk) = session.generate_rsa_key_pair(RsaKeySize::Rsa2048, "label", true)?;
+
+    // get the private key basics
+    let key_type = session
+        .get_key_type(sk)?
+        .ok_or_else(|| PError::Default("Key not found".to_string()))?;
+    assert_eq!(key_type, KeyType::RsaPrivateKey);
+
+    // get the private key metadata
+    let metadata = session
+        .get_key_metadata(sk)?
+        .ok_or_else(|| PError::Default("Key not found".to_string()))?;
+    assert_eq!(metadata.key_type, KeyType::RsaPrivateKey);
+    assert_eq!(metadata.key_length_in_bits, 2048);
+    assert!(metadata.sensitive);
+
+    // get the public key basics
+    let key_type = session
+        .get_key_type(pk)?
+        .ok_or_else(|| PError::Default("Key not found".to_string()))?;
+    assert_eq!(key_type, KeyType::RsaPublicKey);
+
+    // get the public key metadata
+    let metadata = session
+        .get_key_metadata(pk)?
+        .ok_or_else(|| PError::Default("Key not found".to_string()))?;
+    assert_eq!(metadata.key_type, KeyType::RsaPublicKey);
+    // assert!(metadata.sensitive);
+    assert_eq!(metadata.key_length_in_bits, 2048);
+    assert_eq!(metadata.label, Some("label".to_string()));
     Ok(())
 }

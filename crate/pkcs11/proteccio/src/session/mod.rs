@@ -686,18 +686,138 @@ impl Session {
         }
     }
 
+    pub fn get_key_metadata(&self, key_handle: CK_OBJECT_HANDLE) -> PResult<Option<KeyMetadata>> {
+        let key_type = match self.get_key_type(key_handle)? {
+            None => return Ok(None),
+            Some(key_type) => key_type,
+        };
+        let mut template = [CK_ATTRIBUTE {
+            type_: CKA_LABEL,
+            pValue: ptr::null_mut(),
+            ulValueLen: 0,
+        }]
+        .to_vec();
+        match key_type {
+            KeyType::AesKey => {
+                let mut key_size: CK_ULONG = 0;
+                let mut sensitive: CK_BBOOL = CK_FALSE;
+                template.extend([
+                    CK_ATTRIBUTE {
+                        type_: CKA_VALUE_LEN,
+                        pValue: &mut key_size as *mut _ as CK_VOID_PTR,
+                        ulValueLen: size_of::<CK_ULONG>() as CK_ULONG,
+                    },
+                    CK_ATTRIBUTE {
+                        type_: CKA_SENSITIVE,
+                        pValue: &mut sensitive as *mut _ as CK_VOID_PTR,
+                        ulValueLen: size_of::<CK_BBOOL>() as CK_ULONG,
+                    },
+                ]);
+                if self
+                    .call_get_attributes(key_handle, &mut template)?
+                    .is_none()
+                {
+                    return Ok(None);
+                }
+                let label_len = template[0].ulValueLen;
+                let label = if label_len == 0 {
+                    None
+                } else {
+                    let mut label_bytes: Vec<u8> = vec![0_u8; label_len as usize];
+                    let mut template = [CK_ATTRIBUTE {
+                        type_: CKA_LABEL,
+                        pValue: label_bytes.as_mut_ptr() as CK_VOID_PTR,
+                        ulValueLen: label_len,
+                    }];
+                    if self
+                        .call_get_attributes(key_handle, &mut template)?
+                        .is_none()
+                    {
+                        return Ok(None);
+                    }
+                    Some(String::from_utf8(label_bytes).map_err(|e| {
+                        PError::Default(format!("Failed to convert label to string: {}", e))
+                    })?)
+                };
+                Ok(Some(KeyMetadata {
+                    key_type,
+                    key_length_in_bits: usize::try_from(key_size).map_err(|e| {
+                        PError::Default(format!("Failed to convert key size to usize: {}", e))
+                    })? * 8,
+                    sensitive: sensitive == CK_TRUE,
+                    label,
+                }))
+            }
+            KeyType::RsaPrivateKey | KeyType::RsaPublicKey => {
+                template.push(CK_ATTRIBUTE {
+                    type_: CKA_MODULUS,
+                    pValue: ptr::null_mut(),
+                    ulValueLen: 0,
+                });
+                if self
+                    .call_get_attributes(key_handle, &mut template)?
+                    .is_none()
+                {
+                    return Ok(None);
+                }
+                let label_len = template[0].ulValueLen;
+                let mut label_bytes: Vec<u8> = vec![0_u8; label_len as usize];
+                let modulus_len = template[1].ulValueLen;
+                let mut modulus: Vec<u8> = vec![0_u8; modulus_len as usize];
+                let mut sensitive: CK_BBOOL = CK_FALSE;
+                let mut template = vec![CK_ATTRIBUTE {
+                    type_: CKA_MODULUS,
+                    pValue: modulus.as_mut_ptr() as CK_VOID_PTR,
+                    ulValueLen: modulus_len,
+                }];
+                if label_len > 0 {
+                    template.push(CK_ATTRIBUTE {
+                        type_: CKA_LABEL,
+                        pValue: label_bytes.as_mut_ptr() as CK_VOID_PTR,
+                        ulValueLen: label_len,
+                    });
+                }
+                if key_type == KeyType::RsaPrivateKey {
+                    template.push(CK_ATTRIBUTE {
+                        type_: CKA_SENSITIVE,
+                        pValue: &mut sensitive as *mut _ as CK_VOID_PTR,
+                        ulValueLen: size_of::<CK_BBOOL>() as CK_ULONG,
+                    });
+                }
+                if self
+                    .call_get_attributes(key_handle, &mut template)?
+                    .is_none()
+                {
+                    return Ok(None);
+                }
+                let key_length_in_bits = modulus.len() * 8;
+
+                let label = if label_len == 0 {
+                    None
+                } else {
+                    Some(String::from_utf8(label_bytes).map_err(|e| {
+                        PError::Default(format!("Failed to convert label to string: {}", e))
+                    })?)
+                };
+                let sensitive = sensitive == CK_TRUE;
+                Ok(Some(KeyMetadata {
+                    key_type,
+                    key_length_in_bits,
+                    sensitive,
+                    label,
+                }))
+            }
+        }
+    }
+
     ///  Get the key type, sensitivity and label length
     /// # Arguments
     /// * `key_handle` - The key handle
     /// # Returns
-    /// * `Result<(KeyType, bool, usize)` - The key type, sensitivity and label length
-    pub(crate) fn get_key_basics(
-        &self,
-        key_handle: CK_OBJECT_HANDLE,
-    ) -> PResult<(KeyType, bool, usize)> {
+    /// * `Result<Option<KeyType>>` - The key type if the key exists
+    pub(crate) fn get_key_type(&self, key_handle: CK_OBJECT_HANDLE) -> PResult<Option<KeyType>> {
         let mut key_type: CK_KEY_TYPE = CKK_VENDOR_DEFINED;
         let mut class: CK_OBJECT_CLASS = CKO_VENDOR_DEFINED;
-        let mut sensitive: CK_BBOOL = CK_FALSE;
         let mut template = [
             CK_ATTRIBUTE {
                 type_: CKA_CLASS,
@@ -709,20 +829,14 @@ impl Session {
                 pValue: &mut key_type as *mut _ as CK_VOID_PTR,
                 ulValueLen: size_of::<CK_ULONG>() as CK_ULONG,
             },
-            CK_ATTRIBUTE {
-                type_: CKA_SENSITIVE,
-                pValue: &mut sensitive as *mut _ as CK_VOID_PTR,
-                ulValueLen: size_of::<CK_BBOOL>() as CK_ULONG,
-            },
-            CK_ATTRIBUTE {
-                type_: CKA_LABEL,
-                pValue: ptr::null_mut(),
-                ulValueLen: 0,
-            },
         ];
 
-        self.call_get_attributes(key_handle, &mut template)?;
-        let label_len = template[3].ulValueLen;
+        if self
+            .call_get_attributes(key_handle, &mut template)?
+            .is_none()
+        {
+            return Ok(None);
+        }
         let key_type = match key_type {
             CKK_AES => KeyType::AesKey,
             CKK_RSA => {
@@ -738,26 +852,7 @@ impl Session {
                 )));
             }
         };
-        // // filla string with label len spaces
-        // let label = if label_len > 0 {
-        //     let label_bytes: Vec<u8> = vec![b' '; label_len as usize];
-        //     Some(String::from_utf8(label_bytes).map_err(|e| {
-        //         PError::Default(format!("Failed to convert label to string: {}", e))
-        //     })?)
-        //     // let mut template = [
-        //     //     CK_ATTRIBUTE {
-        //     //         type_: CKA_LABEL,
-        //     //         pValue: label_bytes.as_mut_ptr() as CK_VOID_PTR,
-        //     //         ulValueLen: label_len,
-        //     //     },
-        //     // ];
-        //     // self.call_get_attributes(key_handle, &mut template)?;
-        //     // String::from_utf8(label_bytes)
-        //     //     .map_err(|e| PError::Default(format!("Failed to convert label to string: {}", e)))?
-        // } else {
-        //     None
-        // };
-        Ok((key_type, sensitive == CK_TRUE, label_len as usize))
+        Ok(Some(key_type))
     }
 }
 

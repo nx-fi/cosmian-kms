@@ -121,18 +121,21 @@ impl HSM for Proteccio {
         Ok(plaintext)
     }
 
-    async fn get_key_type(&self, slot_id: usize, key_id: usize) -> PluginResult<KeyType> {
+    async fn get_key_type(&self, slot_id: usize, key_id: usize) -> PluginResult<Option<KeyType>> {
         let slot = self.get_slot(slot_id)?;
         let session = slot.open_session(true)?;
-        let (key_type, ..) = session.get_key_basics(key_id as CK_OBJECT_HANDLE)?;
+        let key_type = session.get_key_type(key_id as CK_OBJECT_HANDLE)?;
         Ok(key_type)
     }
 
-    async fn get_key_metadata(&self, slot_id: usize, key_id: usize) -> PluginResult<KeyMetadata> {
+    async fn get_key_metadata(
+        &self,
+        slot_id: usize,
+        key_id: usize,
+    ) -> PluginResult<Option<KeyMetadata>> {
         let slot = self.get_slot(slot_id)?;
         let session = slot.open_session(true)?;
-        todo!("Implement get_key_metadata");
-        // let metadata = session.get_key_metadata(key_id as CK_OBJECT_HANDLE)?;
-        // Ok(metadata)
+        let metadata = session.get_key_metadata(key_id as CK_OBJECT_HANDLE)?;
+        Ok(metadata)
     }
 }

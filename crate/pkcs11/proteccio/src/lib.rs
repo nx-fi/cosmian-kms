@@ -16,7 +16,6 @@ mod session;
 
 mod kms_hsm;
 #[cfg(test)]
-#[cfg(feature = "proteccio")]
 mod tests;
 
 /// This is a macro because of the mut pointer to the params

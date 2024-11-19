@@ -196,8 +196,8 @@ pub trait HSM {
     /// * `slot_id` - the slot ID of the HSM
     /// * `key_id` - the ID of the key
     /// # Returns
-    /// * `PluginResult<KeyType>` - the type of the key
-    async fn get_key_type(&self, slot_id: usize, key_id: usize) -> PluginResult<KeyType>;
+    /// * `PluginResult<Option<KeyType>>` - the type of the key
+    async fn get_key_type(&self, slot_id: usize, key_id: usize) -> PluginResult<Option<KeyType>>;
 
     /// Get the metadata of the key.
     /// This should be two calls to the HSM.
@@ -205,6 +205,10 @@ pub trait HSM {
     /// * `slot_id` - the slot ID of the HSM
     /// * `key_id` - the ID of the key
     /// # Returns
-    /// * `PluginResult<KeyMetadata>` - the metadata of the key
-    async fn get_key_metadata(&self, slot_id: usize, key_id: usize) -> PluginResult<KeyMetadata>;
+    /// * `PluginResult<Option<KeyMetadata>>` - the metadata of the key
+    async fn get_key_metadata(
+        &self,
+        slot_id: usize,
+        key_id: usize,
+    ) -> PluginResult<Option<KeyMetadata>>;
 }
