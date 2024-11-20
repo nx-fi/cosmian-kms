@@ -773,11 +773,8 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "fips"))]
     fn test_conversion_ec_k_256_public_key() {
-        #[cfg(not(feature = "fips"))]
-        // Load FIPS provider module from OpenSSL.
-        openssl::provider::Provider::load(None, "fips").unwrap();
-
         let key_size = 256;
         let ec_group = EcGroup::from_curve_name(Nid::SECP256K1).unwrap();
         let ec_key = EcKey::generate(&ec_group).unwrap();

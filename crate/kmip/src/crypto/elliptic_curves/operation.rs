@@ -642,8 +642,9 @@ mod tests {
 
     #[test]
     #[cfg(not(feature = "fips"))]
-    fn test_p192_keypair_generation() {
+    fn test_non_fips_ecc_keypair_generation() {
         keypair_generation(RecommendedCurve::P192);
+        keypair_generation(RecommendedCurve::SECP256K1);
     }
 
     #[test]
@@ -657,7 +658,6 @@ mod tests {
         keypair_generation(RecommendedCurve::P256);
         keypair_generation(RecommendedCurve::P384);
         keypair_generation(RecommendedCurve::P521);
-        keypair_generation(RecommendedCurve::SECP256K1);
     }
 
     #[test]
