@@ -113,7 +113,10 @@ pub fn kmip_public_key_to_openssl(public_key: &Object) -> Result<PKey<Public>, K
                 RecommendedCurve::P521 => {
                     ec_public_key_from_point_encoding(q_string, Nid::SECP521R1)?
                 }
-
+                #[cfg(not(feature = "fips"))]
+                RecommendedCurve::SECP256K1 => {
+                    ec_public_key_from_point_encoding(q_string, Nid::SECP256K1)?
+                }
                 RecommendedCurve::CURVE25519 => {
                     PKey::public_key_from_raw_bytes(q_string, Id::X25519)?
                 }
@@ -285,6 +288,8 @@ pub fn openssl_public_key_to_kmip(
                         Nid::X9_62_PRIME256V1 => RecommendedCurve::P256,
                         Nid::SECP384R1 => RecommendedCurve::P384,
                         Nid::SECP521R1 => RecommendedCurve::P521,
+                        #[cfg(not(feature = "fips"))]
+                        Nid::SECP256K1 => RecommendedCurve::SECP256K1,
                         unsupported_curve => {
                             kmip_bail!(
                                 "Unsupported curve: {:?} for a Transparent EC Public Key",
@@ -762,6 +767,32 @@ mod tests {
             &public_key,
             Some(&ec_group),
             RecommendedCurve::P256,
+            Id::EC,
+            key_size,
+        );
+    }
+
+    #[test]
+    fn test_conversion_ec_k_256_public_key() {
+        #[cfg(not(feature = "fips"))]
+        // Load FIPS provider module from OpenSSL.
+        openssl::provider::Provider::load(None, "fips").unwrap();
+
+        let key_size = 256;
+        let ec_group = EcGroup::from_curve_name(Nid::SECP256K1).unwrap();
+        let ec_key = EcKey::generate(&ec_group).unwrap();
+
+        let ec_point = ec_key.public_key().to_owned(&ec_group).unwrap();
+        let ec_public_key = EcKey::from_public_key(&ec_group, &ec_point).unwrap();
+
+        let public_key = PKey::from_ec_key(ec_public_key).unwrap();
+
+        test_public_key_conversion_pkcs(&public_key, Id::EC, key_size, KeyFormatType::PKCS8);
+
+        test_public_key_conversion_transparent_ec(
+            &public_key,
+            Some(&ec_group),
+            RecommendedCurve::SECP256K1,
             Id::EC,
             key_size,
         );

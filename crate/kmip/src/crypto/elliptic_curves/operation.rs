@@ -428,6 +428,8 @@ pub fn create_approved_ecc_key_pair(
         RecommendedCurve::P256 => Nid::X9_62_PRIME256V1,
         RecommendedCurve::P384 => Nid::SECP384R1,
         RecommendedCurve::P521 => Nid::SECP521R1,
+        #[cfg(not(feature = "fips"))]
+        RecommendedCurve::SECP256K1 => Nid::SECP256K1,
         other => kmip_bail!("Curve Nid {:?} not supported by KMS", other),
     };
 
@@ -655,6 +657,7 @@ mod tests {
         keypair_generation(RecommendedCurve::P256);
         keypair_generation(RecommendedCurve::P384);
         keypair_generation(RecommendedCurve::P521);
+        keypair_generation(RecommendedCurve::SECP256K1);
     }
 
     #[test]
