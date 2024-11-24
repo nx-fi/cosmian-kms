@@ -161,14 +161,16 @@ pub(crate) fn generate_key_pair_and_tags(
                 //
                 // Sources:
                 // - NIST.SP.800-186 - Section 3.2.1.1
-                RecommendedCurve::P192 => create_approved_ecc_key_pair(
-                    private_key_uid,
-                    public_key_uid,
-                    curve,
-                    any_attributes.cryptographic_algorithm,
-                    private_key_mask,
-                    public_key_mask,
-                ),
+                RecommendedCurve::P192 | RecommendedCurve::SECP256K1 => {
+                    create_approved_ecc_key_pair(
+                        private_key_uid,
+                        public_key_uid,
+                        curve,
+                        any_attributes.cryptographic_algorithm,
+                        private_key_mask,
+                        public_key_mask,
+                    )
+                }
                 RecommendedCurve::P224
                 | RecommendedCurve::P256
                 | RecommendedCurve::P384
