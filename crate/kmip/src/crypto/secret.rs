@@ -6,7 +6,7 @@ use std::{
 use num_bigint_dig::BigUint;
 use openssl::rand::rand_bytes;
 use serde::Deserialize;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use crate::error::KmipError;
 
@@ -92,6 +92,23 @@ impl<const LENGTH: usize> Secret<LENGTH> {
         bytes.zeroize();
         secret
     }
+
+    /// Creates a secret from a zeroizing vector.
+    /// The source is zeroized after the operation.
+    pub fn from_zeroizing_vector(bytes: &mut Zeroizing<Vec<u8>>) -> Result<Self, KmipError> {
+        // return error if vector is of wrong length
+        if bytes.len() != LENGTH {
+            return Err(KmipError::InvalidSize(format!(
+                "Invalid vector length {}, should be {}",
+                bytes.len(),
+                LENGTH
+            )));
+        }
+        let mut secret = Self::new();
+        secret.copy_from_slice(bytes.as_slice());
+        bytes.zeroize();
+        Ok(secret)
+    }
 }
 
 impl<const LENGTH: usize> Default for Secret<LENGTH> {
@@ -127,3 +144,21 @@ impl<const LENGTH: usize> Drop for Secret<LENGTH> {
 }
 
 impl<const LENGTH: usize> ZeroizeOnDrop for Secret<LENGTH> {}
+
+impl<const LENGTH: usize> From<&SafeBigUint> for Secret<LENGTH> {
+    fn from(value: &SafeBigUint) -> Self {
+        let mut secret = Self::new();
+        let bytes = value.to_bytes_be();
+        secret.copy_from_slice(&bytes);
+        secret
+    }
+}
+
+impl<const LENGTH: usize> From<&Box<SafeBigUint>> for Secret<LENGTH> {
+    fn from(value: &Box<SafeBigUint>) -> Self {
+        let mut secret = Self::new();
+        let bytes = value.to_bytes_be();
+        secret.copy_from_slice(&bytes);
+        secret
+    }
+}

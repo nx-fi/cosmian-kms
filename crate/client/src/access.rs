@@ -51,6 +51,8 @@ pub enum ObjectOperationType {
     Revoke,
     Rekey,
     Validate,
+    Sign,
+    SignatureVerify,
 }
 
 impl fmt::Debug for ObjectOperationType {
@@ -75,6 +77,8 @@ impl fmt::Display for ObjectOperationType {
             Self::Revoke => "revoke",
             Self::Rekey => "rekey",
             Self::Validate => "validate",
+            Self::Sign => "sign",
+            Self::SignatureVerify => "signature_verify",
         };
         write!(f, "{str}")
     }
@@ -100,6 +104,9 @@ impl FromStr for ObjectOperationType {
             "locate" => Ok(Self::Locate),
             "rekey" => Ok(Self::Rekey),
             "revoke" => Ok(Self::Revoke),
+            "validate" => Ok(Self::Validate),
+            "sign" => Ok(Self::Sign),
+            "signature_verify" => Ok(Self::SignatureVerify),
             _ => Err("Could not parse an operation {op}"),
         }
     }

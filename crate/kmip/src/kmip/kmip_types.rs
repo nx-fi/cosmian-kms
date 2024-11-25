@@ -2454,7 +2454,7 @@ pub enum PaddingMethod {
     PSS = 0x0000_000A,
 }
 
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, clippy::enum_clike_unportable_variant)]
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq)]
 pub enum HashingAlgorithm {
     MD2 = 0x0000_0001,
@@ -2474,6 +2474,8 @@ pub enum HashingAlgorithm {
     SHA3256 = 0x0000_000F,
     SHA3384 = 0x0000_0010,
     SHA3512 = 0x0000_0011,
+    // extensions
+    Keccak256 = 0x8000_0001,
 }
 
 impl TryFrom<HashingAlgorithm> for &'static MdRef {
@@ -2547,7 +2549,7 @@ pub enum KeyRoleType {
     TRKBK = 0x0000_0018,
 }
 
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, clippy::enum_clike_unportable_variant)]
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq)]
 pub enum DigitalSignatureAlgorithm {
     MD2WithRSAEncryption = 0x0000_0001,
@@ -2569,6 +2571,8 @@ pub enum DigitalSignatureAlgorithm {
     SHA3256WithRSAEncryption = 0x0000_0011,
     SHA3384WithRSAEncryption = 0x0000_0012,
     SHA3512WithRSAEncryption = 0x0000_0013,
+    // extensions
+    ECDSAWithKeccak256 = 0x8000_0001,
 }
 
 #[allow(non_camel_case_types)]
