@@ -9,7 +9,7 @@
     let_underscore,
     rust_2024_compatibility,
     unreachable_pub,
-    unused,
+    //unused,
     unsafe_code,
     clippy::all,
     clippy::suspicious,

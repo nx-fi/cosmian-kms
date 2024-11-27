@@ -59,7 +59,7 @@
 pub use error::{result::KmipResultHelper, KmipError};
 
 pub mod crypto;
-mod error;
+pub mod error;
 pub mod kmip;
 pub mod openssl;
 

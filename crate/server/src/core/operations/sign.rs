@@ -1,7 +1,5 @@
-use std::{cmp::min, collections::HashSet, default::Default};
-
 use alloy::{
-    primitives::FixedBytes,
+    primitives::{FixedBytes, Signature},
     signers::{
         local::{LocalSigner, PrivateKeySigner},
         SignerSync,
@@ -10,45 +8,18 @@ use alloy::{
 use cosmian_kmip::{
     crypto::secret::Secret,
     kmip::{
-        extra::{x509_extensions, VENDOR_ATTR_X509_EXTENSION, VENDOR_ID_COSMIAN},
         kmip_data_structures::KeyMaterial,
         kmip_objects::{Object, ObjectType},
         kmip_operations::{ErrorReason, Sign, SignResponse},
         kmip_types::{
-            Attributes, CertificateAttributes, CertificateRequestType, CryptographicAlgorithm,
-            CryptographicParameters, CryptographicUsageMask, KeyFormatType, LinkType,
-            LinkedObjectIdentifier, RecommendedCurve, StateEnumeration, UniqueIdentifier,
+            CryptographicUsageMask, KeyFormatType, RecommendedCurve, StateEnumeration,
+            UniqueIdentifier,
         },
     },
-    kmip_bail,
-    openssl::{
-        kmip_certificate_to_openssl, kmip_private_key_to_openssl, kmip_public_key_to_openssl,
-        openssl_certificate_to_kmip,
-    },
-    pad_be_bytes, KmipError,
-};
-#[cfg(feature = "fips")]
-use cosmian_kmip::{
-    crypto::{
-        elliptic_curves::{
-            FIPS_PRIVATE_ECC_MASK_ECDH, FIPS_PRIVATE_ECC_MASK_SIGN,
-            FIPS_PRIVATE_ECC_MASK_SIGN_ECDH, FIPS_PUBLIC_ECC_MASK_ECDH, FIPS_PUBLIC_ECC_MASK_SIGN,
-            FIPS_PUBLIC_ECC_MASK_SIGN_ECDH,
-        },
-        rsa::{FIPS_PRIVATE_RSA_MASK, FIPS_PUBLIC_RSA_MASK},
-    },
-    kmip::kmip_types::{CryptographicAlgorithm, CryptographicUsageMask},
+    kmip_bail, KmipError,
 };
 use cosmian_kms_client::access::ObjectOperationType;
-use openssl::{
-    ec::EcKey,
-    hash::MessageDigest,
-    pkey::{Id, PKey, Public},
-    sign::Signer,
-    x509::X509,
-};
-use tracing::{debug, trace};
-use zeroize::Zeroizing;
+use tracing::trace;
 
 use crate::{
     core::{extra_database_params::ExtraDatabaseParams, operations::unwrap_key, KMS},
@@ -56,7 +27,6 @@ use crate::{
     error::KmsError,
     kms_bail,
     result::{KResult, KResultHelper},
-    routes::kmip::kmip,
 };
 
 const EMPTY_SLICE: &[u8] = &[];
@@ -166,20 +136,29 @@ async fn get_key(
 
 fn sign_digest_with_private_key(owm: &ObjectWithMetadata, request: &Sign) -> KResult<SignResponse> {
     let private_key = private_key_to_raw(&owm.object)?;
-    let signer: PrivateKeySigner = LocalSigner::from_slice(&private_key)
-        .unwrap_or_else(|_| kmip_bail!("sign: could not create a signer from the private key"));
+    let signer: PrivateKeySigner = LocalSigner::from_slice(&private_key).map_err(|_e| {
+        KmsError::CryptographicError(
+            "sign: could not create a signer from the private key".to_owned(),
+        )
+    })?;
 
-    let signature = signer.sign_hash_sync(
+    let digested_bytes = FixedBytes::<32>::try_from(
         request
             .digested_data
             .as_ref()
-            .context("sign: digested_data must be provided"),
-    );
+            .ok_or_else(|| KmsError::CryptographicError("sign: missing digested data".to_owned()))?
+            .as_slice(),
+    )
+    .map_err(|_e| KmsError::CryptographicError("sign: invalid digested data length".to_owned()))?;
+
+    let signature = signer
+        .sign_hash_sync(&digested_bytes)
+        .map_err(|_e| KmsError::CryptographicError("sign: sign hash failed".to_owned()))?;
 
     Ok(SignResponse {
-        unique_identifier: Some(UniqueIdentifier::from(owm.object.unique_identifier())),
-        signature: Some(signature.into()),
-        correlation_value: None,
+        unique_identifier: UniqueIdentifier::TextString(owm.id.clone()),
+        signature: None, //Some(signature.into()),
+        correlation_value: request.correlation_value.clone(),
     })
 }
 
