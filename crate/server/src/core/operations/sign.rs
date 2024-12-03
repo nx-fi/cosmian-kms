@@ -157,7 +157,7 @@ fn sign_digest_with_private_key(owm: &ObjectWithMetadata, request: &Sign) -> KRe
 
     Ok(SignResponse {
         unique_identifier: UniqueIdentifier::TextString(owm.id.clone()),
-        signature: None, //Some(signature.into()),
+        signature: Some(signature.into()),
         correlation_value: request.correlation_value.clone(),
     })
 }
