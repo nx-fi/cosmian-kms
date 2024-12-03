@@ -33,7 +33,7 @@ pub(crate) async fn kmip(
     let user = kms.get_user(&req_http);
     info!(target: "kmip", user=user, tag=ttlv.tag.as_str(), "POST /kmip. Request: {:?} {}", ttlv.tag.as_str(), user);
 
-    let ttlv = handle_ttlv(&kms, &ttlv, &user, database_params.as_ref()).await?;
+    let ttlv = Box::pin(handle_ttlv(&kms, &ttlv, &user, database_params.as_ref())).await?;
     Ok(Json(ttlv))
 }
 
@@ -52,7 +52,7 @@ async fn handle_ttlv(
 ) -> KResult<TTLV> {
     if ttlv.tag.as_str() == "Message" {
         let req = from_ttlv::<Message>(ttlv)?;
-        let resp = kms.message(req, user, database_params).await?;
+        let resp = Box::pin(kms.message(req, user, database_params)).await?;
         Ok(to_ttlv(&resp)?)
     } else {
         let operation = dispatch(kms, ttlv, user, database_params).await?;

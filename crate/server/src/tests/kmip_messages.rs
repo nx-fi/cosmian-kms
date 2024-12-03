@@ -55,7 +55,7 @@ async fn test_kmip_messages() -> KResult<()> {
         items,
     };
 
-    let response = kms.message(message_request, owner, None).await?;
+    let response = Box::pin(kms.message(message_request, owner, None)).await?;
     assert_eq!(response.header.batch_count, 3);
     assert_eq!(response.items.len(), 3);
 

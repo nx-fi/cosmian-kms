@@ -226,7 +226,7 @@ async fn test_curve_25519_multiple() -> KResult<()> {
         ],
     };
 
-    let response = kms.message(request, owner, None).await?;
+    let response = Box::pin(kms.message(request, owner, None)).await?;
     assert_eq!(response.header.batch_count, 2);
 
     let request = Message {
@@ -263,7 +263,7 @@ async fn test_curve_25519_multiple() -> KResult<()> {
         ],
     };
 
-    let response = kms.message(request, owner, None).await?;
+    let response = Box::pin(kms.message(request, owner, None)).await?;
     assert_eq!(response.header.batch_count, 4);
     assert_eq!(response.items.len(), 4);
 
