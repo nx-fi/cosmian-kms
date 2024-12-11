@@ -1,8 +1,8 @@
 use cosmian_kmip::kmip::{
     kmip_operations::{
         Certify, Create, CreateKeyPair, Decrypt, DeleteAttribute, Destroy, Encrypt, Export, Get,
-        GetAttributes, Import, Locate, Operation, ReKey, ReKeyKeyPair, Revoke, SetAttribute,
-        Validate,
+        GetAttributes, Import, Locate, Operation, ReKey, ReKeyKeyPair, Revoke, SetAttribute, Sign,
+        SignatureVerify, Validate,
     },
     ttlv::{deserializer::from_ttlv, TTLV},
 };
@@ -101,6 +101,16 @@ pub(crate) async fn dispatch(
             let req = from_ttlv::<Revoke>(ttlv)?;
             let resp = kms.revoke(req, user, database_params).await?;
             Operation::RevokeResponse(resp)
+        }
+        "Sign" => {
+            let req = from_ttlv::<Sign>(ttlv)?;
+            let resp = kms.sign(req, user, database_params).await?;
+            Operation::SignResponse(resp)
+        }
+        "SignatureVerify" => {
+            let req = from_ttlv::<SignatureVerify>(ttlv)?;
+            let resp = kms.signature_verify(req, user, database_params).await?;
+            Operation::SignatureVerifyResponse(resp)
         }
         "Validate" => {
             let req = from_ttlv::<Validate>(ttlv)?;

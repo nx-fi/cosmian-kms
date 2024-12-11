@@ -1,5 +1,5 @@
 use alloy::{
-    primitives::{FixedBytes, Signature},
+    primitives::{FixedBytes, PrimitiveSignature},
     signers::{
         local::{LocalSigner, PrivateKeySigner},
         SignerSync,
