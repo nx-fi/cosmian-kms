@@ -18,7 +18,8 @@ use cosmian_kmip::{
             DestroyResponse, Encrypt, EncryptResponse, Export, ExportResponse, Get, GetAttributes,
             GetAttributesResponse, GetResponse, Import, ImportResponse, Locate, LocateResponse,
             ReKey, ReKeyKeyPair, ReKeyKeyPairResponse, ReKeyResponse, Revoke, RevokeResponse,
-            SetAttribute, SetAttributeResponse, Sign, SignResponse, Validate, ValidateResponse,
+            SetAttribute, SetAttributeResponse, Sign, SignResponse, SignatureVerify,
+            SignatureVerifyResponse, Validate, ValidateResponse,
         },
         kmip_types::{StateEnumeration, UniqueIdentifier},
     },
@@ -533,6 +534,15 @@ impl KMS {
         params: Option<&ExtraDatabaseParams>,
     ) -> KResult<SignResponse> {
         operations::sign(self, request, user, params).await
+    }
+
+    pub(crate) async fn signature_verify(
+        &self,
+        request: SignatureVerify,
+        user: &str,
+        params: Option<&ExtraDatabaseParams>,
+    ) -> KResult<SignatureVerifyResponse> {
+        operations::signature_verify(self, request, user, params).await
     }
 
     /// This operation requests the server to revoke a Managed Cryptographic
