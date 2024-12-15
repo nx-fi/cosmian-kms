@@ -339,6 +339,10 @@ impl<'de> Deserialize<'de> for MessageBatchItem {
                                 OperationEnumeration::Export => {
                                     Operation::Export(map.next_value()?)
                                 }
+                                OperationEnumeration::Sign => Operation::Sign(map.next_value()?),
+                                OperationEnumeration::SignatureVerify => {
+                                    Operation::SignatureVerify(map.next_value()?)
+                                }
                                 _ => return Err(de::Error::missing_field("valid enum operation")),
                             });
                         }
@@ -752,6 +756,12 @@ impl<'de> Deserialize<'de> for MessageResponseBatchItem {
                                 }
                                 OperationEnumeration::Export => {
                                     Operation::ExportResponse(map.next_value()?)
+                                }
+                                OperationEnumeration::Sign => {
+                                    Operation::SignResponse(map.next_value()?)
+                                }
+                                OperationEnumeration::SignatureVerify => {
+                                    Operation::SignatureVerifyResponse(map.next_value()?)
                                 }
                                 _ => {
                                     return Err(de::Error::missing_field(

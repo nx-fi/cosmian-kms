@@ -151,16 +151,10 @@ fn verify_signature_with_public_key(
         .context("SignatureVerify: signature recovery error")?
         == VerifyingKey::from_sec1_bytes(pubkey.as_slice())
             .context("SignatureVerify: key recovery error")?;
-<<<<<<< HEAD
     let valid: ValidityIndicator = if valid {
         ValidityIndicator::Valid
     } else {
         ValidityIndicator::Invalid
-=======
-    let valid: ValidityIndicator = match valid {
-        true => ValidityIndicator::Valid,
-        false => ValidityIndicator::Invalid,
->>>>>>> ce9dd501aa0b1b99d52e2785c236bbd9b09debd4
     };
 
     Ok(SignatureVerifyResponse {
